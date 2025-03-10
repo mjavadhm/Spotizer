@@ -192,12 +192,13 @@ class DownloadModel:
     def get_track_by_deezer_id_quality(self, user_id, deezer_id, quality):
         """Get track by deezer id and quality"""
         try:
+            deezer_id = str(deezer_id)
             with get_connection() as conn:
                 with conn.cursor() as cur:
                     query = """
                             SELECT track_id, file_id, title, artist, album, download_count, quality, duration, file_name
                             FROM tracks
-                            WHERE deezer_id = %s AND quality = %s
+                            WHERE track_id = %s AND quality = %s
                         """
                     params = [deezer_id, quality]
                     cur.execute(query, params)
@@ -224,10 +225,11 @@ class DownloadModel:
     def add_track(self, user_id, deezer_id, content_type, file_id, quality, title, artist, album, duration=None, file_name=None, url=None):
         """Add a new track to the database"""
         try:
+            deezer_id = str(deezer_id)
             with get_connection() as conn:
                 with conn.cursor() as cur:
                     query = """
-                    INSERT INTO tracks (user_id, deezer_id, content_type, file_id, quality, title, artist, album, duration, file_name, url)
+                    INSERT INTO tracks (user_id, track_id, content_type, file_id, quality, title, artist, album, duration, file_name, url)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """
                     params = [user_id, deezer_id, content_type, file_id, quality, title, artist, album, duration, file_name, url]

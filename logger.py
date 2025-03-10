@@ -63,8 +63,8 @@ class CustomHandler(logging.Handler):
             if "message can't be forwarded" not in log_entry:
                 send_error_to_external_service(log_entry)
         # Uncomment to enable INFO level forwarding
-        elif record.levelname == 'INFO':
-            send_info_to_external_service(log_entry)
+        # elif record.levelname == 'INFO':
+        #     send_info_to_external_service(log_entry)
 
 
 # Create and add the custom handler
