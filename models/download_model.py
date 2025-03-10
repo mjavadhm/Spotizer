@@ -1,10 +1,10 @@
-import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from database.connection import get_connection
+from logger import get_logger
+logger = get_logger(__name__)
 
         
-logger = logging.getLogger(__name__)
 
 class DownloadModel:
     def add_download(self, user_id: int, track_info: Dict[str, Any], file_path: str, quality: str) -> bool:

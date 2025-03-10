@@ -9,8 +9,8 @@ from utils.file_handler import FileHandler
 from utils.url_validator import URLValidator
 from aiogram.types import FSInputFile
 from bot import bot
-
-logger = logging.getLogger(__name__)
+from logger import get_logger
+logger = get_logger(__name__)
 
 
 class DownloadController:

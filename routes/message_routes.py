@@ -6,6 +6,8 @@ from controllers.download_controller import DownloadController
 from utils.url_validator import URLValidator
 from views.message_view import MessageView
 from views.music_view import MusicView
+from logger import get_logger
+logger = get_logger(__name__)
 
 def setup_message_routes(dp: Router, download_controller: DownloadController):
     """Set up message route handlers"""

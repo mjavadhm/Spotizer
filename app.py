@@ -13,17 +13,13 @@ from routes.command_routes import setup_command_routes
 from routes.message_routes import setup_message_routes
 from routes.callback_routes import setup_callback_routes
 from bot import bot
+from logger import get_logger
+logger = get_logger(__name__)
 
 # Load environment variables
 load_dotenv()
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(module)s - %(funcName)s - %(filename)s:%(lineno)d - %(message)s',
-    handlers=[logging.StreamHandler()]
-)
-logger = logging.getLogger(__name__)
 
 # Bot configuration
 API_BASE_URL = 'http://89.22.236.107:9097'
