@@ -7,10 +7,11 @@ from services.deezer_service import DeezerService
 from services.spotify_service import SpotifyService
 from utils.file_handler import FileHandler
 from utils.url_validator import URLValidator
-from aiogram import Bot
 from aiogram.types import FSInputFile
+from bot import bot
 
 logger = logging.getLogger(__name__)
+
 
 class DownloadController:
     def __init__(self):
@@ -21,7 +22,7 @@ class DownloadController:
         self.file_handler = FileHandler()
         self.url_validator = URLValidator()
 
-    async def process_download_request(self, user_id, url, tg_bot: Bot):
+    async def process_download_request(self, user_id, url):
         """Process download request from user"""
         try:
             if not self.url_validator.is_valid_url(url):
@@ -42,7 +43,7 @@ class DownloadController:
             if make_zip and 'track' not in url:
                 existing_zip = self.download_model.get_track_by_deezer_id_quality(user_id, deezer_id, quality)
                 if existing_zip:
-                    await tg_bot.send_document(
+                    await bot.send_document(
                         chat_id=user_id,
                         document=existing_zip['file_id'],
                         caption=f"@Spotizer_bot 🎧"
@@ -52,7 +53,7 @@ class DownloadController:
                 if smart.album:
                     file_path = smart.album.zip_path
                     document = FSInputFile(file_path)
-                    sent_message = await tg_bot.send_document(
+                    sent_message = await bot.send_document(
                         chat_id=user_id, 
                         document=document, 
                         caption=f"@Spotizer_bot 🎧"
@@ -75,7 +76,7 @@ class DownloadController:
                 elif smart.playlist:
                     file_path = smart.playlist.zip_path
                     document = FSInputFile(file_path)
-                    sent_message = await tg_bot.send_document(
+                    sent_message = await bot.send_document(
                         chat_id=user_id, 
                         document=document, 
                         caption=f"@Spotizer_bot 🎧"
@@ -95,13 +96,13 @@ class DownloadController:
                     os.remove(file_path)
                     logger.info(f"File {file_path} has been deleted.")
             else:
-                track_ids = self.deezer_service.get_track_list(content_type, deezer_id)
+                track_ids = await self.deezer_service.get_track_list(content_type, deezer_id)
                 musics_playlist = []
                 for track_id in track_ids:
                     # checking db for catched tracks
                     existing_track = self.download_model.get_track_by_deezer_id_quality(user_id, deezer_id, quality)
                     if existing_track:
-                        await tg_bot.send_audio(
+                        await bot.send_audio(
                             chat_id=user_id,
                             audio=existing_track['file_id'],
                             caption=f"@Spotizer_bot 🎧",
@@ -140,7 +141,7 @@ class DownloadController:
                                 finally:
                                     artist = "Unknown Artist"
 
-                            sent_message = await tg_bot.send_audio(
+                            sent_message = await bot.send_audio(
                                 chat_id=user_id,
                                 audio=audio_file,
                                 caption=f"@Spotizer_bot 🎧",
@@ -166,7 +167,7 @@ class DownloadController:
                             os.remove(file_path)
                 filename=f'deezer_{deezer_id}.m3u'
                 await self.file_handler.playlist_creator(musics_playlist, filename)
-                await tg_bot.send_document(
+                await bot.send_document(
                     chat_id=user_id,
                     document=FSInputFile(filename),
                     caption="<a href='https://telegra.ph/How-to-Use-M3U-Playlists-03-02'>What is this and how can I use it?</a>\n\n@Spotizer_bot 🎧",

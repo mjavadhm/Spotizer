@@ -6,83 +6,12 @@ import re
 from dataclasses import dataclass
 from typing import Optional, Tuple, Dict, Any
 from utils.file_handler import FileHandler
-from typing import Optional
-# from deezloader.model.smart import Smart
-class Track:
-    def __init__(
-        self,
-        tags: dict,
-        song_path: str,
-        file_format: str,
-        quality: str,
-        link: str,
-        ids: int
-    ) -> None:
-        self.tags = tags
-        self.__set_tags()
-        self.song_name = f"{self.title} - {self.artist}"
-        self.song_path = song_path
-        self.file_format = file_format
-        self.quality = quality
-        self.link = link
-        self.ids = ids
-        self.md5_image = None
-        self.success = True
-        self.__set_track_md5()
-
-    def __set_tags(self):
-        for tag, value in self.tags.items():
-            setattr(
-                self, tag, value
-            )
-
-    def __set_track_md5(self):
-        self.track_md5 = f"track/{self.ids}"
-
-    def set_fallback_ids(self, fallback_ids):
-        self.fallback_ids = fallback_ids
-        self.fallback_track_md5 = f"track/{self.fallback_ids}"
-
-
-class Album:
-    def __init__(self, ids: int) -> None:
-        self.tracks: list[Track] = []
-        self.zip_path = None
-        self.image = None
-        self.album_quality = None
-        self.md5_image = None
-        self.ids = ids
-        self.nb_tracks = None
-        self.title = None
-        self.artist = None
-        self.upc = None
-        self.tags = None
-        self.__set_album_md5()
-
-    def __set_album_md5(self):
-        self.album_md5 = f"album/{self.ids}"
-
-
-class Playlist:
-    def __init__(self, ids: int) -> None:
-        self.tracks: list[Track] = []
-        self.zip_path = None
-        self.ids = ids
-        self.title = None
-
-
-class Smart:
-    def __init__(self) -> None:
-        self.track: Optional[Track] = None
-        self.album: Optional[Album] = None
-        self.playlist: Optional[Playlist] = None
-        self.type = None
-        self.source = None
+from deezloader.models.smart import Smart
 
 
 logger = logging.getLogger(__name__)
 arl = os.getenv('DEEZER_ARL')
-deedownload = DeeLogin(arl=arl)
+deedownload = DeeLogin(arl="4f843574c19f3063f060c139878478063249e932b57d5f653f14dbee898dd5430b79e71e166324ade5e44fa3e41dc6d4e8f593ea67451e3d20933d71ca45c32401942d18ee623f6c5bc75416d9d634afd4998659d167cc0dae05d2d08f17c05b")
 @dataclass
 class DownloadResult:
     success: bool
@@ -94,12 +23,6 @@ class DeezerService:
     def __init__(self):
         self.file_handler = FileHandler()
     
-        if not self.arl:
-            logger.error("DEEZER_ARL environment variable is not set")
-        elif len(self.arl) < 100:  # ARL tokens are typically longer than 100 characters
-            logger.error("DEEZER_ARL token appears to be invalid or truncated")
-        self.download_url = "https://api.deezer.com/track/{track_id}/download"
-
     async def download(self, url: str, output_folder="downloads", quality_download: str = 'MP3_320', make_zip: bool = False) -> Smart:
         """Download track/album/playlist from Deezer"""
         try:

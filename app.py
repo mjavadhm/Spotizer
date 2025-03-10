@@ -12,6 +12,7 @@ from database.connection import setup_database
 from routes.command_routes import setup_command_routes
 from routes.message_routes import setup_message_routes
 from routes.callback_routes import setup_callback_routes
+from bot import bot
 
 # Load environment variables
 load_dotenv()
@@ -31,12 +32,9 @@ TOKEN = os.getenv('BOT_TOKEN')
 class MusicDownloaderBot:
     def __init__(self):
         """Initialize the bot with all necessary components"""
-        # Set up API server and session
-        self.api_server = TelegramAPIServer.from_base(base=API_BASE_URL)
-        self.session = AiohttpSession(api=self.api_server)
         
         # Initialize bot and dispatcher
-        self.bot = Bot(token=TOKEN, session=self.session)
+        self.bot = bot
         self.dp = Dispatcher()
         
         # Initialize controllers
@@ -80,8 +78,8 @@ async def main():
     """Main entry point"""
     try:
         # Create and start bot
-        bot = MusicDownloaderBot()
-        await bot.start()
+        music_downloader_bot = MusicDownloaderBot()
+        await music_downloader_bot.start()
         
     except Exception as e:
         logger.error(f"Fatal error: {str(e)}")
@@ -89,7 +87,7 @@ async def main():
     finally:
         # Ensure proper cleanup
         if 'bot' in locals():
-            await bot.bot.session.close()
+            await music_downloader_bot.bot.session.close()
             logger.info("Bot session closed")
 
 if __name__ == "__main__":
