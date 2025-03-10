@@ -235,7 +235,7 @@ class SpotifyService:
                     'main_artist': album['artists'][0]['name'],
                     'release_date': album['release_date'],
                     'total_tracks': album['total_tracks'],
-                    'image': album['album']['images'][0]['url'],
+                    'image': album['images'][0]['url'],
                     'images': album['images'],
                     'tracks': [
                         {
