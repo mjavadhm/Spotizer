@@ -1,5 +1,6 @@
 import os
 import requests
+import json
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 from typing import Optional, Dict, Any, List
@@ -192,7 +193,7 @@ class SpotifyService:
             if item_type == 'track':
                 track = self.sp.track(item_id)
                 # audio_features = self.sp.audio_features(item_id)[0]
-                
+                print(json.dumps(track, indent=4, ensure_ascii=False))
                 info = {
                     'id': track['id'],
                     'name': track['name'],
