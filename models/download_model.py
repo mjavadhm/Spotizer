@@ -218,7 +218,7 @@ class DownloadModel:
             with get_connection() as conn:
                 with conn.cursor() as cur:
                     query = """
-                    INSERT INTO tracks (user_id, deezer_id, content_type, file_id, quality, title, artist, album)
+                    INSERT INTO tracks (user_id, track_id, content_type, file_id, quality, title, artist, album)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     """
                     params = [user_id, deezer_id, content_type, file_id, quality, title, artist, album]
