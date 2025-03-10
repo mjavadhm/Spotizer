@@ -198,8 +198,10 @@ class SpotifyService:
                     'name': track['name'],
                     'artists': [{'id': artist['id'], 'name': artist['name']} for artist in track['artists']],
                     'main_artist': track['artists'][0]['name'],
+                    'url': track['external_urls']['spotify'],
                     'duration_ms': track['duration_ms'],
                     'duration': self._format_duration(track['duration_ms']),
+                    'explicit': track['explicit'],
                     'image': track['album']['images'][0]['url'],
                     'album': {
                         'id': track['album']['id'],
@@ -246,7 +248,8 @@ class SpotifyService:
                         }
                         for track in tracks
                     ],
-                    'type': 'album'
+                    'type': 'album',
+                    'url': album['external_urls']['spotify'],
                 }
                 
                 logger.info(f"Retrieved album info: {info['name']}")
@@ -278,7 +281,9 @@ class SpotifyService:
                         for item in playlist['tracks']['items']
                         if item['track']  # Some tracks might be None
                     ],
+                    'url': playlist['external_urls']['spotify'],
                     'type': 'playlist'
+                    
                 }
                 
                 logger.info(f"Retrieved playlist info: {info['name']}")

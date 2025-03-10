@@ -70,12 +70,25 @@ class MusicView:
         artists = ", ".join([artist['name'] for artist in track['artists']])
         
         info = [
-            f"🎵 *{track['name']}*",
-            f"👤 Artist: {artists}",
-            f"💿 Album: {track['album']['name']}",
+            f"🎵 *{track['name']}*\n",
+            f"👤 Artist: {artists}\n",
+            f"💿 Album: {track['album']['name']}\n",
             f"⏱ Duration: {track['duration']}",
             f"📅 Release: {track['album']['release_date']}"
         ]
+        text = f"""🎵 *Track:* [{track['name']}]({track['url']})
+
+👤 *Artist:* {track['main_artist']}
+
+💿 *Album:* {track['album']['name']}
+
+📅 *Released:* {track['album']['release_date']}
+
+⏱ *Duration:* {track['duration']}
+
+🔥 *Popularity:* {track['popularity']}/100
+
+🔞 *Explicit:* {'Yes' if track['explicit'] else 'No'}"""
         
         if 'audio_features' in track:
             features = track['audio_features']
@@ -86,8 +99,16 @@ class MusicView:
                 f"🎹 Key: {features['key']}",
                 f"⏰ Tempo: {int(features['tempo'])} BPM"
             ])
+            text += f"""
+🎛 *Audio Features:*
+• Danceability: {features['danceability']:.2f}
+• Energy: {features['energy']:.2f}
+• Tempo: {features['tempo']:.0f} BPM
+• Key: {features['key']}
+• Time Signature: {features['time_signature']}/4"""
         
-        return "\n".join(info)
+        # return "\n".join(info)
+        return text
 
     @staticmethod
     def get_track_keyboard(track: Dict[str, Any]) -> InlineKeyboardMarkup:
@@ -98,7 +119,15 @@ class MusicView:
                 callback_data=f"download:track:{track['id']}"
             )],
             [InlineKeyboardButton(
-                text="❌ Close",
+                text=f"🎨 Artist:{track['main_artist']}",
+                callback_data=f"select:artist:{track['artists'][0]['id']}"
+            )],
+            [InlineKeyboardButton(
+                text=f"📀 Album:{track['album']['name']}",
+                callback_data=f"select:album:{track['album']['id']}"
+            )],
+            [InlineKeyboardButton(
+                text="❌",
                 callback_data="delete"
             )]
         ]
@@ -110,10 +139,10 @@ class MusicView:
         artists = ", ".join([artist['name'] for artist in album['artists']])
         
         info = [
-            f"💿 *{album['name']}*",
-            f"👤 Artist: {artists}",
-            f"📅 Release: {album['release_date']}",
-            f"🎵 Tracks: {album['total_tracks']}"
+            f"📀 *Album:* [{album['name']}]({album['url']})\n",
+            f"👤 *Artist:* {artists}\n",
+            f"📅 *Release:* {album['release_date']}\n",
+            f"🎵 *Tracks:* {album['total_tracks']}"
         ]
         
         return "\n".join(info)
@@ -123,15 +152,19 @@ class MusicView:
         """Create keyboard for album view"""
         buttons = [
             [InlineKeyboardButton(
-                text="📋 View Tracks",
-                callback_data=f"view:album:tracks:{album['id']}"
-            )],
-            [InlineKeyboardButton(
                 text="⬇️ Download Album",
                 callback_data=f"download:album:{album['id']}"
             )],
             [InlineKeyboardButton(
-                text="❌ Close",
+                text="📋 View Tracks",
+                callback_data=f"view:album:tracks:{album['id']}"
+            )],
+            [InlineKeyboardButton(
+                text=f"🎨 Artist:{album['main_artist']}",
+                callback_data=f"select:artist:{album['artists'][0]['id']}"
+            )],
+            [InlineKeyboardButton(
+                text="❌",
                 callback_data="delete"
             )]
         ]
@@ -141,9 +174,9 @@ class MusicView:
     def format_playlist_info(playlist: Dict[str, Any]) -> str:
         """Format playlist information"""
         info = [
-            f"📑 *{playlist['name']}*",
-            f"👤 Created by: {playlist['owner']['name']}",
-            f"🎵 Tracks: {playlist['total_tracks']}"
+            f"📑 *Playlist:* [{playlist['name']}]({playlist['url']})\n",
+            f"ℹ️ *Description:* {playlist['description']}\n",
+            f"🎵 *Tracks:* {playlist['total_tracks']}"
         ]
         
         if playlist.get('description'):
@@ -164,7 +197,7 @@ class MusicView:
                 callback_data=f"download:playlist:{playlist['id']}"
             )],
             [InlineKeyboardButton(
-                text="❌ Close",
+                text="❌",
                 callback_data="delete"
             )]
         ]
@@ -179,7 +212,7 @@ class MusicView:
                 callback_data=f"select:{content_type}:{item_id}"
             )],
             [InlineKeyboardButton(
-                text="❌ Close",
+                text="❌",
                 callback_data="delete"
             )]
         ]
