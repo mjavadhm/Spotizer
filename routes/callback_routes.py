@@ -186,10 +186,10 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                 logger.error(f"Invalid content type for user {user_id}: {content_type}")
                 await callback_query.answer("Invalid content type")
                 return
-            
+
             await callback_query.message.answer_photo(
-                text,
                 photo=item_info['image'],
+                caption=text,
                 reply_markup=keyboard,
                 parse_mode="Markdown"
             )
@@ -232,8 +232,8 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
             keyboard = MusicView.get_back_keyboard(content_type, item_id)
             
             await callback_query.message.answer_photo(
-                text,
                 photo=item_info['image'],
+                caption=text,
                 reply_markup=keyboard,
                 parse_mode="Markdown"
             )
