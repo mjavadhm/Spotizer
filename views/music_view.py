@@ -1,171 +1,200 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from typing import Tuple, Dict, Any, List
 
 class MusicView:
     @staticmethod
-    def format_track_info(track):
-        """Format track information for display"""
-        # Format audio features if available
-        audio_features = ""
-        if 'audio_features' in track:
-            af = track['audio_features']
-            audio_features = f"""
-🎛 *Audio Features:*
-• Danceability: {af['danceability']:.2f}
-• Energy: {af['energy']:.2f}
-• Tempo: {af['tempo']:.0f} BPM
-• Key: {af['key']}
-• Time Signature: {af['time_signature']}/4"""
-
-        text = f"""🎵 *Track:* [{track['name']}]({track['url']})
-
-👤 *Artist:* {track['main_artist']}
-
-💿 *Album:* {track['album']['name']}
-
-📅 *Released:* {track['album']['release_date']}
-
-⏱ *Duration:* {track['duration']}
-
-🔥 *Popularity:* {track['popularity']}/100
-
-🔞 *Explicit:* {'Yes' if track['explicit'] else 'No'}
-{audio_features}"""
-
-        return text
-
-    @staticmethod
-    def get_track_keyboard(track):
-        """Create keyboard for track interactions"""
-        buttons = [
-            [InlineKeyboardButton(text="📥 Download", callback_data=f"download:track:{track['id']}")],
-            [InlineKeyboardButton(text="🎨 Artist", callback_data=f"select:artist:{track['artists'][0]['id']}")],
-            [InlineKeyboardButton(text="📀 Album", callback_data=f"select:album:{track['album']['id']}")],
-            [InlineKeyboardButton(text="❌", callback_data="delete")]
-        ]
-        return InlineKeyboardMarkup(inline_keyboard=buttons)
-
-    @staticmethod
-    def format_album_info(album):
-        """Format album information for display"""
-        # Format tracks list (shortened)
-        tracks_preview = ""
-        for i, track in enumerate(album['tracks'][:3], 1):
-            tracks_preview += f"{i}. {track['name']} - {track['duration']}\n"
-        
-        if len(album['tracks']) > 3:
-            tracks_preview += f"and {len(album['tracks']) - 3} more tracks"
-
-        text = f"""📀 *Album:* [{album['name']}]({album['url']})
-
-👤 *Artist:* {album['main_artist']}
-
-📅 *Released:* {album['release_date']}
-
-🎵 *Tracks:* {album['total_tracks']}
-
-📑 *Type:* {album['type'].capitalize()}
-
-*Preview:*
-{tracks_preview}"""
-
-        return text
-
-    @staticmethod
-    def get_album_keyboard(album):
-        """Create keyboard for album interactions"""
-        buttons = [
-            [InlineKeyboardButton(text="📥 Download Album", callback_data=f"download:album:{album['id']}")],
-            [InlineKeyboardButton(text=f"🎨 Artist:{album['main_artist']}", 
-                                callback_data=f"select:artist:{album['artists'][0]['id']}")],
-            [InlineKeyboardButton(text="🎵 View Tracks", callback_data=f"view:album:tracks:{album['id']}:1")],
-            [InlineKeyboardButton(text="❌", callback_data="delete")]
-        ]
-        return InlineKeyboardMarkup(inline_keyboard=buttons)
-
-    @staticmethod
-    def format_artist_info(artist):
-        """Format artist information for display"""
-        # Format genres list
-        genres_text = ""
-        if artist.artist_genres:
-            genres_text = ", ".join(artist.artist_genres[:3])
-            if len(artist.artist_genres) > 3:
-                genres_text += f" and {len(artist.artist_genres) - 3} more"
-        else:
-            genres_text = "Not available"
-
-        text = f"""🎨 *Artist:* [{artist.artist_name}]({artist.artist_url})
-
-👥 *Followers:* {artist.artist_followers:,}
-
-🔥 *Popularity:* {artist.artist_popularity}/100
-
-🎭 *Genres:* {genres_text}"""
-
-        return text
-
-    @staticmethod
-    def get_artist_keyboard(artist):
-        """Create keyboard for artist interactions"""
-        buttons = [
-            [InlineKeyboardButton(text="🔝 Top Tracks", callback_data=f"view:artist:top_tracks:{artist.artist_id}:1")],
-            [InlineKeyboardButton(text="💿 Albums", callback_data=f"view:artist:albums:{artist.artist_id}:1")]
-        ]
-        
-        if artist.related_artists:
-            buttons.append([InlineKeyboardButton(text="👥 Related Artists", 
-                                               callback_data=f"view:artist:related:{artist.artist_id}:1")])
-        
-        buttons.append([InlineKeyboardButton(text="❌", callback_data="delete")])
-        return InlineKeyboardMarkup(inline_keyboard=buttons)
-
-    @staticmethod
-    def format_playlist_info(playlist):
-        """Format playlist information for display"""
-        text = f"""📑 *Playlist:* [{playlist['name']}]({playlist['url']})
-
-👤 *Creator:* {playlist['owner']['name']}
-
-ℹ️ *Description:* {playlist['description']}
-
-🎵 *Tracks:* {playlist['total_tracks']}"""
-
-        return text
-
-    @staticmethod
-    def get_playlist_keyboard(playlist):
-        """Create keyboard for playlist interactions"""
-        buttons = [
-            [InlineKeyboardButton(text="🎵 View Tracks", callback_data=f"view:playlist:tracks:{playlist['id']}:1")],
-            [InlineKeyboardButton(text="📥 Download Playlist", callback_data=f"download:playlist:{playlist['id']}")],
-            [InlineKeyboardButton(text="❌", callback_data="delete")]
-        ]
-        return InlineKeyboardMarkup(inline_keyboard=buttons)
-
-    @staticmethod
-    def get_pagination_keyboard(current_page, total_pages, base_callback, item_id):
-        """Create pagination keyboard"""
+    def format_search_results(results: List[Dict[str, Any]], search_type: str, query: str, page: int = 1) -> Tuple[str, InlineKeyboardMarkup]:
+        """Format search results with pagination"""
         buttons = []
+        
+        # Create buttons for each result
+        for item in results:
+            if search_type == "track":
+                artists = ", ".join([artist['name'] for artist in item['artists']])
+                text = f"🎵 {item['name']} - {artists}"
+            elif search_type == "album":
+                text = f"📀 {item['name']} by {item['main_artist']}"
+            else:  # playlist
+                text = f"📑 {item['name']} ({item['total_tracks']} tracks)"
+                
+            # Truncate long titles
+            if len(text) > 60:
+                text = text[:57] + "..."
+                
+            buttons.append([
+                InlineKeyboardButton(
+                    text=text,
+                    callback_data=f"select:{search_type}:{item['id']}"
+                )
+            ])
+
+        # Add navigation buttons if needed
         nav_buttons = []
-
-        if current_page > 1:
+        if page > 1:
             nav_buttons.append(
-                InlineKeyboardButton(text="⬅️ Previous", 
-                                   callback_data=f"{base_callback}:{item_id}:{current_page-1}")
+                InlineKeyboardButton(
+                    text="⬅️ Previous",
+                    callback_data=f"page:{page-1}:{search_type}:{query}"
+                )
             )
-
+        
         nav_buttons.append(
-            InlineKeyboardButton(text=f"📄 {current_page}/{total_pages}", 
-                               callback_data="page_info")
-        )
-
-        if current_page < total_pages:
-            nav_buttons.append(
-                InlineKeyboardButton(text="Next ➡️", 
-                                   callback_data=f"{base_callback}:{item_id}:{current_page+1}")
+            InlineKeyboardButton(
+                text="❌",
+                callback_data="delete"
             )
-
+        )
+        
+        # Add next button if there are more results
+        if len(results) == 5:  # If we got a full page, assume there might be more
+            nav_buttons.append(
+                InlineKeyboardButton(
+                    text="Next ➡️",
+                    callback_data=f"page:{page+1}:{search_type}:{query}"
+                )
+            )
+        
         if nav_buttons:
             buttons.append(nav_buttons)
 
-        return buttons
+        keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+        
+        # Create message text
+        text = f"Search results for '{query}' ({search_type.capitalize()}s):\nPage {page}"
+        
+        return text, keyboard
+
+    @staticmethod
+    def format_track_info(track: Dict[str, Any]) -> str:
+        """Format track information"""
+        artists = ", ".join([artist['name'] for artist in track['artists']])
+        
+        info = [
+            f"🎵 *{track['name']}*",
+            f"👤 Artist: {artists}",
+            f"💿 Album: {track['album']['name']}",
+            f"⏱ Duration: {track['duration']}",
+            f"📅 Release: {track['album']['release_date']}"
+        ]
+        
+        if 'audio_features' in track:
+            features = track['audio_features']
+            info.extend([
+                f"\n🎼 *Audio Features:*",
+                f"💃 Danceability: {features['danceability']}",
+                f"⚡️ Energy: {features['energy']}",
+                f"🎹 Key: {features['key']}",
+                f"⏰ Tempo: {int(features['tempo'])} BPM"
+            ])
+        
+        return "\n".join(info)
+
+    @staticmethod
+    def get_track_keyboard(track: Dict[str, Any]) -> InlineKeyboardMarkup:
+        """Create keyboard for track view"""
+        buttons = [
+            [InlineKeyboardButton(
+                text="⬇️ Download",
+                callback_data=f"download:track:{track['id']}"
+            )],
+            [InlineKeyboardButton(
+                text="❌ Close",
+                callback_data="delete"
+            )]
+        ]
+        return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    @staticmethod
+    def format_album_info(album: Dict[str, Any]) -> str:
+        """Format album information"""
+        artists = ", ".join([artist['name'] for artist in album['artists']])
+        
+        info = [
+            f"💿 *{album['name']}*",
+            f"👤 Artist: {artists}",
+            f"📅 Release: {album['release_date']}",
+            f"🎵 Tracks: {album['total_tracks']}"
+        ]
+        
+        return "\n".join(info)
+
+    @staticmethod
+    def get_album_keyboard(album: Dict[str, Any]) -> InlineKeyboardMarkup:
+        """Create keyboard for album view"""
+        buttons = [
+            [InlineKeyboardButton(
+                text="📋 View Tracks",
+                callback_data=f"view:album:tracks:{album['id']}"
+            )],
+            [InlineKeyboardButton(
+                text="⬇️ Download Album",
+                callback_data=f"download:album:{album['id']}"
+            )],
+            [InlineKeyboardButton(
+                text="❌ Close",
+                callback_data="delete"
+            )]
+        ]
+        return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    @staticmethod
+    def format_playlist_info(playlist: Dict[str, Any]) -> str:
+        """Format playlist information"""
+        info = [
+            f"📑 *{playlist['name']}*",
+            f"👤 Created by: {playlist['owner']['name']}",
+            f"🎵 Tracks: {playlist['total_tracks']}"
+        ]
+        
+        if playlist.get('description'):
+            info.insert(1, f"📝 {playlist['description']}")
+        
+        return "\n".join(info)
+
+    @staticmethod
+    def get_playlist_keyboard(playlist: Dict[str, Any]) -> InlineKeyboardMarkup:
+        """Create keyboard for playlist view"""
+        buttons = [
+            [InlineKeyboardButton(
+                text="📋 View Tracks",
+                callback_data=f"view:playlist:tracks:{playlist['id']}"
+            )],
+            [InlineKeyboardButton(
+                text="⬇️ Download Playlist",
+                callback_data=f"download:playlist:{playlist['id']}"
+            )],
+            [InlineKeyboardButton(
+                text="❌ Close",
+                callback_data="delete"
+            )]
+        ]
+        return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    @staticmethod
+    def get_back_keyboard(content_type: str, item_id: str) -> InlineKeyboardMarkup:
+        """Create keyboard with back button"""
+        buttons = [
+            [InlineKeyboardButton(
+                text="⬅️ Back",
+                callback_data=f"select:{content_type}:{item_id}"
+            )],
+            [InlineKeyboardButton(
+                text="❌ Close",
+                callback_data="delete"
+            )]
+        ]
+        return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    @staticmethod
+    def format_tracks_list(tracks: List[Dict[str, Any]], parent_info: Dict[str, Any], content_type: str) -> str:
+        """Format list of tracks for album or playlist"""
+        if content_type == "album":
+            header = f"Tracks in album '{parent_info['name']}' by {parent_info['main_artist']}:\n\n"
+            track_format = lambda t, i: f"{t['track_number']}. {t['name']} ({t['duration']})"
+        else:  # playlist
+            header = f"Tracks in playlist '{parent_info['name']}':\n\n"
+            track_format = lambda t, i: f"{i}. {t['name']} - {t['main_artist']} ({t['duration']})"
+        
+        track_list = [track_format(track, i+1) for i, track in enumerate(tracks)]
+        
+        return header + "\n".join(track_list)
