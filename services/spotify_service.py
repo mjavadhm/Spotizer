@@ -191,7 +191,7 @@ class SpotifyService:
             
             if item_type == 'track':
                 track = self.sp.track(item_id)
-                audio_features = self.sp.audio_features(item_id)[0]
+                # audio_features = self.sp.audio_features(item_id)[0]
                 
                 info = {
                     'id': track['id'],
@@ -211,13 +211,13 @@ class SpotifyService:
                     'type': 'track'
                 }
                 
-                if audio_features:
-                    info['audio_features'] = {
-                        'danceability': audio_features['danceability'],
-                        'energy': audio_features['energy'],
-                        'key': audio_features['key'],
-                        'tempo': audio_features['tempo']
-                    }
+                # if audio_features:
+                #     info['audio_features'] = {
+                #         'danceability': audio_features['danceability'],
+                #         'energy': audio_features['energy'],
+                #         'key': audio_features['key'],
+                #         'tempo': audio_features['tempo']
+                #     }
                 
                 logger.info(f"Retrieved track info: {info['name']}")
                 return info
