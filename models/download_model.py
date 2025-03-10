@@ -190,11 +190,11 @@ class DownloadModel:
             with get_connection() as conn:
                 with conn.cursor() as cur:
                     query = """
-                            SELECT track_id, file_id, title, artist, album, download_count, quality
+                            SELECT track_id, file_id, title, artist, album, download_count, quality, duration
                             FROM tracks
                             WHERE track_id = %s AND quality = %s
                         """
-                    params = [deezer_id, quality]
+                    params = [str(deezer_id), quality]
                     cur.execute(query, params)
                     row = cur.fetchone()
                     if row:
@@ -205,7 +205,8 @@ class DownloadModel:
                             'artist': row[3],
                             'album': row[4],
                             'download_count': row[5],
-                            'quality': row[6]
+                            'quality': row[6],
+                            'duration': row[7]
                         }
                     return None
         except Exception as e:
@@ -221,7 +222,7 @@ class DownloadModel:
                     INSERT INTO tracks (user_id, track_id, content_type, file_id, quality, title, artist, album)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     """
-                    params = [user_id, deezer_id, content_type, file_id, quality, title, artist, album]
+                    params = [user_id, str(deezer_id), content_type, file_id, quality, title, artist, album]
                     cur.execute(query, params)
                     conn.commit()
                     return True
