@@ -20,11 +20,71 @@ class DownloadController:
         self.spotify_service = SpotifyService()
         self.file_handler = FileHandler()
         self.url_validator = URLValidator()
+        logger.info("DownloadController initialized")
+
+    async def search(self, query: str, search_type: str, page: int = 1) -> tuple[bool, list]:
+        """
+        Search for music content on Spotify
+        
+        Args:
+            query (str): Search query
+            search_type (str): Type of content to search for ('track', 'album', 'playlist')
+            page (int): Page number for pagination (default: 1)
+            
+        Returns:
+            tuple[bool, list]: Success status and list of search results
+        """
+        try:
+            logger.info(f"Searching for {search_type}s with query: {query} (Page: {page})")
+            
+            # Calculate offset for pagination (5 items per page)
+            offset = (page - 1) * 5
+            
+            # Perform search using spotify service
+            results = await self.spotify_service.search(query, search_type, limit=5, offset=offset)
+            
+            if results:
+                logger.info(f"Found {len(results)} {search_type}s for query: {query}")
+                return True, results
+            else:
+                logger.warning(f"No {search_type}s found for query: {query}")
+                return False, []
+                
+        except Exception as e:
+            logger.error(f"Search error for {search_type}s - Query: {query}: {str(e)}", exc_info=True)
+            return False, []
+
+    async def get_item_info(self, content_type: str, item_id: str) -> tuple[bool, dict]:
+        """
+        Get detailed information about a music item
+        
+        Args:
+            content_type (str): Type of content ('track', 'album', 'playlist')
+            item_id (str): Spotify ID of the item
+            
+        Returns:
+            tuple[bool, dict]: Success status and item information
+        """
+        try:
+            logger.info(f"Getting info for {content_type} with ID: {item_id}")
+            
+            item_info = await self.spotify_service.get_item_info(content_type, item_id)
+            
+            if item_info:
+                logger.info(f"Successfully retrieved info for {content_type} {item_id}")
+                return True, item_info
+            else:
+                logger.warning(f"No info found for {content_type} {item_id}")
+                return False, {}
+                
+        except Exception as e:
+            logger.error(f"Error getting item info for {content_type} {item_id}: {str(e)}", exc_info=True)
+            return False, {}
 
     async def process_download_request(self, user_id, url):
         """Process download request from user"""
         try:
-            logger.info(f"Processing download request for user {user_id} with URL: {url}")
+            logger.info(f"Processing download request for user {user_id} - URL: {url}")
             
             if not self.url_validator.is_valid_url(url):
                 logger.error(f"Invalid URL format provided by user {user_id}: {url}")
@@ -46,7 +106,7 @@ class DownloadController:
                 logger.info(f"Converted to Deezer URL: {url}")
 
             content_type, deezer_id = self.deezer_service.extract_info_from_url(url)
-            logger.info(f"Extracted info - Type: {content_type}, Deezer ID: {deezer_id}")
+            logger.info(f"Extracted info - Type: {content_type}, ID: {deezer_id}")
 
             if make_zip and 'track' not in url:
                 existing_zip = await self.download_model.get_track_by_deezer_id_quality(user_id, deezer_id, quality)

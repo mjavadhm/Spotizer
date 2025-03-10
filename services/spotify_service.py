@@ -9,6 +9,7 @@ logger = get_logger(__name__)
 
 class SpotifyService:
     def __init__(self):
+        """Initialize SpotifyService with API credentials"""
         try:
             self.client_id = os.getenv('SPOTIFY_CLIENT_ID')
             self.client_secret = os.getenv('SPOTIFY_CLIENT_SECRET')
@@ -16,7 +17,7 @@ class SpotifyService:
             if not self.client_id or not self.client_secret:
                 logger.error("Spotify credentials not found in environment variables")
                 raise ValueError("Missing Spotify credentials")
-                
+            
             self.sp = spotipy.Spotify(
                 auth_manager=SpotifyClientCredentials(
                     client_id=self.client_id,
@@ -43,7 +44,7 @@ class SpotifyService:
                 query = f"{track_info['name']} {track_info['artists'][0]['name']}"
                 logger.info(f"Searching Deezer for track: {query}")
                 
-                deezer_url = self.search_on_deezer('track', query)
+                deezer_url = self._search_on_deezer('track', query)
                 if not deezer_url:
                     logger.error(f"No Deezer equivalent found for Spotify track: {query}")
                     return None
@@ -59,7 +60,7 @@ class SpotifyService:
                 query = f"{album_info['name']} {album_info['artists'][0]['name']}"
                 logger.info(f"Searching Deezer for album: {query}")
                 
-                deezer_url = self.search_on_deezer('album', query)
+                deezer_url = self._search_on_deezer('album', query)
                 if not deezer_url:
                     logger.error(f"No Deezer equivalent found for Spotify album: {query}")
                     return None
@@ -74,7 +75,7 @@ class SpotifyService:
             logger.error(f"Error converting Spotify URL {spotify_url}: {str(e)}", exc_info=True)
             return None
 
-    def search_on_deezer(self, content_type: str, query: str) -> Optional[str]:
+    def _search_on_deezer(self, content_type: str, query: str) -> Optional[str]:
         """Search for content on Deezer"""
         try:
             logger.info(f"Searching Deezer - Type: {content_type}, Query: {query}")
@@ -119,13 +120,69 @@ class SpotifyService:
                 offset=offset
             )
             
+            # Extract items based on search type
             items = results[f"{search_type}s"]['items']
-            logger.info(f"Found {len(items)} {search_type}s on Spotify")
-            return items
+            
+            # Process items to standardize format
+            processed_items = []
+            for item in items:
+                processed_item = self._process_search_result(item, search_type)
+                if processed_item:
+                    processed_items.append(processed_item)
+            
+            logger.info(f"Found {len(processed_items)} {search_type}s on Spotify")
+            return processed_items
             
         except Exception as e:
             logger.error(f"Error searching Spotify for {search_type} - {query}: {str(e)}", exc_info=True)
             return []
+
+    def _process_search_result(self, item: Dict[str, Any], item_type: str) -> Optional[Dict[str, Any]]:
+        """Process and standardize search result item"""
+        try:
+            if item_type == 'track':
+                return {
+                    'id': item['id'],
+                    'name': item['name'],
+                    'artists': [{'id': artist['id'], 'name': artist['name']} for artist in item['artists']],
+                    'main_artist': item['artists'][0]['name'],
+                    'duration_ms': item['duration_ms'],
+                    'duration': self._format_duration(item['duration_ms']),
+                    'album': {
+                        'id': item['album']['id'],
+                        'name': item['album']['name'],
+                        'images': item['album']['images']
+                    },
+                    'preview_url': item['preview_url'],
+                    'type': 'track'
+                }
+            elif item_type == 'album':
+                return {
+                    'id': item['id'],
+                    'name': item['name'],
+                    'artists': [{'id': artist['id'], 'name': artist['name']} for artist in item['artists']],
+                    'main_artist': item['artists'][0]['name'],
+                    'total_tracks': item['total_tracks'],
+                    'release_date': item['release_date'],
+                    'images': item['images'],
+                    'type': 'album'
+                }
+            elif item_type == 'playlist':
+                return {
+                    'id': item['id'],
+                    'name': item['name'],
+                    'owner': {
+                        'id': item['owner']['id'],
+                        'name': item['owner']['display_name']
+                    },
+                    'total_tracks': item['tracks']['total'],
+                    'images': item['images'],
+                    'type': 'playlist'
+                }
+            return None
+        except Exception as e:
+            logger.error(f"Error processing search result: {str(e)}", exc_info=True)
+            return None
 
     async def get_item_info(self, item_type: str, item_id: str) -> Optional[Dict[str, Any]]:
         """Get detailed information about a Spotify item"""
@@ -133,20 +190,99 @@ class SpotifyService:
             logger.info(f"Getting Spotify item info - Type: {item_type}, ID: {item_id}")
             
             if item_type == 'track':
-                info = self.sp.track(item_id)
-                logger.info(f"Retrieved track info: {info.get('name', 'Unknown Track')}")
+                track = self.sp.track(item_id)
+                audio_features = self.sp.audio_features(item_id)[0]
+                
+                info = {
+                    'id': track['id'],
+                    'name': track['name'],
+                    'artists': [{'id': artist['id'], 'name': artist['name']} for artist in track['artists']],
+                    'main_artist': track['artists'][0]['name'],
+                    'duration_ms': track['duration_ms'],
+                    'duration': self._format_duration(track['duration_ms']),
+                    'album': {
+                        'id': track['album']['id'],
+                        'name': track['album']['name'],
+                        'release_date': track['album']['release_date'],
+                        'images': track['album']['images']
+                    },
+                    'preview_url': track['preview_url'],
+                    'popularity': track['popularity'],
+                    'type': 'track'
+                }
+                
+                if audio_features:
+                    info['audio_features'] = {
+                        'danceability': audio_features['danceability'],
+                        'energy': audio_features['energy'],
+                        'key': audio_features['key'],
+                        'tempo': audio_features['tempo']
+                    }
+                
+                logger.info(f"Retrieved track info: {info['name']}")
                 return info
                 
             elif item_type == 'album':
-                info = self.sp.album(item_id)
-                logger.info(f"Retrieved album info: {info.get('name', 'Unknown Album')}")
+                album = self.sp.album(item_id)
+                tracks = self.sp.album_tracks(item_id)['items']
+                
+                info = {
+                    'id': album['id'],
+                    'name': album['name'],
+                    'artists': [{'id': artist['id'], 'name': artist['name']} for artist in album['artists']],
+                    'main_artist': album['artists'][0]['name'],
+                    'release_date': album['release_date'],
+                    'total_tracks': album['total_tracks'],
+                    'images': album['images'],
+                    'tracks': [
+                        {
+                            'id': track['id'],
+                            'name': track['name'],
+                            'duration_ms': track['duration_ms'],
+                            'duration': self._format_duration(track['duration_ms']),
+                            'track_number': track['track_number'],
+                            'preview_url': track['preview_url']
+                        }
+                        for track in tracks
+                    ],
+                    'type': 'album'
+                }
+                
+                logger.info(f"Retrieved album info: {info['name']}")
                 return info
                 
             elif item_type == 'playlist':
-                info = self.sp.playlist(item_id)
-                logger.info(f"Retrieved playlist info: {info.get('name', 'Unknown Playlist')}")
-                return info
+                playlist = self.sp.playlist(item_id)
                 
+                info = {
+                    'id': playlist['id'],
+                    'name': playlist['name'],
+                    'owner': {
+                        'id': playlist['owner']['id'],
+                        'name': playlist['owner']['display_name']
+                    },
+                    'description': playlist['description'],
+                    'total_tracks': playlist['tracks']['total'],
+                    'images': playlist['images'],
+                    'tracks': [
+                        {
+                            'id': item['track']['id'],
+                            'name': item['track']['name'],
+                            'artists': [{'id': artist['id'], 'name': artist['name']} for artist in item['track']['artists']],
+                            'main_artist': item['track']['artists'][0]['name'],
+                            'duration_ms': item['track']['duration_ms'],
+                            'duration': self._format_duration(item['track']['duration_ms']),
+                            'added_at': item['added_at']
+                        }
+                        for item in playlist['tracks']['items']
+                        if item['track']  # Some tracks might be None
+                    ],
+                    'type': 'playlist'
+                }
+                
+                logger.info(f"Retrieved playlist info: {info['name']}")
+                return info
+            
             else:
                 logger.error(f"Unsupported item type: {item_type}")
                 return None
@@ -154,3 +290,10 @@ class SpotifyService:
         except Exception as e:
             logger.error(f"Error getting {item_type} info for {item_id}: {str(e)}", exc_info=True)
             return None
+
+    def _format_duration(self, ms: int) -> str:
+        """Format milliseconds to MM:SS format"""
+        seconds = ms // 1000
+        minutes = seconds // 60
+        seconds = seconds % 60
+        return f"{minutes}:{seconds:02d}"
