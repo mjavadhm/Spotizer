@@ -143,105 +143,89 @@ class DownloadModel:
 
     def update_download_count(self, deezer_id: int) -> bool:
         """Update download count for a track"""
-        conn = get_connection()
-        cur = conn.cursor()
         try:
-            cur.execute("""
-            UPDATE tracks 
-            SET download_count = download_count + 1,
-                last_downloaded = CURRENT_TIMESTAMP
-            WHERE track_id = %s
-            """, (deezer_id,))
-            
-            conn.commit()
-            return True
-            
+            with get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                    UPDATE tracks 
+                    SET download_count = download_count + 1,
+                        last_downloaded = CURRENT_TIMESTAMP
+                    WHERE track_id = %s
+                    """, (deezer_id,))
+                    conn.commit()
+                    return True
         except Exception as e:
-            conn.rollback()
             logger.error(f"Error updating download count: {str(e)}")
             return False
-        finally:
-            cur.close()
-            conn.close()
 
     def get_popular_downloads(self, limit: int = 10) -> List[Dict[str, Any]]:
         """Get most popular downloads"""
-        conn = get_connection()
-        cur = conn.cursor()
         try:
-            cur.execute("""
-            SELECT track_id, title, artist, album, download_count
-            FROM tracks
-            ORDER BY download_count DESC
-            LIMIT %s
-            """, (limit,))
-            
-            popular = []
-            for row in cur.fetchall():
-                popular.append({
-                    'track_id': row[0],
-                    'title': row[1],
-                    'artist': row[2],
-                    'album': row[3],
-                    'download_count': row[4]
-                })
-            return popular
-            
+            with get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                    SELECT track_id, title, artist, album, download_count
+                    FROM tracks
+                    ORDER BY download_count DESC
+                    LIMIT %s
+                    """, (limit,))
+                    
+                    popular = []
+                    for row in cur.fetchall():
+                        popular.append({
+                            'track_id': row[0],
+                            'title': row[1],
+                            'artist': row[2],
+                            'album': row[3],
+                            'download_count': row[4]
+                        })
+                    return popular
         except Exception as e:
             logger.error(f"Error getting popular downloads: {str(e)}")
             return []
-        finally:
-            cur.close()
-            conn.close()
 
     def get_track_by_deezer_id_quality(self, user_id, deezer_id, quality):
         """Get track by deezer id and quality"""
-        conn = get_connection()
-        cur = conn.cursor()
         try:
-            query = """
-                    SELECT track_id, file_id, title, artist, album, download_count, quality
-                    FROM tracks
-                    WHERE deezer_id = %s AND quality = %s
-                """
-            params = [deezer_id,quality]
-            cur.execute(query, params)
-            row = cur.fetchone()
-            if row:
-                return {
-                    'track_id': row[0],
-                    'file_id': row[1],
-                    'title': row[2],
-                    'artist': row[3],
-                    'album': row[4],
-                    'download_count': row[5],
-                    'quality': row[6]
-                    }
-            else:
-                return None
+            with get_connection() as conn:
+                with conn.cursor() as cur:
+                    query = """
+                            SELECT track_id, file_id, title, artist, album, download_count, quality
+                            FROM tracks
+                            WHERE deezer_id = %s AND quality = %s
+                        """
+                    params = [deezer_id, quality]
+                    cur.execute(query, params)
+                    row = cur.fetchone()
+                    if row:
+                        return {
+                            'track_id': row[0],
+                            'file_id': row[1],
+                            'title': row[2],
+                            'artist': row[3],
+                            'album': row[4],
+                            'download_count': row[5],
+                            'quality': row[6]
+                        }
+                    return None
         except Exception as e:
             logger.error(f"Error getting track by deezer id and quality: {str(e)}")
             return None
-        finally:
-            cur.close()
-            conn.close()
     
     def add_track(self, user_id, deezer_id, content_type, file_id, quality, title, artist, album):
+        """Add a new track to the database"""
         try:
-            conn = get_connection()
-            cur = conn.cursor()
-            query = """
-            INSERT INTO tracks (user_id, deezer_id, content_type, file_id, quality, title, artist, album)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """
-            params = [user_id, deezer_id, content_type, file_id, quality, title, artist, album]
-            cur.execute(query, params)
-            conn.commit()
-            return True
+            with get_connection() as conn:
+                with conn.cursor() as cur:
+                    query = """
+                    INSERT INTO tracks (user_id, deezer_id, content_type, file_id, quality, title, artist, album)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """
+                    params = [user_id, deezer_id, content_type, file_id, quality, title, artist, album]
+                    cur.execute(query, params)
+                    conn.commit()
+                    return True
         except Exception as e:
             logger.error(f"Error adding track: {str(e)}")
             return False
-        finally:
-            cur.close()
-            conn.close()
             
