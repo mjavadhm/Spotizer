@@ -193,7 +193,6 @@ class SpotifyService:
             if item_type == 'track':
                 track = self.sp.track(item_id)
                 # audio_features = self.sp.audio_features(item_id)[0]
-                print(json.dumps(track, indent=4, ensure_ascii=False))
                 info = {
                     'id': track['id'],
                     'name': track['name'],
@@ -201,7 +200,7 @@ class SpotifyService:
                     'main_artist': track['artists'][0]['name'],
                     'duration_ms': track['duration_ms'],
                     'duration': self._format_duration(track['duration_ms']),
-                    'image': track['images'][0]['url'],
+                    'image': track['album']['images'][0]['url'],
                     'album': {
                         'id': track['album']['id'],
                         'name': track['album']['name'],
@@ -227,7 +226,6 @@ class SpotifyService:
             elif item_type == 'album':
                 album = self.sp.album(item_id)
                 tracks = self.sp.album_tracks(item_id)['items']
-                print(json.dumps(album, indent=4, ensure_ascii=False))
                 info = {
                     'id': album['id'],
                     'name': album['name'],
@@ -235,6 +233,7 @@ class SpotifyService:
                     'main_artist': album['artists'][0]['name'],
                     'release_date': album['release_date'],
                     'total_tracks': album['total_tracks'],
+                    'image': track['album']['images'][0]['url'],
                     'images': album['images'],
                     'tracks': [
                         {
@@ -255,7 +254,6 @@ class SpotifyService:
                 
             elif item_type == 'playlist':
                 playlist = self.sp.playlist(item_id)
-                print(json.dumps(playlist, indent=4, ensure_ascii=False))
                 info = {
                     'id': playlist['id'],
                     'name': playlist['name'],
@@ -265,6 +263,7 @@ class SpotifyService:
                     },
                     'description': playlist['description'],
                     'total_tracks': playlist['tracks']['total'],
+                    'image': playlist['images'][0]['url'],
                     'images': playlist['images'],
                     'tracks': [
                         {
