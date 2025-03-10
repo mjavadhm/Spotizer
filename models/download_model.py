@@ -192,7 +192,7 @@ class DownloadModel:
                     query = """
                             SELECT track_id, file_id, title, artist, album, download_count, quality
                             FROM tracks
-                            WHERE deezer_id = %s AND quality = %s
+                            WHERE track_id = %s AND quality = %s
                         """
                     params = [deezer_id, quality]
                     cur.execute(query, params)

@@ -41,7 +41,7 @@ class DownloadController:
             content_type, deezer_id = self.deezer_service.extract_info_from_url(url)
             # self.download_model.get_track_by_deezer_id_quality(user_id, deezer_id, quality)
             if make_zip and 'track' not in url:
-                existing_zip = self.download_model.get_track_by_deezer_id_quality(user_id, deezer_id, quality)
+                existing_zip = await self.download_model.get_track_by_deezer_id_quality(user_id, deezer_id, quality)
                 if existing_zip:
                     await bot.send_document(
                         chat_id=user_id,
@@ -113,7 +113,7 @@ class DownloadController:
                         musics_playlist.append(musics)
                     else:
                         track_link = f"https://www.deezer.com/track/{track_id}"
-                        smart = self.deezer_service.download(url,quality_download=quality,make_zip=False)
+                        smart = await self.deezer_service.download(url,quality_download=quality,make_zip=False)
                         if smart.track:
                             file_path = smart.track.song_path
                             audio_file = FSInputFile(file_path)
