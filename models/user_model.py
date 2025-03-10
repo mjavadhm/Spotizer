@@ -1,9 +1,9 @@
-import logging
 from typing import Dict, Optional, Any
 from datetime import datetime
 from database.connection import get_connection
+from logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class UserModel:
     def __init__(self):
@@ -48,6 +48,7 @@ class UserModel:
                             added_to_attachment_menu, can_join_groups, can_read_all_group_messages,
                             supports_inline_queries, user_id
                         ))
+                        logger.info(f"Updated user record for user {user_id}")
                     else:
                         # Add new user
                         cur.execute("""
@@ -62,16 +63,16 @@ class UserModel:
                             is_premium, added_to_attachment_menu, can_join_groups,
                             can_read_all_group_messages, supports_inline_queries
                         ))
+                        logger.info(f"Added new user record for user {user_id}")
                         
                         # Create default settings for new user
                         self.create_default_settings(user_id)
                     
                     conn.commit()
-                    logger.info(f"User {user_id} {'updated' if result else 'added'} successfully")
                     return True
                     
         except Exception as e:
-            logger.error(f"Error adding/updating user: {str(e)}")
+            logger.error(f"Failed to add/update user: {str(e)}", exc_info=True)
             return False
 
     def get_user(self, user_id: int) -> Optional[Dict[str, Any]]:
@@ -92,6 +93,7 @@ class UserModel:
                     
                     user = cur.fetchone()
                     if user:
+                        logger.info(f"Retrieved user record for user {user_id}")
                         return {
                             'user_id': user[0],
                             'username': user[1],
@@ -112,10 +114,11 @@ class UserModel:
                                 'language': user[15]
                             }
                         }
+                    logger.info(f"No user record found for user {user_id}")
                     return None
                     
         except Exception as e:
-            logger.error(f"Error getting user: {str(e)}")
+            logger.error(f"Failed to retrieve user: {str(e)}", exc_info=True)
             return None
 
     def update_settings(self, user_id: int, **settings) -> bool:
@@ -133,6 +136,7 @@ class UserModel:
                             params.append(value)
                     
                     if not update_fields:
+                        logger.info(f"No settings to update for user {user_id}")
                         return False  # Nothing to update
                     
                     update_fields.append("updated_at = CURRENT_TIMESTAMP")
@@ -149,14 +153,16 @@ class UserModel:
                     
                     if cur.rowcount == 0:
                         # Settings don't exist, create them
+                        logger.info(f"Creating default settings for user {user_id} with overrides")
                         self.create_default_settings(user_id, **settings)
+                    else:
+                        logger.info(f"Updated settings for user {user_id}")
                     
                     conn.commit()
-                    logger.info(f"Settings updated for user {user_id}")
                     return True
                     
         except Exception as e:
-            logger.error(f"Error updating user settings: {str(e)}")
+            logger.error(f"Failed to update user settings: {str(e)}", exc_info=True)
             return False
 
     def get_settings(self, user_id: int) -> Dict[str, Any]:
@@ -172,6 +178,7 @@ class UserModel:
                     
                     settings = cur.fetchone()
                     if settings:
+                        logger.info(f"Retrieved settings for user {user_id}")
                         return {
                             'download_quality': settings[0],
                             'make_zip': settings[1],
@@ -180,11 +187,12 @@ class UserModel:
                         }
                     
                     # If no settings found, create default settings and return them
+                    logger.info(f"No settings found for user {user_id}, creating defaults")
                     self.create_default_settings(user_id)
                     return self.default_settings.copy()
                     
         except Exception as e:
-            logger.error(f"Error getting user settings: {str(e)}")
+            logger.error(f"Failed to retrieve user settings: {str(e)}", exc_info=True)
             # Return default settings in case of error
             return self.default_settings.copy()
 
@@ -208,11 +216,11 @@ class UserModel:
                     ))
                     
                     conn.commit()
-                    logger.info(f"Default settings created for user {user_id}")
+                    logger.info(f"Created default settings for user {user_id}")
                     return True
                     
         except Exception as e:
-            logger.error(f"Error creating default settings: {str(e)}")
+            logger.error(f"Failed to create default settings: {str(e)}", exc_info=True)
             return False
 
     def log_activity(self, user_id: int, activity_type: str, details: str = None) -> bool:
@@ -226,10 +234,11 @@ class UserModel:
                     """, (user_id, activity_type, details))
                     
                     conn.commit()
+                    logger.info(f"Logged activity for user {user_id}: {activity_type}")
                     return True
                     
         except Exception as e:
-            logger.error(f"Error logging activity: {str(e)}")
+            logger.error(f"Failed to log user activity: {str(e)}", exc_info=True)
             return False
 
     def get_user_settings(self, user_id: int) -> Dict[str, Any]:
