@@ -187,8 +187,9 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                 await callback_query.answer("Invalid content type")
                 return
             
-            await callback_query.message.edit_text(
+            await callback_query.message.answer_photo(
                 text,
+                photo=item_info['image'],
                 reply_markup=keyboard,
                 parse_mode="Markdown"
             )
@@ -230,8 +231,9 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
             # Add back button
             keyboard = MusicView.get_back_keyboard(content_type, item_id)
             
-            await callback_query.message.edit_text(
+            await callback_query.message.answer_photo(
                 text,
+                photo=item_info['image'],
                 reply_markup=keyboard,
                 parse_mode="Markdown"
             )

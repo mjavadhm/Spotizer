@@ -201,6 +201,7 @@ class SpotifyService:
                     'main_artist': track['artists'][0]['name'],
                     'duration_ms': track['duration_ms'],
                     'duration': self._format_duration(track['duration_ms']),
+                    'image': track['images'][0]['url'],
                     'album': {
                         'id': track['album']['id'],
                         'name': track['album']['name'],
@@ -226,7 +227,7 @@ class SpotifyService:
             elif item_type == 'album':
                 album = self.sp.album(item_id)
                 tracks = self.sp.album_tracks(item_id)['items']
-                
+                print(json.dumps(album, indent=4, ensure_ascii=False))
                 info = {
                     'id': album['id'],
                     'name': album['name'],
@@ -254,7 +255,7 @@ class SpotifyService:
                 
             elif item_type == 'playlist':
                 playlist = self.sp.playlist(item_id)
-                
+                print(json.dumps(playlist, indent=4, ensure_ascii=False))
                 info = {
                     'id': playlist['id'],
                     'name': playlist['name'],
