@@ -100,7 +100,7 @@ class DownloadController:
                 musics_playlist = []
                 for track_id in track_ids:
                     # checking db for catched tracks
-                    existing_track = self.download_model.get_track_by_deezer_id_quality(user_id, deezer_id, quality)
+                    existing_track = self.download_model.get_track_by_deezer_id_quality(user_id, track_id, quality)
                     if existing_track:
                         await bot.send_audio(
                             chat_id=user_id,

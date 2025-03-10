@@ -194,7 +194,7 @@ class DownloadModel:
             cur.close()
             conn.close()
 
-    def get_track_by_deezer_id_quality(user_id, deezer_id, quality):
+    def get_track_by_deezer_id_quality(self, user_id, deezer_id, quality):
         """Get track by deezer id and quality"""
         conn = get_connection()
         cur = conn.cursor()
@@ -226,7 +226,7 @@ class DownloadModel:
             cur.close()
             conn.close()
     
-    def add_track(user_id, deezer_id, content_type, file_id, quality, title, artist, album):
+    def add_track(self, user_id, deezer_id, content_type, file_id, quality, title, artist, album):
         try:
             conn = get_connection()
             cur = conn.cursor()
