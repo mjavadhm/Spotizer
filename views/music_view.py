@@ -223,20 +223,20 @@ class MusicView:
     def get_artist_keyboard(artist: Dict[str, Any]) -> InlineKeyboardMarkup:
         """Create keyboard for artist view"""
         buttons = []
-        if artist['top_track']:
+        if artist['more_artist_info']['top_track']:
             buttons.append(
             InlineKeyboardButton(
                     text="🔝 Top Tracks",
                     callback_data=f"view:artist:top_tracks:{artist['id']}:1"
                 )
             )
-        if artist['album']:
+        if artist['more_artist_info']['albums']:
             buttons.append(InlineKeyboardButton(
                     text="💿 Albums",
                     callback_data=f"view:artist:albums:{artist['id']}:1"
                 )
             )
-        if artist['related_artists']:
+        if artist['more_artist_info']['related_artists']:
             buttons.append(InlineKeyboardButton(
                     text="👥 Related Artists",
                     callback_data=f"view:artist:related:{artist['id']}:1"

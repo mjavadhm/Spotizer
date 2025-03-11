@@ -183,7 +183,7 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                 text = MusicView.format_playlist_info(item_info)
                 keyboard = MusicView.get_playlist_keyboard(item_info)
             elif content_type == "artist":
-                text = MusicView.format_artist_info(item_info['artist'])
+                text = MusicView.format_artist_info(item_info)
                 keyboard = MusicView.get_artist_keyboard(item_info)
             else:
                 logger.error(f"Invalid content type for user {user_id}: {content_type}")
@@ -230,15 +230,15 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                 keyboard = MusicView.get_list_keyboard(tracks, content_type, action, page)
             elif content_type == "artist":
                 if action == "top_tracks":
-                    tracks = item_info['artist'].get('top_tracks', [])
+                    tracks = item_info['more_artist_info'].get('top_tracks', [])
                     text = f"Top tracks by {item_info['name']}:"
                     keyboard = MusicView.get_list_keyboard(tracks, content_type, action, page)
                 elif action == "albums":
-                    albums = item_info['artist'].get('albums', [])
+                    albums = item_info['more_artist_info'].get('albums', [])
                     text = f"Albums by {item_info['name']}:\n\n"
                     keyboard = MusicView.get_list_keyboard(albums, content_type, action, page)
                 elif action == "related":
-                    related_artists = item_info['artist'].get('related_artists', [])
+                    related_artists = item_info['more_artist_info'].get('related_artists', [])
                     text = f"Artists related to {item_info['name']}:\n\n"
                     keyboard = MusicView.get_list_keyboard(related_artists, content_type, action, page)
             

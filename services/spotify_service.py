@@ -310,12 +310,12 @@ class SpotifyService:
                     albums = self.sp.artist_albums(item_id, album_type='album', limit=5)['items']
                 except:
                     albums = None
-                    
+                                
                 try:
                     related_artists = self.sp.artist_related_artists(item_id)['artists']
                 except:
                     related_artists = None
-                
+                            
                 artist_info = {
                     'id': artist['id'],
                     'name': artist['name'],
@@ -326,6 +326,7 @@ class SpotifyService:
                     'url': artist['external_urls']['spotify'],
                     'type': 'artist'
                 }
+                
                 if top_tracks:
                     top_tracks_info = [
                         {
@@ -376,12 +377,15 @@ class SpotifyService:
 
                 logger.info(f"Retrieved full artist info for {artist_info['name']}")
                 
-                return {
-                    'artist': artist_info,
-                    'top_tracks': top_tracks_info,
-                    'albums': albums_info,
-                    'related_artists': related_info
-                }
+                artist_info.update({
+                    'more_artist_info': {
+                        'top_tracks': top_tracks_info,
+                        'albums': albums_info,
+                        'related_artists': related_info
+                    }
+                })
+                
+                return artist_info
             elif item_type == 'related':
                 related_artists = self.sp.artist_related_artists(item_id)['artists']
                 info = [
