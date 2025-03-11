@@ -208,7 +208,7 @@ class MusicView:
     @staticmethod
     def format_artist_info(artist: Dict[str, Any]) -> str:
         """Format artist information"""
-        genres_text = ", ".join(artist['genres']) if artist['genres'] else "N/A"
+        genres_text = ", ".join(artist['genres']) if hasattr(artist, 'genres') else "N/A"
         
         info = [
             f"🎨 *Artist:* [{artist['name']}]({artist['url']})\n",
