@@ -1,4 +1,5 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+import json
 from typing import Tuple, Dict, Any, List
 
 class MusicView:
@@ -223,6 +224,7 @@ class MusicView:
     def get_artist_keyboard(artist: Dict[str, Any]) -> InlineKeyboardMarkup:
         """Create keyboard for artist view"""
         buttons = []
+        json.dumps(artist, indent=4, ascii=False)
         if artist['more_artist_info']['top_track']:
             buttons.append(
             InlineKeyboardButton(
