@@ -284,7 +284,7 @@ class SpotifyService:
                             'id': item['track']['id'],
                             'name': item['track']['name'],
                             'artists': [{'id': artist['id'], 'name': artist['name']} for artist in item['track']['artists']],
-                            'main_artist': item['track']['artists'][0]['name'],
+                            'artist': item['track']['artists'][0]['name'],
                             'duration_ms': item['track']['duration_ms'],
                             'duration': self._format_duration(item['track']['duration_ms']),
                             'added_at': item['added_at']
