@@ -349,6 +349,7 @@ class SpotifyService:
                         {
                             'id': album['id'],
                             'name': album['name'],
+                            'artist': artist['name'],
                             'release_date': album['release_date'],
                             'total_tracks': album['total_tracks'],
                             'image': album['images'][0]['url'] if album['images'] else None,
