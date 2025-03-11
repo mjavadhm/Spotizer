@@ -209,6 +209,7 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
         try:
             # Extract view info
             _, content_type, action, item_id, page = callback_query.data.split(":")
+            page = int(page)
             user_id = callback_query.from_user.id
             logger.info(f"Processing view for user {user_id} - Type: {content_type}, Action: {action}")
             
