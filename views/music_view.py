@@ -310,7 +310,7 @@ class MusicView:
         
         return header + "\n".join(track_list)
     @staticmethod
-    def get_list_keyboard(items: List[Dict[str, Any]], content_type: str, action: str, page: int = 1, spoid) -> InlineKeyboardMarkup:
+    def get_list_keyboard(items: List[Dict[str, Any]], content_type: str, action: str, page: int = 1, spoid = 1) -> InlineKeyboardMarkup:
         buttons = []
         i = 0
         for item in items:
