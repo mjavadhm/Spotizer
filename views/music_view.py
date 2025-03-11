@@ -313,7 +313,9 @@ class MusicView:
     def get_list_keyboard(items: List[Dict[str, Any]], content_type: str, action: str, page: int = 1, spoid = 1) -> InlineKeyboardMarkup:
         buttons = []
         i = 0
-        
+        select_acrion = action
+        if action == 'top_tracks':
+            select_acrion = 'track'
         for item in items:
             if i < (page-1)*8 :
                 continue
@@ -322,7 +324,7 @@ class MusicView:
             else:
                 button_text = f"{item['name']} - {item['artist']}"
             
-            callback_data = f"select:{action}:{item['id']}"
+            callback_data = f"select:{select_acrion}:{item['id']}"
             buttons.append([InlineKeyboardButton(text=button_text, callback_data=callback_data)])
             i+=1
             if i > (page)*8:
