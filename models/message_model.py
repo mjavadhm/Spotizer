@@ -54,26 +54,22 @@ class MessageModel:
             else:
                 sent_by = 1
             # Get database connection
-            conn = get_connection()
-            cursor = conn.cursor()
             
             # Insert into messages table
             query = """
             INSERT INTO messages (message_id, user_id, message_text, message_type, sent_at, sent_by, media)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             """
-            
-            cursor.execute(
-                query, 
-                (message_id, user_id, message_text, message_type, sent_at, sent_by, media)
-            )
-            
-            conn.commit()
-            cursor.close()
-            conn.close()
-            
-            logger.info(f"Added message {message_id} from user {user_id}")
-            return True
+            with get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        query, 
+                        (message_id, user_id, message_text, message_type, sent_at, sent_by, media)
+                    )
+                
+                conn.commit()
+                logger.info(f"Added message {message_id} from user {user_id}")
+                return True
             
         except Exception as e:
             logger.error(f"Error adding message: {e}")
