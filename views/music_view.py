@@ -159,7 +159,7 @@ class MusicView:
             )],
             [InlineKeyboardButton(
                 text="📋 View Tracks",
-                callback_data=f"view:album:tracks:{album['id']}"
+                callback_data=f"view:album:tracks:{album['id']}:1"
             )],
             [InlineKeyboardButton(
                 text=f"🎨 Artist:{album['main_artist']}",
@@ -192,7 +192,7 @@ class MusicView:
         buttons = [
             [InlineKeyboardButton(
                 text="📋 View Tracks",
-                callback_data=f"view:playlist:tracks:{playlist['id']}"
+                callback_data=f"view:playlist:tracks:{playlist['id']}:1"
             )],
             [InlineKeyboardButton(
                 text="⬇️ Download Playlist",
@@ -263,10 +263,89 @@ class MusicView:
         if content_type == "album":
             header = f"Tracks in album '{parent_info['name']}' by {parent_info['main_artist']}:\n\n"
             track_format = lambda t, i: f"{t['track_number']}. {t['name']} ({t['duration']})"
+        elif content_type == "artist":
+            header = f"Top '{parent_info['name']}' tracks:\n\n"
+            track_format = lambda t, i: f"{i}. {t['name']} - {t['main_artist']} ({t['duration']})"
         else:  # playlist
-            header = f"Tracks in playlist '{parent_info['name']}':\n\n"
+            header = f"Top '{parent_info['name']}' tracks:\n\n"
             track_format = lambda t, i: f"{i}. {t['name']} - {t['main_artist']} ({t['duration']})"
         
         track_list = [track_format(track, i+1) for i, track in enumerate(tracks)]
         
         return header + "\n".join(track_list)
+    
+    def format_albums_list(albums: List[Dict[str, Any]], parent_info: Dict[str, Any], content_type: str) -> str:
+        """Format list of tracks for album or playlist"""
+        if content_type == "album":
+            header = f"Tracks in album '{parent_info['name']}' by {parent_info['main_artist']}:\n\n"
+            track_format = lambda t, i: f"{t['track_number']}. {t['name']} ({t['duration']})"
+        else:  # playlist
+            header = f"Tracks in playlist '{parent_info['name']}':\n\n"
+            track_format = lambda t, i: f"{i}. {t['name']} - {t['main_artist']} ({t['duration']})"
+        
+        track_list = [track_format(track, i+1) for i, track in enumerate(albums)]
+        
+        return header + "\n".join(track_list)
+
+    def format_artists_list(artists: List[Dict[str, Any]], parent_info: Dict[str, Any], content_type: str) -> str:
+        """Format list of tracks for album or playlist"""
+        if content_type == "album":
+            header = f"Tracks in album '{parent_info['name']}' by {parent_info['main_artist']}:\n\n"
+            track_format = lambda t, i: f"{t['track_number']}. {t['name']} ({t['duration']})"
+        else:  # playlist
+            header = f"Tracks in playlist '{parent_info['name']}':\n\n"
+            track_format = lambda t, i: f"{i}. {t['name']} - {t['main_artist']} ({t['duration']})"
+        
+        track_list = [track_format(track, i+1) for i, track in enumerate(artists)]
+        
+        return header + "\n".join(track_list)
+    @staticmethod
+    def get_list_keyboard(items: List[Dict[str, Any]], content_type: str, action: str, page: int = 1) -> InlineKeyboardMarkup:
+        buttons = []
+        i = 0
+        for item in items:
+            if i < (page-1)*8 :
+                continue
+            if action == 'related':
+                button_text = f"{item['name']}"
+            else:
+                button_text = f"{item['name']} - {item['artist']}"
+            
+            callback_data = f"select:{action}:{item['id']}:{page}"
+            buttons.append([InlineKeyboardButton(text=button_text, callback_data=callback_data)])
+            i+=1
+            if i > (page)*8:
+                break
+        remaining_items = len(items) - (page)*8
+        nav_buttons = []
+        if page > 1:
+            nav_buttons.append(
+                InlineKeyboardButton(
+                    text="⬅️ Previous",
+                    callback_data=f"view:{content_type}:{action}:{page-1}"
+                )
+            )
+        
+        nav_buttons.append(
+            InlineKeyboardButton(
+                text="❌",
+                callback_data="delete"
+            )
+        )
+        
+        
+        if remaining_items > 0:
+            nav_buttons.append(
+                InlineKeyboardButton(
+                    text="Next ➡️",
+                    callback_data=f"view:{content_type}:{action}:{page+1}"
+                )
+            )
+        
+        if nav_buttons:
+            buttons.append(nav_buttons)
+        
+        keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+        
+        return keyboard
+

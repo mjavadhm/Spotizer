@@ -251,6 +251,7 @@ class SpotifyService:
                         {
                             'id': track['id'],
                             'name': track['name'],
+                            'artist': album['artists'][0]['name'],
                             'duration_ms': track['duration_ms'],
                             'duration': self._format_duration(track['duration_ms']),
                             'track_number': track['track_number'],
@@ -301,7 +302,11 @@ class SpotifyService:
             
             elif item_type == 'artist':
                 artist = self.sp.artist(item_id)
-                info = {
+                top_tracks = self.sp.artist_top_tracks(item_id, country='US')['tracks']
+                albums = self.sp.artist_albums(item_id, album_type='album', limit=5)['items']
+                related_artists = self.sp.artist_related_artists(item_id)['artists']
+
+                artist_info = {
                     'id': artist['id'],
                     'name': artist['name'],
                     'followers': artist['followers']['total'],
@@ -311,7 +316,70 @@ class SpotifyService:
                     'url': artist['external_urls']['spotify'],
                     'type': 'artist'
                 }
-                logger.info(f"Retrieved artist info: {info['name']}")
+
+                top_tracks_info = [
+                    {
+                        'id': track['id'],
+                        'name': track['name'],
+                        'artist': artist['name'],
+                        'popularity': track['popularity'],
+                        'preview_url': track['preview_url'],
+                        'album': track['album']['name'],
+                        'image': track['album']['images'][0]['url'] if track['album']['images'] else None,
+                        'url': track['external_urls']['spotify']
+                    }
+                    for track in top_tracks
+                ]
+
+                albums_info = [
+                    {
+                        'id': album['id'],
+                        'name': album['name'],
+                        'release_date': album['release_date'],
+                        'total_tracks': album['total_tracks'],
+                        'image': album['images'][0]['url'] if album['images'] else None,
+                        'url': album['external_urls']['spotify']
+                    }
+                    for album in albums
+                ]
+
+                related_info = [
+                    {
+                        'id': related['id'],
+                        'name': related['name'],
+                        'followers': related['followers']['total'],
+                        'genres': related['genres'],
+                        'popularity': related['popularity'],
+                        'image': related['images'][0]['url'] if related['images'] else None,
+                        'url': related['external_urls']['spotify']
+                    }
+                    for related in related_artists
+                ]
+
+                logger.info(f"Retrieved full artist info for {artist_info['name']}")
+                
+                return {
+                    'artist': artist_info,
+                    'top_tracks': top_tracks_info,
+                    'albums': albums_info,
+                    'related_artists': related_info
+                }
+            elif item_type == 'related':
+                related_artists = self.sp.artist_related_artists(item_id)['artists']
+                info = [
+                    {
+                        'id': artist['id'],
+                        'name': artist['name'],
+                        'followers': artist['followers']['total'],
+                        'genres': artist['genres'],
+                        'popularity': artist['popularity'],
+                        'image': artist['images'][0]['url'] if artist['images'] else None,
+                        'url': artist['external_urls']['spotify'],
+                        'type': 'artist'
+                    }
+                    for artist in related_artists
+                ]
+                logger.info(f"Retrieved {len(info)} related artists for artist ID {item_id}")
                 return info
             else:
                 logger.error(f"Unsupported item type: {item_type}")

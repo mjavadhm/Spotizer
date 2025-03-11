@@ -208,7 +208,7 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
         """Handle view callbacks (e.g., viewing album/playlist tracks)"""
         try:
             # Extract view info
-            _, content_type, action, item_id = callback_query.data.split(":")
+            _, content_type, action, item_id, page = callback_query.data.split(":")
             user_id = callback_query.from_user.id
             logger.info(f"Processing view for user {user_id} - Type: {content_type}, Action: {action}")
             
@@ -218,40 +218,33 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                 logger.error(f"Failed to get item info for user {user_id}")
                 await callback_query.answer("Error getting item information")
                 return
-            
+            # keyboard = MusicView.get_list_keyboard(item_info, content_type, action, page)
             # Display tracks based on content type
             if content_type == "album":
                 tracks = item_info.get('tracks', [])
-                text = f"Tracks in album '{item_info['name']}':\n\n"
-                for track in tracks:
-                    text += f"{track['track_number']}. {track['name']} ({track['duration']})\n"
+                text = f"Tracks in album '{item_info['name']}':"
+                keyboard = MusicView.get_list_keyboard(tracks, content_type, action, page)
             elif content_type == "playlist":
                 tracks = item_info.get('tracks', [])
-                text = f"Tracks in playlist '{item_info['name']}':\n\n"
-                for i, track in enumerate(tracks, 1):
-                    text += f"{i}. {track['name']} - {track['main_artist']} ({track['duration']})\n"
+                text = f"Tracks in playlist '{item_info['name']}':"
+                keyboard = MusicView.get_list_keyboard(tracks, content_type, action, page)
             elif content_type == "artist":
                 if action == "top_tracks":
-                    tracks = await download_controller.get_artist_top_tracks(item_id)
-                    text = f"Top tracks by {item_info['name']}:\n\n"
-                    for i, track in enumerate(tracks, 1):
-                        text += f"{i}. {track['name']} ({track['duration']})\n"
+                    tracks = item_info['artist'].get('top_tracks', [])
+                    text = f"Top tracks by {item_info['name']}:"
+                    keyboard = MusicView.get_list_keyboard(tracks, content_type, action, page)
                 elif action == "albums":
-                    albums = await download_controller.get_artist_albums(item_id)
+                    albums = item_info['artist'].get('albums', [])
                     text = f"Albums by {item_info['name']}:\n\n"
-                    for i, album in enumerate(albums, 1):
-                        text += f"{i}. {album['name']} ({album['release_date']})\n"
+                    keyboard = MusicView.get_list_keyboard(albums, content_type, action, page)
                 elif action == "related":
-                    artists = await download_controller.get_related_artists(item_id)
+                    related_artists = item_info['artist'].get('related_artists', [])
                     text = f"Artists related to {item_info['name']}:\n\n"
-                    for i, artist in enumerate(artists, 1):
-                        text += f"{i}. {artist['name']}\n"
+                    keyboard = MusicView.get_list_keyboard(related_artists, content_type, action, page)
             
-            # Add back button
-            keyboard = MusicView.get_back_keyboard(content_type, item_id)
-            
-            await callback_query.message.answer_photo(
-                photo=item_info['image'],
+            await callback_query.message.edit_caption(
+                chat_id=callback_query.message.chat.id,
+                message_id=callback_query.message.message_id,
                 caption=text,
                 reply_markup=keyboard,
                 parse_mode="Markdown"

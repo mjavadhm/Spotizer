@@ -310,18 +310,3 @@ class DownloadController:
             logger.error(f"Error getting artist albums: {str(e)}", exc_info=True)
             return []
 
-    async def get_related_artists(self, artist_id: str) -> list:
-        """Get related artists"""
-        try:
-            logger.info(f"Getting related artists for artist {artist_id}")
-            artists = self.spotify_service.sp.artist_related_artists(artist_id)['artists']
-            processed_artists = []
-            for artist in artists:
-                processed_artists.append({
-                    'id': artist['id'],
-                    'name': artist['name']
-                })
-            return processed_artists
-        except Exception as e:
-            logger.error(f"Error getting related artists: {str(e)}", exc_info=True)
-            return []
