@@ -5,6 +5,7 @@ from aiogram.fsm.context import FSMContext
 
 from controllers.user_controller import UserController
 from views.message_view import MessageView
+from models.message_model import MessageModel
 from logger import get_logger
 
 logger = get_logger(__name__)
@@ -13,6 +14,7 @@ def setup_command_routes(dp: Router, user_controller: UserController):
     """Set up command route handlers"""
     router = Router()
     logger.info("Setting up command routes")
+    message_model = MessageModel()
 
     @router.message(Command("start"))
     async def start_command(message: Message, state: FSMContext):
@@ -38,19 +40,22 @@ def setup_command_routes(dp: Router, user_controller: UserController):
             success, result = await user_controller.register_user(user_data)
             if not success:
                 logger.error(f"Failed to register user {user_id}: {result}")
-                await message.reply("Error registering user. Please try again.")
+                sm = await message.reply("Error registering user. Please try again.")
+                message_model.add_message(user_id, sm)
                 return
             
             logger.info(f"User {user_id} registered successfully")
             
             # Send welcome message
             welcome_message = MessageView.get_welcome_message()
-            await message.reply(welcome_message)
+            sm = await message.reply(welcome_message)
+            message_model.add_message(user_id, sm)
             logger.info(f"Sent welcome message to user {user_id}")
             
         except Exception as e:
             logger.error(f"Error processing /start command for user {user_id}: {str(e)}", exc_info=True)
-            await message.reply("An error occurred. Please try again later.")
+            sm = await message.reply("An error occurred. Please try again later.")
+            message_model.add_message(user_id, sm)
             raise
 
     @router.message(Command("settings"))
@@ -64,19 +69,22 @@ def setup_command_routes(dp: Router, user_controller: UserController):
             success, settings = await user_controller.get_user_settings(user_id)
             if not success:
                 logger.error(f"Failed to get settings for user {user_id}: {settings}")
-                await message.reply("Error accessing settings. Please try again.")
+                sm = await message.reply("Error accessing settings. Please try again.")
+                message_model.add_message(user_id, sm)
                 return
             
             logger.info(f"Retrieved settings for user {user_id}: {settings}")
             
             # Create settings keyboard
             keyboard = MessageView.get_settings_keyboard(settings)
-            await message.reply("⚙️ Your settings:", reply_markup=keyboard)
+            sm = await message.reply("⚙️ Your settings:", reply_markup=keyboard)
+            message_model.add_message(user_id, sm)
             logger.info(f"Sent settings keyboard to user {user_id}")
             
         except Exception as e:
             logger.error(f"Error processing /settings command for user {user_id}: {str(e)}", exc_info=True)
-            await message.reply("Error accessing settings. Please try again later.")
+            sm = await message.reply("Error accessing settings. Please try again later.")
+            message_model.add_message(user_id, sm)
             raise
 
     @router.message(Command("history"))
@@ -94,19 +102,22 @@ def setup_command_routes(dp: Router, user_controller: UserController):
             
             if not success:
                 logger.error(f"Failed to get download history for user {user_id}: {downloads}")
-                await message.reply("Error retrieving download history.")
+                sm = await message.reply("Error retrieving download history.")
+                message_model.add_message(user_id, sm)
                 return
             
             logger.info(f"Retrieved {len(downloads)} download records for user {user_id}")
             
             # Format history message
             history_text = MessageView.format_download_history(downloads)
-            await message.reply(history_text)
+            sm = await message.reply(history_text)
+            message_model.add_message(user_id, sm)
             logger.info(f"Sent download history to user {user_id}")
             
         except Exception as e:
             logger.error(f"Error processing /history command for user {user_id}: {str(e)}", exc_info=True)
-            await message.reply("Error retrieving download history.")
+            sm = await message.reply("Error retrieving download history.")
+            message_model.add_message(user_id, sm)
             raise
 
     @router.message(Command("help"))
@@ -138,12 +149,14 @@ def setup_command_routes(dp: Router, user_controller: UserController):
 *Need more help?*
 If you have any issues or questions, feel free to contact support."""
 
-            await message.reply(help_text, parse_mode="Markdown")
+            sm = await message.reply(help_text, parse_mode="Markdown")
+            message_model.add_message(user_id, sm)
             logger.info(f"Sent help message to user {user_id}")
             
         except Exception as e:
             logger.error(f"Error processing /help command for user {user_id}: {str(e)}", exc_info=True)
-            await message.reply("Error displaying help message.")
+            sm = await message.reply("Error displaying help message.")
+            message_model.add_message(user_id, sm)
             raise
 
     @router.message(Command("about"))
@@ -169,12 +182,14 @@ A powerful music downloading bot that helps you get your favorite music from Dee
 
 Thank you for using MusicDownloader Bot! 🎧"""
 
-            await message.reply(about_text, parse_mode="Markdown")
+            sm = await message.reply(about_text, parse_mode="Markdown")
+            message_model.add_message(user_id, sm)
             logger.info(f"Sent about message to user {user_id}")
             
         except Exception as e:
             logger.error(f"Error processing /about command for user {user_id}: {str(e)}", exc_info=True)
-            await message.reply("Error displaying about information.")
+            sm = await message.reply("Error displaying about information.")
+            message_model.add_message(user_id, sm)
             raise
 
     # Register all routes

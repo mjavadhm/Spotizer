@@ -219,6 +219,7 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                 logger.error(f"Failed to get item info for user {user_id}")
                 await callback_query.answer("Error getting item information")
                 return
+            # keyboard = MusicView.get_list_keyboard(item_info, content_type, action, page)
             # Display tracks based on content type
             if content_type == "album":
                 tracks = item_info.get('tracks', [])
@@ -264,7 +265,7 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
             logger.info(f"Processing download for user {user_id} - Type: {content_type}, ID: {item_id}")
             
             # Send processing message
-            status_message = await callback_query.message.reply("⏳ Processing download...")
+            status_message = await callback_query.message.reply("⏳")
             
             # Convert Spotify URL to Deezer and process download
             spotify_url = f"https://open.spotify.com/{content_type}/{item_id}"
