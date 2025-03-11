@@ -222,23 +222,32 @@ class MusicView:
     @staticmethod
     def get_artist_keyboard(artist: Dict[str, Any]) -> InlineKeyboardMarkup:
         """Create keyboard for artist view"""
-        buttons = [
-            [InlineKeyboardButton(
-                text="🔝 Top Tracks",
-                callback_data=f"view:artist:top_tracks:{artist['id']}:1"
-            )],
-            [InlineKeyboardButton(
-                text="💿 Albums",
-                callback_data=f"view:artist:albums:{artist['id']}:1"
-            )],
-            [InlineKeyboardButton(
-                text="👥 Related Artists",
-                callback_data=f"view:artist:related:{artist['id']}:1"
-            )],
-            [InlineKeyboardButton(
+        buttons = []
+        if artist['top_track']:
+            buttons.append(
+            InlineKeyboardButton(
+                    text="🔝 Top Tracks",
+                    callback_data=f"view:artist:top_tracks:{artist['id']}:1"
+                )
+            )
+        if artist['album']:
+            buttons.append(InlineKeyboardButton(
+                    text="💿 Albums",
+                    callback_data=f"view:artist:albums:{artist['id']}:1"
+                )
+            )
+        if artist['related_artists']:
+            buttons.append(InlineKeyboardButton(
+                    text="👥 Related Artists",
+                    callback_data=f"view:artist:related:{artist['id']}:1"
+                )
+            )
+        buttons.append(
+            InlineKeyboardButton(
                 text="❌",
                 callback_data="delete"
-            )]
+            )
+        )
         ]
         return InlineKeyboardMarkup(inline_keyboard=buttons)
 

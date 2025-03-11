@@ -302,10 +302,20 @@ class SpotifyService:
             
             elif item_type == 'artist':
                 artist = self.sp.artist(item_id)
-                top_tracks = self.sp.artist_top_tracks(item_id, country='US')['tracks']
-                albums = self.sp.artist_albums(item_id, album_type='album', limit=5)['items']
-                related_artists = self.sp.artist_related_artists(item_id)['artists']
-
+                try:
+                    top_tracks = self.sp.artist_top_tracks(item_id, country='US')['tracks']
+                except:
+                    top_tracks = None
+                try:
+                    albums = self.sp.artist_albums(item_id, album_type='album', limit=5)['items']
+                except:
+                    albums = None
+                    
+                try:
+                    related_artists = self.sp.artist_related_artists(item_id)['artists']
+                except:
+                    related_artists = None
+                
                 artist_info = {
                     'id': artist['id'],
                     'name': artist['name'],
@@ -316,45 +326,53 @@ class SpotifyService:
                     'url': artist['external_urls']['spotify'],
                     'type': 'artist'
                 }
+                if top_tracks:
+                    top_tracks_info = [
+                        {
+                            'id': track['id'],
+                            'name': track['name'],
+                            'artist': artist['name'],
+                            'popularity': track['popularity'],
+                            'preview_url': track['preview_url'],
+                            'album': track['album']['name'],
+                            'image': track['album']['images'][0]['url'] if track['album']['images'] else None,
+                            'url': track['external_urls']['spotify']
+                        }
+                        for track in top_tracks
+                    ]
+                else:
+                    top_tracks_info = None
 
-                top_tracks_info = [
-                    {
-                        'id': track['id'],
-                        'name': track['name'],
-                        'artist': artist['name'],
-                        'popularity': track['popularity'],
-                        'preview_url': track['preview_url'],
-                        'album': track['album']['name'],
-                        'image': track['album']['images'][0]['url'] if track['album']['images'] else None,
-                        'url': track['external_urls']['spotify']
-                    }
-                    for track in top_tracks
-                ]
+                if albums:
+                    albums_info = [
+                        {
+                            'id': album['id'],
+                            'name': album['name'],
+                            'release_date': album['release_date'],
+                            'total_tracks': album['total_tracks'],
+                            'image': album['images'][0]['url'] if album['images'] else None,
+                            'url': album['external_urls']['spotify']
+                        }
+                        for album in albums
+                    ]
+                else:
+                    albums_info = None
 
-                albums_info = [
-                    {
-                        'id': album['id'],
-                        'name': album['name'],
-                        'release_date': album['release_date'],
-                        'total_tracks': album['total_tracks'],
-                        'image': album['images'][0]['url'] if album['images'] else None,
-                        'url': album['external_urls']['spotify']
-                    }
-                    for album in albums
-                ]
-
-                related_info = [
-                    {
-                        'id': related['id'],
-                        'name': related['name'],
-                        'followers': related['followers']['total'],
-                        'genres': related['genres'],
-                        'popularity': related['popularity'],
-                        'image': related['images'][0]['url'] if related['images'] else None,
-                        'url': related['external_urls']['spotify']
-                    }
-                    for related in related_artists
-                ]
+                if related_artists:
+                    related_info = [
+                        {
+                            'id': related['id'],
+                            'name': related['name'],
+                            'followers': related['followers']['total'],
+                            'genres': related['genres'],
+                            'popularity': related['popularity'],
+                            'image': related['images'][0]['url'] if related['images'] else None,
+                            'url': related['external_urls']['spotify']
+                        }
+                        for related in related_artists
+                    ]
+                else:
+                    related_info = None
 
                 logger.info(f"Retrieved full artist info for {artist_info['name']}")
                 
