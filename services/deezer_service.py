@@ -3,6 +3,7 @@ import requests
 import re
 from deezloader.deezloader import DeeLogin
 from deezloader.models.smart import Smart
+import json
 from dataclasses import dataclass
 from typing import Optional, Tuple, Dict, Any
 from utils.file_handler import FileHandler
@@ -68,21 +69,18 @@ class DeezerService:
             logger.error(f"Error extracting info from URL {url}: {str(e)}", exc_info=True)
             return None, None
 
-    def get_deezer_info(self, content_type: str, deezer_id: int) -> Dict[str, Any]:
+    def get_deezer_info(self, content_type, deezer_id):
         """Get information from Deezer API"""
         try:
-            logger.info(f"Fetching Deezer info - Type: {content_type}, ID: {deezer_id}")
             url = f"https://api.deezer.com/{content_type}/{deezer_id}"
             response = requests.get(url)
-            
             if response.status_code == 200:
-                logger.info(f"Successfully retrieved info for {content_type} {deezer_id}")
                 return response.json()
             else:
                 error_msg = f"Failed to get Deezer info: HTTP {response.status_code}"
                 logger.error(error_msg)
                 raise Exception(error_msg)
-                
+    
         except Exception as e:
             logger.error(f"Error getting Deezer info for {content_type} {deezer_id}: {str(e)}", exc_info=True)
             raise
@@ -115,10 +113,14 @@ class DeezerService:
             
             elif content_type in ['album', 'playlist']:
                 info = self.get_deezer_info(content_type, deezer_id)
-                track_ids = [track['id'] for track in info['tracks']['data']]
-                logger.info(f"Retrieved {len(track_ids)} tracks from {content_type} {deezer_id}")
-                return track_ids
-            
+                if hasattr(info, "tracks"):
+                    track_ids = [track['id'] for track in info['tracks']['data']]
+                    logger.info(f"Retrieved {len(track_ids)} tracks from {content_type} {deezer_id}")
+                    return track_ids
+                else:
+                    error_msg = f"error in getting track list: {content_type} {deezer_id}"
+                    logger.error(error_msg)
+                    raise ValueError(error_msg)
             else:
                 error_msg = f"Invalid content type: {content_type}"
                 logger.error(error_msg)

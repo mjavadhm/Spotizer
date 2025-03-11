@@ -140,7 +140,8 @@ class DownloadController:
                         quality=quality,
                         url=url,
                         title=smart.album.title,
-                        artist=smart.album.artist
+                        artist=smart.album.artist,
+                        album=smart.album.title
                     )
                     
                     if os.path.exists(file_path):
@@ -165,7 +166,8 @@ class DownloadController:
                         quality=quality,
                         url=url,
                         title=smart.playlist.title,
-                        artist=smart.playlist.artist
+                        artist=smart.playlist.artist,
+                        album='album.title'
                     )
                     
                     if os.path.exists(file_path):
@@ -198,52 +200,57 @@ class DownloadController:
                         
                         if smart.track:
                             file_path = smart.track.song_path
-                            audio_file = FSInputFile(file_path)
-                            duration = self.file_handler.get_audio_duration(file_path)
-                            
-                            title = None
-                            if hasattr(smart.track, 'music'):
-                                title = smart.track.music
-                                logger.info(f"Track title: {title}")
-                            else:
-                                logger.warning(f"Title not found for track {track_id}, using default")
-                                title = f"Track {track_id}"
-                            
-                            artist = None
-                            if hasattr(smart.track, 'artist'):
-                                artist = smart.track.artist
-                            else:
-                                logger.warning(f"Artist not found for track {track_id}, using default")
-                                artist = "Unknown Artist"
+                            try:
+                                audio_file = FSInputFile(file_path)
+                                duration = self.file_handler.get_audio_duration(file_path)
+                                
+                                title = None
+                                if hasattr(smart.track, 'music'):
+                                    title = smart.track.music
+                                    logger.info(f"Track title: {title}")
+                                else:
+                                    logger.warning(f"Title not found for track {track_id}, using default")
+                                    title = f"Track {track_id}"
+                                
+                                artist = None
+                                if hasattr(smart.track, 'artist'):
+                                    artist = smart.track.artist
+                                else:
+                                    logger.warning(f"Artist not found for track {track_id}, using default")
+                                    artist = "Unknown Artist"
 
-                            sent_message = await bot.send_audio(
-                                chat_id=user_id,
-                                audio=audio_file,
-                                caption=f"@Spotizer_bot 🎧",
-                                duration=duration,
-                                title=title,
-                                performer=artist
-                            )
-                            
-                            self.download_model.add_track(
-                                user_id=user_id,
-                                deezer_id=track_id,
-                                content_type='track',
-                                file_id=sent_message.audio.file_id,
-                                quality=quality,
-                                url=track_link,
-                                title=title,
-                                artist=artist,
-                                duration=duration,
-                                file_name=sent_message.audio.file_name
-                            )
-                            
-                            musics = (title, duration, sent_message.audio.file_name)
-                            musics_playlist.append(musics)
-                            
-                            if os.path.exists(file_path):
-                                os.remove(file_path)
-                                logger.info(f"Deleted track file: {file_path}")
+                                sent_message = await bot.send_audio(
+                                    chat_id=user_id,
+                                    audio=audio_file,
+                                    caption=f"@Spotizer_bot 🎧",
+                                    duration=duration,
+                                    title=title,
+                                    performer=artist
+                                )
+                                
+                                self.download_model.add_track(
+                                    user_id=user_id,
+                                    deezer_id=track_id,
+                                    content_type='track',
+                                    file_id=sent_message.audio.file_id,
+                                    quality=quality,
+                                    url=track_link,
+                                    title=title,
+                                    artist=artist,
+                                    duration=duration,
+                                    file_name=sent_message.audio.file_name,
+                                    album=None
+                                )
+                                
+                                musics = (title, duration, sent_message.audio.file_name)
+                                musics_playlist.append(musics)
+                            except Exception as e:
+                                logger.error(f"Download processing error: {str(e)}", exc_info=True)
+                                return False, "An error occurred while processing your download request."
+                            finally:
+                                if os.path.exists(file_path):
+                                    os.remove(file_path)
+                                    logger.info(f"Deleted track file: {file_path}")
 
                 filename = f'deezer_{deezer_id}.m3u'
                 logger.info(f"Creating playlist file: {filename}")

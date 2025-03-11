@@ -219,7 +219,6 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                 logger.error(f"Failed to get item info for user {user_id}")
                 await callback_query.answer("Error getting item information")
                 return
-            # keyboard = MusicView.get_list_keyboard(item_info, content_type, action, page)
             # Display tracks based on content type
             if content_type == "album":
                 tracks = item_info.get('tracks', [])
@@ -234,7 +233,7 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                     tracks = item_info['more_artist_info'].get('top_tracks', [])
                     text = f"Top tracks by {item_info['name']}:"
                     keyboard = MusicView.get_list_keyboard(tracks, content_type, action, page, item_id)
-                elif action == "albums":
+                elif action == "album":
                     albums = item_info['more_artist_info'].get('albums', [])
                     text = f"Albums by {item_info['name']}:\n\n"
                     keyboard = MusicView.get_list_keyboard(albums, content_type, action, page, item_id)

@@ -160,7 +160,7 @@ class MusicView:
             )],
             [InlineKeyboardButton(
                 text="📋 View Tracks",
-                callback_data=f"view:album:tracks:{album['id']}:1"
+                callback_data=f"view:album:track:{album['id']}:1"
             )],
             [InlineKeyboardButton(
                 text=f"🎨 Artist:{album['main_artist']}",
@@ -235,7 +235,7 @@ class MusicView:
         if artist['more_artist_info']['albums']:
             buttons.append(InlineKeyboardButton(
                     text="💿 Albums",
-                    callback_data=f"view:artist:albums:{artist['id']}:1"
+                    callback_data=f"view:artist:album:{artist['id']}:1"
                 )
             )
         if artist['more_artist_info']['related_artists']:
@@ -313,6 +313,7 @@ class MusicView:
     def get_list_keyboard(items: List[Dict[str, Any]], content_type: str, action: str, page: int = 1, spoid = 1) -> InlineKeyboardMarkup:
         buttons = []
         i = 0
+        
         for item in items:
             if i < (page-1)*8 :
                 continue
@@ -321,7 +322,7 @@ class MusicView:
             else:
                 button_text = f"{item['name']} - {item['artist']}"
             
-            callback_data = f"select:{action}:{item['id']}:{page}"
+            callback_data = f"select:{action}:{item['id']}"
             buttons.append([InlineKeyboardButton(text=button_text, callback_data=callback_data)])
             i+=1
             if i > (page)*8:

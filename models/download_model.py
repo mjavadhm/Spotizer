@@ -222,17 +222,17 @@ class DownloadModel:
             logger.error(f"Failed to retrieve track: {str(e)}", exc_info=True)
             return None
     
-    def add_track(self, user_id, deezer_id, content_type, file_id, quality, title, artist, album, duration=None, file_name=None, url=None):
+    def add_track(self, user_id, deezer_id, content_type, file_id, quality, title, artist=None, album=None, duration=None, file_name=None, url=None):
         """Add a new track to the database"""
         try:
             deezer_id = str(deezer_id)
             with get_connection() as conn:
                 with conn.cursor() as cur:
                     query = """
-                    INSERT INTO tracks (user_id, track_id, content_type, file_id, quality, title, artist, album, duration, file_name, url)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO tracks (track_id, content_type, file_id, quality, title, artist, album, duration, file_name, url)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """
-                    params = [user_id, deezer_id, content_type, file_id, quality, title, artist, album, duration, file_name, url]
+                    params = [deezer_id, content_type, file_id, quality, title, artist, album, duration, file_name, url]
                     cur.execute(query, params)
                     conn.commit()
                     logger.info(f"Added new track record: {title} (Deezer ID: {deezer_id}, User: {user_id})")
