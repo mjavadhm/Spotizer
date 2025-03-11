@@ -250,7 +250,7 @@ class MusicView:
                 callback_data="delete"
             )
         )
-        return InlineKeyboardMarkup(inline_keyboard=buttons)
+        return InlineKeyboardMarkup(inline_keyboard=[[button] for button in buttons])
 
     @staticmethod
     def get_back_keyboard(content_type: str, item_id: str) -> InlineKeyboardMarkup:
