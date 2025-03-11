@@ -182,6 +182,9 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
             elif content_type == "playlist":
                 text = MusicView.format_playlist_info(item_info)
                 keyboard = MusicView.get_playlist_keyboard(item_info)
+            elif content_type == "artist":
+                text = MusicView.format_artist_info(item_info)
+                keyboard = MusicView.get_artist_keyboard(item_info)
             else:
                 logger.error(f"Invalid content type for user {user_id}: {content_type}")
                 await callback_query.answer("Invalid content type")
@@ -227,6 +230,22 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                 text = f"Tracks in playlist '{item_info['name']}':\n\n"
                 for i, track in enumerate(tracks, 1):
                     text += f"{i}. {track['name']} - {track['main_artist']} ({track['duration']})\n"
+            elif content_type == "artist":
+                if action == "top_tracks":
+                    tracks = await download_controller.get_artist_top_tracks(item_id)
+                    text = f"Top tracks by {item_info['name']}:\n\n"
+                    for i, track in enumerate(tracks, 1):
+                        text += f"{i}. {track['name']} ({track['duration']})\n"
+                elif action == "albums":
+                    albums = await download_controller.get_artist_albums(item_id)
+                    text = f"Albums by {item_info['name']}:\n\n"
+                    for i, album in enumerate(albums, 1):
+                        text += f"{i}. {album['name']} ({album['release_date']})\n"
+                elif action == "related":
+                    artists = await download_controller.get_related_artists(item_id)
+                    text = f"Artists related to {item_info['name']}:\n\n"
+                    for i, artist in enumerate(artists, 1):
+                        text += f"{i}. {artist['name']}\n"
             
             # Add back button
             keyboard = MusicView.get_back_keyboard(content_type, item_id)

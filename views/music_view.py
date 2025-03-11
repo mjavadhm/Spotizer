@@ -14,6 +14,8 @@ class MusicView:
                 text = f"🎵 {item['name']} - {artists}"
             elif search_type == "album":
                 text = f"📀 {item['name']} by {item['main_artist']}"
+            elif search_type == "artist":
+                text = f"👤 {item['name']}"
             else:  # playlist
                 text = f"📑 {item['name']} ({item['total_tracks']} tracks)"
                 
@@ -195,6 +197,43 @@ class MusicView:
             [InlineKeyboardButton(
                 text="⬇️ Download Playlist",
                 callback_data=f"download:playlist:{playlist['id']}"
+            )],
+            [InlineKeyboardButton(
+                text="❌",
+                callback_data="delete"
+            )]
+        ]
+        return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    @staticmethod
+    def format_artist_info(artist: Dict[str, Any]) -> str:
+        """Format artist information"""
+        genres_text = ", ".join(artist['genres']) if artist['genres'] else "N/A"
+        
+        info = [
+            f"🎨 *Artist:* [{artist['name']}]({artist['url']})\n",
+            f"👥 *Followers:* {artist['followers']:,}\n",
+            f"🔥 *Popularity:* {artist['popularity']}/100\n",
+            f"🎭 *Genres:* {genres_text}"
+        ]
+        
+        return "\n".join(info)
+
+    @staticmethod
+    def get_artist_keyboard(artist: Dict[str, Any]) -> InlineKeyboardMarkup:
+        """Create keyboard for artist view"""
+        buttons = [
+            [InlineKeyboardButton(
+                text="🔝 Top Tracks",
+                callback_data=f"view:artist:top_tracks:{artist['id']}:1"
+            )],
+            [InlineKeyboardButton(
+                text="💿 Albums",
+                callback_data=f"view:artist:albums:{artist['id']}:1"
+            )],
+            [InlineKeyboardButton(
+                text="👥 Related Artists",
+                callback_data=f"view:artist:related:{artist['id']}:1"
             )],
             [InlineKeyboardButton(
                 text="❌",

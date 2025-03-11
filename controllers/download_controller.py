@@ -275,3 +275,53 @@ class DownloadController:
         except Exception as e:
             logger.error(f"Error fetching download history: {str(e)}", exc_info=True)
             return False, "Could not retrieve download history."
+
+    async def get_artist_top_tracks(self, artist_id: str) -> list:
+        """Get artist's top tracks"""
+        try:
+            logger.info(f"Getting top tracks for artist {artist_id}")
+            top_tracks = self.spotify_service.sp.artist_top_tracks(artist_id)['tracks']
+            processed_tracks = []
+            for track in top_tracks:
+                processed_tracks.append({
+                    'id': track['id'],
+                    'name': track['name'],
+                    'duration': self.spotify_service._format_duration(track['duration_ms'])
+                })
+            return processed_tracks
+        except Exception as e:
+            logger.error(f"Error getting artist top tracks: {str(e)}", exc_info=True)
+            return []
+
+    async def get_artist_albums(self, artist_id: str) -> list:
+        """Get artist's albums"""
+        try:
+            logger.info(f"Getting albums for artist {artist_id}")
+            albums = self.spotify_service.sp.artist_albums(artist_id, album_type='album')['items']
+            processed_albums = []
+            for album in albums:
+                processed_albums.append({
+                    'id': album['id'],
+                    'name': album['name'],
+                    'release_date': album['release_date']
+                })
+            return processed_albums
+        except Exception as e:
+            logger.error(f"Error getting artist albums: {str(e)}", exc_info=True)
+            return []
+
+    async def get_related_artists(self, artist_id: str) -> list:
+        """Get related artists"""
+        try:
+            logger.info(f"Getting related artists for artist {artist_id}")
+            artists = self.spotify_service.sp.artist_related_artists(artist_id)['artists']
+            processed_artists = []
+            for artist in artists:
+                processed_artists.append({
+                    'id': artist['id'],
+                    'name': artist['name']
+                })
+            return processed_artists
+        except Exception as e:
+            logger.error(f"Error getting related artists: {str(e)}", exc_info=True)
+            return []

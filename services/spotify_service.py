@@ -180,6 +180,16 @@ class SpotifyService:
                     'images': item['images'],
                     'type': 'playlist'
                 }
+            elif item_type == 'artist':
+                return {
+                    'id': item['id'],
+                    'name': item['name'],
+                    'followers': item['followers']['total'],
+                    'genres': item['genres'],
+                    'popularity': item['popularity'],
+                    'images': item['images'],
+                    'type': 'artist'
+                }
             return None
         except Exception as e:
             logger.error(f"Error processing search result: {str(e)}", exc_info=True)
@@ -289,6 +299,20 @@ class SpotifyService:
                 logger.info(f"Retrieved playlist info: {info['name']}")
                 return info
             
+            elif item_type == 'artist':
+                artist = self.sp.artist(item_id)
+                info = {
+                    'id': artist['id'],
+                    'name': artist['name'],
+                    'followers': artist['followers']['total'],
+                    'genres': artist['genres'],
+                    'popularity': artist['popularity'],
+                    'image': artist['images'][0]['url'] if artist['images'] else None,
+                    'url': artist['external_urls']['spotify'],
+                    'type': 'artist'
+                }
+                logger.info(f"Retrieved artist info: {info['name']}")
+                return info
             else:
                 logger.error(f"Unsupported item type: {item_type}")
                 return None
