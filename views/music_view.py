@@ -224,8 +224,8 @@ class MusicView:
     def get_artist_keyboard(artist: Dict[str, Any]) -> InlineKeyboardMarkup:
         """Create keyboard for artist view"""
         buttons = []
-        print(json.dumps(artist, indent=4, ensure_ascii=False))
-        if artist['more_artist_info']['top_track']:
+        # print(json.dumps(artist, indent=4, ensure_ascii=False))
+        if artist['more_artist_info']['top_tracks']:
             buttons.append(
             InlineKeyboardButton(
                     text="🔝 Top Tracks",
