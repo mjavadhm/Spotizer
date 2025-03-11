@@ -98,7 +98,9 @@ class MessageView:
                 InlineKeyboardButton(text="Search Albums", callback_data=f"search:album:{query}")
             ],
             [
-                InlineKeyboardButton(text="Search Playlists", callback_data=f"search:playlist:{query}")
+                InlineKeyboardButton(text="Search Playlists", callback_data=f"search:playlist:{query}"),
+                InlineKeyboardButton(text="Search Artist", callback_data=f"search:artist:{query}")
             ]
+            
         ])
         return keyboard

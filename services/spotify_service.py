@@ -307,7 +307,7 @@ class SpotifyService:
                 except:
                     top_tracks = None
                 try:
-                    albums = self.sp.artist_albums(item_id, album_type='album', limit=5)['items']
+                    albums = self.sp.artist_albums(item_id, album_type='album')['items']
                 except:
                     albums = None
                                 
