@@ -244,8 +244,6 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                     keyboard = MusicView.get_list_keyboard(related_artists, content_type, action, page)
             
             await callback_query.message.edit_caption(
-                chat_id=callback_query.message.chat.id,
-                message_id=callback_query.message.message_id,
                 caption=text,
                 reply_markup=keyboard,
                 parse_mode="Markdown"
