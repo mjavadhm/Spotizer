@@ -228,20 +228,20 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
             elif content_type == "playlist":
                 tracks = item_info.get('tracks', [])
                 text = f"Tracks in playlist '{item_info['name']}':"
-                keyboard = MusicView.get_list_keyboard(tracks, content_type, action, page)
+                keyboard = MusicView.get_list_keyboard(tracks, content_type, action, page, item_id)
             elif content_type == "artist":
                 if action == "top_tracks":
                     tracks = item_info['more_artist_info'].get('top_tracks', [])
                     text = f"Top tracks by {item_info['name']}:"
-                    keyboard = MusicView.get_list_keyboard(tracks, content_type, action, page)
+                    keyboard = MusicView.get_list_keyboard(tracks, content_type, action, page, item_id)
                 elif action == "albums":
                     albums = item_info['more_artist_info'].get('albums', [])
                     text = f"Albums by {item_info['name']}:\n\n"
-                    keyboard = MusicView.get_list_keyboard(albums, content_type, action, page)
+                    keyboard = MusicView.get_list_keyboard(albums, content_type, action, page, item_id)
                 elif action == "related":
                     related_artists = item_info['more_artist_info'].get('related_artists', [])
                     text = f"Artists related to {item_info['name']}:\n\n"
-                    keyboard = MusicView.get_list_keyboard(related_artists, content_type, action, page)
+                    keyboard = MusicView.get_list_keyboard(related_artists, content_type, action, page, item_id)
             
             await callback_query.message.edit_caption(
                 caption=text,

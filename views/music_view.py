@@ -310,7 +310,7 @@ class MusicView:
         
         return header + "\n".join(track_list)
     @staticmethod
-    def get_list_keyboard(items: List[Dict[str, Any]], content_type: str, action: str, page: int = 1) -> InlineKeyboardMarkup:
+    def get_list_keyboard(items: List[Dict[str, Any]], content_type: str, action: str, page: int = 1, spoid) -> InlineKeyboardMarkup:
         buttons = []
         i = 0
         for item in items:
@@ -332,7 +332,7 @@ class MusicView:
             nav_buttons.append(
                 InlineKeyboardButton(
                     text="⬅️ Previous",
-                    callback_data=f"view:{content_type}:{action}:{page-1}"
+                    callback_data=f"view:{content_type}:{action}:{spoid}:{page-1}"
                 )
             )
         
@@ -348,7 +348,7 @@ class MusicView:
             nav_buttons.append(
                 InlineKeyboardButton(
                     text="Next ➡️",
-                    callback_data=f"view:{content_type}:{action}:{page+1}"
+                    callback_data=f"view:{content_type}:{action}:{spoid}:{page+1}"
                 )
             )
         
