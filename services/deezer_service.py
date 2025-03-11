@@ -12,7 +12,7 @@ from logger import get_logger
 logger = get_logger(__name__)
 
 arl = os.getenv('DEEZER_ARL')
-deedownload = DeeLogin(arl=arl)
+deedownload = DeeLogin(arl="4f843574c19f3063f060c139878478063249e932b57d5f653f14dbee898dd5430b79e71e166324ade5e44fa3e41dc6d4e8f593ea67451e3d20933d71ca45c32401942d18ee623f6c5bc75416d9d634afd4998659d167cc0dae05d2d08f17c05b")
 
 @dataclass
 class DownloadResult:
