@@ -183,7 +183,7 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                 text = MusicView.format_playlist_info(item_info)
                 keyboard = MusicView.get_playlist_keyboard(item_info)
             elif content_type == "artist":
-                text = MusicView.format_artist_info(item_info)
+                text = MusicView.format_artist_info(item_info['artist'])
                 keyboard = MusicView.get_artist_keyboard(item_info)
             else:
                 logger.error(f"Invalid content type for user {user_id}: {content_type}")
