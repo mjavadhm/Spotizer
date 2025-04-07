@@ -12,7 +12,7 @@ from logger import get_logger
 logger = get_logger(__name__)
 
 arl = os.getenv('DEEZER_ARL')
-deedownload = DeeLogin(arl="4f843574c19f3063f060c139878478063249e932b57d5f653f14dbee898dd5430b79e71e166324ade5e44fa3e41dc6d4e8f593ea67451e3d20933d71ca45c32401942d18ee623f6c5bc75416d9d634afd4998659d167cc0dae05d2d08f17c05b")
+deedownload = DeeLogin(arl=arl)
 
 @dataclass
 class DownloadResult:
@@ -113,11 +113,13 @@ class DeezerService:
             
             elif content_type in ['album', 'playlist']:
                 info = self.get_deezer_info(content_type, deezer_id)
-                if hasattr(info, "tracks"):
+                if "tracks" in info:
                     track_ids = [track['id'] for track in info['tracks']['data']]
                     logger.info(f"Retrieved {len(track_ids)} tracks from {content_type} {deezer_id}")
                     return track_ids
                 else:
+                    # print(f"Error: {info}")
+                    # logger.error(f"Error retrieving track list: {info}")
                     error_msg = f"error in getting track list: {content_type} {deezer_id}"
                     logger.error(error_msg)
                     raise ValueError(error_msg)
@@ -128,4 +130,16 @@ class DeezerService:
                 
         except Exception as e:
             logger.error(f"Error getting track list for {content_type} {deezer_id}: {str(e)}", exc_info=True)
+            raise
+    
+    def convert_to_deezer(self, url):
+        try:
+            if 'track' in url:
+                url = deedownload.convert_spoty_to_dee_link_track(url)
+            elif 'album' in url:
+                url = deedownload.convert_spoty_to_dee_link_album(url)
+        
+            return url
+        except Exception as e:
+            logger.error(f"Error converting {url}: {str(e)}", exc_info=True)
             raise

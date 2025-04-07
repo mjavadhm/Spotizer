@@ -102,14 +102,14 @@ class DownloadController:
                     logger.error(f"Spotify playlist not supported: {url}")
                     return False, "Spotify playlists are not supported yet. Please use a Deezer link."
                 logger.info(f"Converting Spotify URL to Deezer URL: {url}")
-                url = self.spotify_service.convert_to_deezer_url(url)
+                url = self.deezer_service.convert_to_deezer(url)
                 logger.info(f"Converted to Deezer URL: {url}")
 
             content_type, deezer_id = self.deezer_service.extract_info_from_url(url)
             logger.info(f"Extracted info - Type: {content_type}, ID: {deezer_id}")
 
             if make_zip and 'track' not in url:
-                existing_zip = await self.download_model.get_track_by_deezer_id_quality(user_id, deezer_id, quality)
+                existing_zip = self.download_model.get_track_by_deezer_id_quality(user_id, deezer_id, quality)
                 if existing_zip:
                     logger.info(f"Found existing ZIP for {content_type} {deezer_id}")
                     await bot.send_document(
@@ -120,7 +120,7 @@ class DownloadController:
                     return True, "Sent existing ZIP file"
 
                 logger.info(f"Downloading {content_type} as ZIP: {deezer_id}")
-                smart = self.deezer_service.download(url, quality_download=quality, make_zip=True)
+                smart = await self.deezer_service.download(url, quality_download=quality, make_zip=True)
                 
                 if smart.album:
                     logger.info(f"Processing album download: {smart.album.title}")
@@ -196,11 +196,13 @@ class DownloadController:
                     else:
                         track_link = f"https://www.deezer.com/track/{track_id}"
                         logger.info(f"Downloading new track: {track_link}")
-                        smart = await self.deezer_service.download(url, quality_download=quality, make_zip=False)
+                        smart = await self.deezer_service.download(track_link, quality_download=quality, make_zip=False)
                         
                         if smart.track:
+                            print("check")
                             file_path = smart.track.song_path
                             try:
+                                print("check2")
                                 audio_file = FSInputFile(file_path)
                                 duration = self.file_handler.get_audio_duration(file_path)
                                 
@@ -252,20 +254,21 @@ class DownloadController:
                                     os.remove(file_path)
                                     logger.info(f"Deleted track file: {file_path}")
 
-                filename = f'deezer_{deezer_id}.m3u'
-                logger.info(f"Creating playlist file: {filename}")
-                await self.file_handler.playlist_creator(musics_playlist, filename)
-                
-                await bot.send_document(
-                    chat_id=user_id,
-                    document=FSInputFile(filename),
-                    caption="<a href='https://telegra.ph/How-to-Use-M3U-Playlists-03-02'>What is this and how can I use it?</a>\n\n@Spotizer_bot 🎧",
-                    parse_mode='HTML'
-                )
-                
-                if os.path.exists(filename):
-                    os.remove(filename)
-                    logger.info(f"Deleted playlist file: {filename}")
+                if len(musics_playlist) > 1:
+                    filename = f'deezer_{deezer_id}.m3u'
+                    logger.info(f"Creating playlist file: {filename}")
+                    await self.file_handler.playlist_creator(musics_playlist, filename)
+                    
+                    await bot.send_document(
+                        chat_id=user_id,
+                        document=FSInputFile(filename),
+                        caption="<a href='https://telegra.ph/How-to-Use-M3U-Playlists-03-02'>What is this and how can I use it?</a>\n\n@Spotizer_bot 🎧",
+                        parse_mode='HTML'
+                    )
+                    
+                    if os.path.exists(filename):
+                        os.remove(filename)
+                        logger.info(f"Deleted playlist file: {filename}")
 
             return True, "Download completed successfully"
 
