@@ -11,9 +11,18 @@ from logger import get_logger
 
 logger = get_logger(__name__)
 
-arl = os.getenv('DEEZER_ARL')
+arl = "3bc1b698b6a71d212c0478f1037b1fa4a381134ca51ece628b00d5845ec19d2e3b284bce69688ffa570705b0f9e14d290e2d9f447421b0ab3732d5230455d86e03e0ed568922ae5fcd806ac87d0ea60b5ee2306fa740825e6f097b8732343b15"#os.getenv('DEEZER_ARL')
 deedownload = DeeLogin(arl=arl)
 
+async def reload_arl(arl):
+    """Reload ARL token from file"""
+    try:
+        global deedownload
+        deedownload = DeeLogin(arl=arl)
+        logger.info("Successfully reloaded ARL token")
+
+    except Exception as e:
+        logger.error(f"Error reloading ARL token: {str(e)}", exc_info=True)
 @dataclass
 class DownloadResult:
     success: bool

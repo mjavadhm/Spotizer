@@ -179,80 +179,88 @@ class DownloadController:
                 musics_playlist = []
                 
                 for track_id in track_ids:
-                    logger.info(f"Processing track: {track_id}")
-                    existing_track = self.download_model.get_track_by_deezer_id_quality(user_id, track_id, quality)
-                    
-                    if existing_track:
-                        logger.info(f"Found existing track: {existing_track['title']}")
-                        await bot.send_audio(
-                            chat_id=user_id,
-                            audio=existing_track['file_id'],
-                            caption=f"@Spotizer_bot 🎧",
-                            title=existing_track['title'],
-                            performer=existing_track['artist']
-                        )
-                        musics = (existing_track['title'], existing_track['duration'], existing_track['file_name'])
-                        musics_playlist.append(musics)
-                    else:
-                        track_link = f"https://www.deezer.com/track/{track_id}"
-                        logger.info(f"Downloading new track: {track_link}")
-                        smart = await self.deezer_service.download(track_link, quality_download=quality, make_zip=False)
+                    try:
+                        logger.info(f"Processing track: {track_id}")
+                        existing_track = self.download_model.get_track_by_deezer_id_quality(user_id, track_id, quality)
                         
-                        if smart.track:
-                            print("check")
-                            file_path = smart.track.song_path
-                            try:
-                                print("check2")
-                                audio_file = FSInputFile(file_path)
-                                duration = self.file_handler.get_audio_duration(file_path)
-                                
-                                title = None
-                                if hasattr(smart.track, 'music'):
-                                    title = smart.track.music
-                                    logger.info(f"Track title: {title}")
-                                else:
-                                    logger.warning(f"Title not found for track {track_id}, using default")
-                                    title = f"Track {track_id}"
-                                
-                                artist = None
-                                if hasattr(smart.track, 'artist'):
-                                    artist = smart.track.artist
-                                else:
-                                    logger.warning(f"Artist not found for track {track_id}, using default")
-                                    artist = "Unknown Artist"
+                        if existing_track:
+                            logger.info(f"Found existing track: {existing_track['title']}")
+                            await bot.send_audio(
+                                chat_id=user_id,
+                                audio=existing_track['file_id'],
+                                caption=f"@Spotizer_bot 🎧",
+                                title=existing_track['title'],
+                                performer=existing_track['artist']
+                            )
+                            musics = (existing_track['title'], existing_track['duration'], existing_track['file_name'])
+                            musics_playlist.append(musics)
+                        else:
+                            track_link = f"https://www.deezer.com/track/{track_id}"
+                            logger.info(f"Downloading new track: {track_link}")
+                            smart = await self.deezer_service.download(track_link, quality_download=quality, make_zip=False)
+                            
+                            if smart.track:
+                                print("check")
+                                file_path = smart.track.song_path
+                                try:
+                                    print("check2")
+                                    audio_file = FSInputFile(file_path)
+                                    duration = self.file_handler.get_audio_duration(file_path)
+                                    
+                                    title = None
+                                    if hasattr(smart.track, 'music'):
+                                        title = smart.track.music
+                                        logger.info(f"Track title: {title}")
+                                    else:
+                                        logger.warning(f"Title not found for track {track_id}, using default")
+                                        title = f"Track {track_id}"
+                                    
+                                    artist = None
+                                    if hasattr(smart.track, 'artist'):
+                                        artist = smart.track.artist
+                                    else:
+                                        logger.warning(f"Artist not found for track {track_id}, using default")
+                                        artist = "Unknown Artist"
 
-                                sent_message = await bot.send_audio(
-                                    chat_id=user_id,
-                                    audio=audio_file,
-                                    caption=f"@Spotizer_bot 🎧",
-                                    duration=duration,
-                                    title=title,
-                                    performer=artist
-                                )
-                                
-                                self.download_model.add_track(
-                                    user_id=user_id,
-                                    deezer_id=track_id,
-                                    content_type='track',
-                                    file_id=sent_message.audio.file_id,
-                                    quality=quality,
-                                    url=track_link,
-                                    title=title,
-                                    artist=artist,
-                                    duration=duration,
-                                    file_name=sent_message.audio.file_name,
-                                    album=None
-                                )
-                                
-                                musics = (title, duration, sent_message.audio.file_name)
-                                musics_playlist.append(musics)
-                            except Exception as e:
-                                logger.error(f"Download processing error: {str(e)}", exc_info=True)
-                                return False, "An error occurred while processing your download request."
-                            finally:
-                                if os.path.exists(file_path):
-                                    os.remove(file_path)
-                                    logger.info(f"Deleted track file: {file_path}")
+                                    sent_message = await bot.send_audio(
+                                        chat_id=user_id,
+                                        audio=audio_file,
+                                        caption=f"@Spotizer_bot 🎧",
+                                        duration=duration,
+                                        title=title,
+                                        performer=artist
+                                    )
+                                    
+                                    self.download_model.add_track(
+                                        user_id=user_id,
+                                        deezer_id=track_id,
+                                        content_type='track',
+                                        file_id=sent_message.audio.file_id,
+                                        quality=quality,
+                                        url=track_link,
+                                        title=title,
+                                        artist=artist,
+                                        duration=duration,
+                                        file_name=sent_message.audio.file_name,
+                                        album=None
+                                    )
+                                    
+                                    musics = (title, duration, sent_message.audio.file_name)
+                                    musics_playlist.append(musics)
+                                except Exception as e:
+                                    logger.error(f"Download processing error: {str(e)}", exc_info=True)
+                                    return False, "An error occurred while processing your download request."
+                                finally:
+                                    if os.path.exists(file_path):
+                                        os.remove(file_path)
+                                        logger.info(f"Deleted track file: {file_path}")
+                    except Exception as e:
+                        await bot.send_message(
+                            chat_id=user_id,
+                            text=f"❌ Track 'https://www.deezer.com/us/track/{track_id}' isn't in Deezer or not available for download.",
+                        )
+                        logger.error(f"Error processing track {track_id}: {str(e)}", exc_info=True)
+                        # return False, "An error occurred while processing your download request."
 
                 if len(musics_playlist) > 1:
                     filename = f'deezer_{deezer_id}.m3u'

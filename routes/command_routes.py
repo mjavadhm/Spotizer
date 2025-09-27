@@ -1,9 +1,10 @@
 from aiogram import Router, F
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 
 from controllers.user_controller import UserController
+from services.deezer_service import reload_arl
 from views.message_view import MessageView
 from models.message_model import MessageModel
 from logger import get_logger
@@ -190,6 +191,33 @@ Thank you for using MusicDownloader Bot! 🎧"""
             logger.error(f"Error processing /about command for user {user_id}: {str(e)}", exc_info=True)
             sm = await message.reply("Error displaying about information.")
             message_model.add_message(user_id, sm)
+            raise
+    
+    @router.message(Command("reload_arl"))
+    async def reload_arl_command(message: Message, command: CommandObject, state: FSMContext):
+        """Handle /reload_arl command"""
+        try:
+            user_id = message.from_user.id
+            logger.info(f"Processing /reload_arl command for user {user_id}")
+
+            # استخراج توکن ARL از آرگومان‌های دستور
+            arl = command.args
+
+            if not arl:
+                # اگر کاربر هیچ مقداری بعد از دستور وارد نکرده باشد
+                await message.reply("لطفاً توکن ARL را بعد از دستور وارد کنید.\nمثال: /reload_arl 12345...")
+                logger.warning(f"User {user_id} did not provide an ARL token.")
+                return
+
+            # در اینجا می‌توانید با متغیر arl کار کنید
+            # برای مثال، آن را در جایی ذخیره کنید یا اعتبارسنجی کنید
+            logger.info(f"User {user_id} provided ARL: {arl}")
+            await message.reply(f"توکن ARL شما با موفقیت دریافت شد: `{arl}`", parse_mode="MarkdownV2")
+            reload_arl(arl)
+        except Exception as e:
+            logger.error(f"Error processing /about command for user {user_id}: {str(e)}", exc_info=True)
+            # sm = await message.reply("Error displaying about information.")
+            # message_model.add_message(user_id, sm)
             raise
 
     # Register all routes

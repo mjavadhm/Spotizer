@@ -18,6 +18,7 @@ class MusicView:
             elif search_type == "artist":
                 text = f"👤 {item['name']}"
             else:  # playlist
+                search_type = "playlist"
                 text = f"📑 {item['name']} ({item['total_tracks']} tracks)"
                 
             # Truncate long titles
