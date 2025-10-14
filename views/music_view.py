@@ -131,6 +131,10 @@ class MusicView:
                 callback_data=f"select:album:{track['album']['id']}"
             )],
             [InlineKeyboardButton(
+                text="➕ Add to Playlist",
+                callback_data=f"playlist:add:{track['id']}"
+            )],
+            [InlineKeyboardButton(
                 text="❌",
                 callback_data="delete"
             )]
