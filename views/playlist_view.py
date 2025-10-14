@@ -16,7 +16,7 @@ class PlaylistView:
                 buttons.append([
                     InlineKeyboardButton(
                         text=playlist['name'],
-                        callback_data=f"select_playlist:add:{playlist['playlist_id']}:{track_id}"
+                        callback_data=f"playlist:add:{playlist['playlist_id']}:{track_id}"
                     )
                 ])
 
