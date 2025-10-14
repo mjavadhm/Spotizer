@@ -4,13 +4,14 @@ from aiogram.fsm.context import FSMContext
 
 from controllers.user_controller import UserController
 from controllers.download_controller import DownloadController
+from controllers.playlist_controller import PlayListController
 from views.message_view import MessageView
 from views.music_view import MusicView
 from logger import get_logger
 
 logger = get_logger(__name__)
 
-def setup_callback_routes(dp: Router, user_controller: UserController, download_controller: DownloadController):
+def setup_callback_routes(dp: Router, user_controller: UserController, download_controller: DownloadController, playlist_controller: PlayListController):
     """Set up callback query handlers"""
     router = Router()
     logger.info("Setting up callback routes")
@@ -24,7 +25,7 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
         logger.info(f"Processing playlist callback for user {user_id} - Action: {action}")
 
         if action == "add":
-            
+            await playlist_controller.add_action(user_id, callback_query)
 
     @router.callback_query(F.data.startswith("setting:"))
     async def settings_callback(callback_query: CallbackQuery, state: FSMContext):

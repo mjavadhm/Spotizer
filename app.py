@@ -7,6 +7,7 @@ from aiogram.client.session.aiohttp import AiohttpSession
 
 from controllers.user_controller import UserController
 from controllers.download_controller import DownloadController
+from controllers.playlist_controller import PlayListController
 from database.connection import setup_database
 from routes.command_routes import setup_command_routes
 from routes.message_routes import setup_message_routes
@@ -42,6 +43,7 @@ class MusicDownloaderBot:
             # Initialize controllers
             self.user_controller = UserController()
             self.download_controller = DownloadController()
+            self.playlist_controller = PlayListController()
             logger.info("Controllers initialized")
             
             # Set up routes
@@ -59,7 +61,7 @@ class MusicDownloaderBot:
             logger.info("Setting up route handlers")
             
             # Set up command routes (start, settings, history)
-            setup_command_routes(self.dp, self.user_controller)
+            setup_command_routes(self.dp, self.user_controller, self.playlist_controller)
             logger.info("Command routes configured")
             
             # Set up message routes (link processing, search)
@@ -67,7 +69,7 @@ class MusicDownloaderBot:
             logger.info("Message routes configured")
             
             # Set up callback routes (buttons, pagination)
-            setup_callback_routes(self.dp, self.user_controller, self.download_controller)
+            setup_callback_routes(self.dp, self.user_controller, self.download_controller, self.playlist_controller)
             logger.info("Callback routes configured")
             
             logger.info("All routes set up successfully")
