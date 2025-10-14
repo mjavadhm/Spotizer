@@ -66,7 +66,7 @@ class UserModel:
                         logger.info(f"Added new user record for user {user_id}")
                         
                         # Create default settings for new user
-                        self.create_default_settings(user_id)
+                        self.create_default_settings(cur,user_id)
                     
                     conn.commit()
                     return True
@@ -154,7 +154,7 @@ class UserModel:
                     if cur.rowcount == 0:
                         # Settings don't exist, create them
                         logger.info(f"Creating default settings for user {user_id} with overrides")
-                        self.create_default_settings(user_id, **settings)
+                        self.create_default_settings(cur,user_id, **settings)
                     else:
                         logger.info(f"Updated settings for user {user_id}")
                     
@@ -188,7 +188,7 @@ class UserModel:
                     
                     # If no settings found, create default settings and return them
                     logger.info(f"No settings found for user {user_id}, creating defaults")
-                    self.create_default_settings(user_id)
+                    self.create_default_settings(cur,user_id)
                     return self.default_settings.copy()
                     
         except Exception as e:
@@ -196,12 +196,10 @@ class UserModel:
             # Return default settings in case of error
             return self.default_settings.copy()
 
-    def create_default_settings(self, user_id: int, **override_settings) -> bool:
+    def create_default_settings(self, cur, user_id: int, **override_settings) -> bool:
         """Create default settings for a new user"""
         try:
-            with get_connection() as conn:
-                with conn.cursor() as cur:
-                    # Merge default settings with any overrides
+            # Merge default settings with any overrides
                     settings = self.default_settings.copy()
                     settings.update(override_settings)
                     
