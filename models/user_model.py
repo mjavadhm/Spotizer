@@ -16,7 +16,7 @@ class UserModel:
 
     def add_user(self, user_id: int, username: str = None, first_name: str = None, 
                  last_name: str = None, **kwargs) -> bool:
-        """Add a new user or update existing user with all Telegram info"""
+        """Add a new user or update existing user within a single transaction."""
         try:
             with get_connection() as conn:
                 with conn.cursor() as cur:
@@ -24,7 +24,6 @@ class UserModel:
                     cur.execute("SELECT user_id FROM users WHERE user_id = %s", (user_id,))
                     result = cur.fetchone()
                     
-                    # Extract additional Telegram user fields
                     is_bot = kwargs.get('is_bot', False)
                     language_code = kwargs.get('language_code')
                     is_premium = kwargs.get('is_premium', False)
@@ -65,8 +64,8 @@ class UserModel:
                         ))
                         logger.info(f"Added new user record for user {user_id}")
                         
-                        # Create default settings for new user
-                        self.create_default_settings(cur,user_id)
+                        # Create default settings for new user in the same transaction
+                        self._create_default_settings(cur, user_id)
                     
                     conn.commit()
                     return True
@@ -93,7 +92,6 @@ class UserModel:
                     
                     user = cur.fetchone()
                     if user:
-                        logger.info(f"Retrieved user record for user {user_id}")
                         return {
                             'user_id': user[0],
                             'username': user[1],
@@ -114,7 +112,6 @@ class UserModel:
                                 'language': user[15]
                             }
                         }
-                    logger.info(f"No user record found for user {user_id}")
                     return None
                     
         except Exception as e:
@@ -126,7 +123,6 @@ class UserModel:
         try:
             with get_connection() as conn:
                 with conn.cursor() as cur:
-                    # Build dynamic update query based on provided settings
                     update_fields = []
                     params = []
                     
@@ -136,12 +132,10 @@ class UserModel:
                             params.append(value)
                     
                     if not update_fields:
-                        logger.info(f"No settings to update for user {user_id}")
-                        return False  # Nothing to update
+                        return False
                     
                     update_fields.append("updated_at = CURRENT_TIMESTAMP")
                     
-                    # Construct and execute query
                     query = f"""
                     UPDATE user_settings 
                     SET {', '.join(update_fields)}
@@ -152,11 +146,7 @@ class UserModel:
                     cur.execute(query, params)
                     
                     if cur.rowcount == 0:
-                        # Settings don't exist, create them
-                        logger.info(f"Creating default settings for user {user_id} with overrides")
-                        self.create_default_settings(cur,user_id, **settings)
-                    else:
-                        logger.info(f"Updated settings for user {user_id}")
+                        self._create_default_settings(cur, user_id, **settings)
                     
                     conn.commit()
                     return True
@@ -178,7 +168,6 @@ class UserModel:
                     
                     settings = cur.fetchone()
                     if settings:
-                        logger.info(f"Retrieved settings for user {user_id}")
                         return {
                             'download_quality': settings[0],
                             'make_zip': settings[1],
@@ -186,40 +175,27 @@ class UserModel:
                             'updated_at': settings[3]
                         }
                     
-                    # If no settings found, create default settings and return them
-                    logger.info(f"No settings found for user {user_id}, creating defaults")
-                    self.create_default_settings(cur,user_id)
                     return self.default_settings.copy()
                     
         except Exception as e:
             logger.error(f"Failed to retrieve user settings: {str(e)}", exc_info=True)
-            # Return default settings in case of error
             return self.default_settings.copy()
 
-    def create_default_settings(self, cur, user_id: int, **override_settings) -> bool:
-        """Create default settings for a new user"""
-        try:
-            # Merge default settings with any overrides
-                    settings = self.default_settings.copy()
-                    settings.update(override_settings)
-                    
-                    cur.execute("""
-                    INSERT INTO user_settings (user_id, download_quality, make_zip, language)
-                    VALUES (%s, %s, %s, %s)
-                    """, (
-                        user_id,
-                        settings['download_quality'],
-                        settings['make_zip'],
-                        settings['language']
-                    ))
-                    
-                    conn.commit()
-                    logger.info(f"Created default settings for user {user_id}")
-                    return True
-                    
-        except Exception as e:
-            logger.error(f"Failed to create default settings: {str(e)}", exc_info=True)
-            return False
+    def _create_default_settings(self, cur, user_id: int, **override_settings) -> None:
+        """Create default settings for a new user using the provided cursor."""
+        settings = self.default_settings.copy()
+        settings.update(override_settings)
+        
+        cur.execute("""
+        INSERT INTO user_settings (user_id, download_quality, make_zip, language)
+        VALUES (%s, %s, %s, %s)
+        """, (
+            user_id,
+            settings['download_quality'],
+            settings['make_zip'],
+            settings['language']
+        ))
+        logger.info(f"Prepared to create default settings for user {user_id}")
 
     def log_activity(self, user_id: int, activity_type: str, details: str = None) -> bool:
         """Log user activity"""
@@ -232,7 +208,6 @@ class UserModel:
                     """, (user_id, activity_type, details))
                     
                     conn.commit()
-                    logger.info(f"Logged activity for user {user_id}: {activity_type}")
                     return True
                     
         except Exception as e:
