@@ -129,8 +129,8 @@ class PlayListController:
                 await callback_query.message.answer(text=text, reply_markup=keyboard)
 
             else:
-                track_id = callback_query.data.split(":")[4]
-                playlist_id = callback_query.data.split(":")[3]
+                track_id = callback_query.data.split(":")[3]
+                playlist_id = callback_query.data.split(":")[2]
                 success, message = await self.add_to_playlist(user_id, playlist_id, track_id)
                 await callback_query.answer(message)
 
