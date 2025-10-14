@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 from database.connection import get_connection
 from logger import get_logger
+import psycopg2.extras
 
 logger = get_logger(__name__)
 
@@ -28,14 +29,14 @@ class PlaylistModel:
         """Get all playlists for a specific user."""
         try:
             with get_connection() as conn:
-                with conn.cursor() as cur:
+                with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
                     cur.execute(
                         "SELECT playlist_id, name, description FROM playlists WHERE user_id = %s",
                         (user_id,)
                     )
                     playlists = cur.fetchall()
                     logger.info(f"Retrieved {len(playlists)} playlists for user {user_id}")
-                    return playlists
+                    return [dict(p) for p in playlists]  # تبدیل به dict
         except Exception as e:
             logger.error(f"Failed to get user playlists: {e}")
             return []
