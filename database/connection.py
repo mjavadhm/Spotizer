@@ -175,13 +175,16 @@ def init_db():
 
             logger.info("Creating playlists table")
             cur.execute("""
+            CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
             CREATE TABLE IF NOT EXISTS playlists (
                 playlist_id SERIAL PRIMARY KEY,
                 user_id BIGINT REFERENCES users(user_id) ON DELETE CASCADE,
                 name VARCHAR(255) NOT NULL,
                 description TEXT,
+                uuid UUID DEFAULT uuid_generate_v4() UNIQUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(user_id, name) -- Each user can have a playlist with a unique name
+                UNIQUE(user_id, name)
             )
             """)
             logger.info("Playlists table created/verified")
@@ -192,7 +195,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS playlist_tracks (
                 playlist_track_id SERIAL PRIMARY KEY,
                 playlist_id INTEGER REFERENCES playlists(playlist_id) ON DELETE CASCADE,
-                track_deezer_id BIGINT NOT NULL, -- Using deezer_id from your existing downloads
+                track_deezer_id BIGINT NOT NULL,
                 added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """)
