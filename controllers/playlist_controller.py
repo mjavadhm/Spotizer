@@ -3,6 +3,7 @@ import os
 from models.download_model import DownloadModel
 from models.user_model import UserModel
 from models.playlist_model import PlaylistModel
+from services.deezer_service import DeezerService
 import aiogram.types
 from bot import bot
 from logger import get_logger
@@ -15,7 +16,7 @@ class PlayListController:
         self.download_model = DownloadModel()
         self.user_model = UserModel()
         self.playlist_model = PlaylistModel()
-
+        self.deezer_service = DeezerService()
     async def get_user_playlists(self, user_id: int) -> tuple[bool, list]:
         """
         Get all playlists for a specific user
@@ -130,8 +131,11 @@ class PlayListController:
 
             else:
                 track_id = callback_query.data.split(":")[3]
+                spotify_url = f"https://open.spotify.com/track/{track_id}"
+                url = self.deezer_service.convert_to_deezer(spotify_url)
+                content_type, deezer_id = self.deezer_service.extract_info_from_url(url)
                 playlist_id = callback_query.data.split(":")[2]
-                success, message = await self.add_to_playlist(user_id, playlist_id, track_id)
+                success, message = await self.add_to_playlist(user_id, playlist_id, deezer_id)
                 await callback_query.answer(message)
 
                 if success:
