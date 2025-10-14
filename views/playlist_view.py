@@ -16,7 +16,7 @@ class PlaylistView:
                 buttons.append([
                     InlineKeyboardButton(
                         text=playlist['name'],
-                        callback_data=f"select_playlist:add:{playlist['id']}:{track_id}"
+                        callback_data=f"select_playlist:add:{playlist['playlist_id']}:{track_id}"
                     )
                 ])
 
@@ -34,7 +34,7 @@ class PlaylistView:
             buttons.append([
                 InlineKeyboardButton(
                     text=playlist['name'],
-                    callback_data=f"select_playlist:{playlist['id']}"
+                    callback_data=f"select_playlist:{playlist['playlist_id']}"
                 )
             ])
         return InlineKeyboardMarkup(inline_keyboard=buttons)
