@@ -15,6 +15,17 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
     router = Router()
     logger.info("Setting up callback routes")
 
+
+    @router.callback_query(F.data.startswith("playlist:"))
+    async def playlist_callback(callback_query: CallbackQuery, state: FSMContext):
+        """Handle playlist-related callbacks"""
+        action = callback_query.data.split(":")[1]
+        user_id = callback_query.from_user.id
+        logger.info(f"Processing playlist callback for user {user_id} - Action: {action}")
+
+        if action == "add":
+            
+
     @router.callback_query(F.data.startswith("setting:"))
     async def settings_callback(callback_query: CallbackQuery, state: FSMContext):
         """Handle settings-related callbacks"""

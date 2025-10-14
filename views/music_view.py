@@ -132,7 +132,7 @@ class MusicView:
             )],
             [InlineKeyboardButton(
                 text="➕ Add to Playlist",
-                callback_data=f"playlist:add:{track['id']}"
+                callback_data=f"playlist:add:get_playlist:{track['id']}"
             )],
             [InlineKeyboardButton(
                 text="❌",

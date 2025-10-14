@@ -4,14 +4,17 @@ from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 
 from controllers.user_controller import UserController
+from controllers.playlist_controller import PlayListController
 from services.deezer_service import reload_arl
 from views.message_view import MessageView
+from views.playlist_view import PlaylistView
 from models.message_model import MessageModel
+
 from logger import get_logger
 
 logger = get_logger(__name__)
 
-def setup_command_routes(dp: Router, user_controller: UserController):
+def setup_command_routes(dp: Router, user_controller: UserController, playlist_controller: PlayListController):
     """Set up command route handlers"""
     router = Router()
     logger.info("Setting up command routes")
@@ -213,12 +216,30 @@ Thank you for using MusicDownloader Bot! 🎧"""
             # برای مثال، آن را در جایی ذخیره کنید یا اعتبارسنجی کنید
             logger.info(f"User {user_id} provided ARL: {arl}")
             await message.reply(f"توکن ARL شما با موفقیت دریافت شد: `{arl}`", parse_mode="MarkdownV2")
-            reload_arl(arl)
+            await reload_arl(arl)
         except Exception as e:
             logger.error(f"Error processing /about command for user {user_id}: {str(e)}", exc_info=True)
             # sm = await message.reply("Error displaying about information.")
             # message_model.add_message(user_id, sm)
             raise
+    @router.message(Command("playlists"))
+    async def playlists_command(message: Message, state: FSMContext):
+        try:
+            user_id = message.from_user.id
+            logger.info(f"Processing /playlists command for user {user_id}")
+
+            success, playlists = await playlist_controller.get_user_playlists(user_id)
+            if success:
+                if playlists:
+                    keyboard = PlaylistView.get_playlist_keyboard(playlists)
+                    await message.reply(PlaylistView.get_choose_playlist_message(), reply_markup=keyboard)
+                else:
+                    await message.reply("You have no playlists.")
+            else:
+                await message.reply("Error retrieving playlists.")
+        except Exception as e:
+            logger.error(f"Error processing /playlists command for user {user_id}: {str(e)}", exc_info=True)
+            await message.reply("Error displaying playlists.")
 
     # Register all routes
     dp.include_router(router)
