@@ -320,7 +320,10 @@ class DownloadController:
                                     musics_playlist.append(musics)
                                 except Exception as e:
                                     logger.error(f"Download processing error: {str(e)}", exc_info=True)
-                                    return False, "An error occurred while processing your download request."
+                                    await bot.send_message(
+                                        chat_id=user_id,
+                                        text="An error occurred while processing your download request."
+                                    )
                                 finally:
                                     if os.path.exists(file_path):
                                         os.remove(file_path)
@@ -331,7 +334,6 @@ class DownloadController:
                             text=f"❌ Track 'https://www.deezer.com/us/track/{track_id}' isn't in Deezer or not available for download.",
                         )
                         logger.error(f"Error processing track {track_id}: {str(e)}", exc_info=True)
-                        # return False, "An error occurred while processing your download request."
 
                 if len(musics_playlist) > 1:
                     filename = f'deezer_{deezer_id}.m3u'
@@ -353,6 +355,10 @@ class DownloadController:
 
         except Exception as e:
             logger.error(f"Download processing error: {str(e)}", exc_info=True)
+            await bot.send_message(
+                chat_id=user_id,
+                text="An unexpected error occurred. Please try again later."
+            )
             return False, "An error occurred while processing your download request."
 
     @staticmethod

@@ -65,7 +65,7 @@ class UserActivity(Base):
 
 class Track(Base):
     __tablename__ = "tracks"
-    track_id = Column(BigInteger, primary_key=True)
+    track_id = Column(String, primary_key=True)
     url = Column(Text, nullable=False)
     file_id = Column(Text, nullable=True)
     title = Column(String(255), nullable=True)
