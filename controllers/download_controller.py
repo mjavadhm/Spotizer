@@ -243,7 +243,7 @@ class DownloadController:
                 for track_id in track_ids:
                     try:
                         logger.info(f"Processing track: {track_id}")
-                        track = await self.get_track(track_id)
+                        track = await self.get_track(str(track_id))
                         if track:
                             logger.info(f"Found cached track: {track.title}")
                             await bot.send_audio(
@@ -293,7 +293,7 @@ class DownloadController:
                                     )
 
                                     await self.add_track(
-                                        track_id=track_id,
+                                        track_id=str(track_id),
                                         url=track_link,
                                         file_id=sent_message.audio.file_id,
                                         title=title,
