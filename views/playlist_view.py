@@ -15,8 +15,8 @@ class PlaylistView:
             for playlist in playlists:
                 buttons.append([
                     InlineKeyboardButton(
-                        text=playlist['name'],
-                        callback_data=f"playlist:add:{playlist['playlist_id']}:{track_id}"
+                        text=playlist.name,
+                        callback_data=f"playlist:add:{playlist.playlist_id}:{track_id}"
                     )
                 ])
 
@@ -33,8 +33,8 @@ class PlaylistView:
         for playlist in playlists:
             buttons.append([
                 InlineKeyboardButton(
-                    text=playlist['name'],
-                    callback_data=f"select_playlist:{playlist['playlist_id']}"
+                    text=playlist.name,
+                    callback_data=f"select_playlist:{playlist.playlist_id}"
                 )
             ])
         return InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -62,28 +62,6 @@ class PlaylistView:
         ])
         
         return InlineKeyboardMarkup(inline_keyboard=buttons)
-
-    @staticmethod
-    def format_download_history(downloads):
-        """Format download history message"""
-        if not downloads:
-            return "You haven't downloaded any tracks yet."
-
-        history_text = "Your recent downloads:\n\n"
-        for i, download in enumerate(downloads, 1):
-            track_info = f"{i}. "
-            
-            if download['title'] and download['artist']:
-                track_info += f"{download['title']} - {download['artist']}"
-            else:
-                track_info += f"{download['content_type'].capitalize()} #{download['deezer_id']}"
-            
-            track_info += f"\n   🎭 Type: {download['content_type'].capitalize()}"
-            track_info += f"\n   🔊 Quality: {download['quality']}"
-            track_info += f"\n   📅 {download['downloaded_at'].strftime('%Y-%m-%d %H:%M')}"
-            history_text += track_info + "\n\n"
-            
-        return history_text
 
     @staticmethod
     def get_error_message(error_type):
