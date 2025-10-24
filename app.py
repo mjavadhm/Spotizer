@@ -8,7 +8,7 @@ from aiogram.client.session.aiohttp import AiohttpSession
 from controllers.user_controller import UserController
 from controllers.download_controller import DownloadController
 from controllers.playlist_controller import PlayListController
-from database.connection import setup_database
+from database.session import init_models
 from routes.command_routes import setup_command_routes
 from routes.message_routes import setup_message_routes
 from routes.callback_routes import setup_callback_routes
@@ -82,9 +82,9 @@ class MusicDownloaderBot:
         """Start the bot"""
         try:
             logger.info("Starting bot initialization")
-            
+
             # Initialize database
-            setup_database()
+            await init_models()
             logger.info("Database initialized successfully")
             
             # Start polling

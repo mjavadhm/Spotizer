@@ -1,94 +1,111 @@
 import logging
-from models.user_model import UserModel
-from models.download_model import DownloadModel
+from sqlalchemy.future import select
+from database.session import async_session_maker
+from models.base import User, UserSettings, UserActivity
 from utils.url_validator import validate_settings
 
 logger = logging.getLogger(__name__)
 
 class UserController:
-    def __init__(self):
-        self.user_model = UserModel()
-        self.download_model = DownloadModel()
+    @staticmethod
+    async def register_user(user_data):
+        """Register or update user information."""
+        async with async_session_maker() as session:
+            async with session.begin():
+                user_id = user_data.get('id')
+                if not user_id:
+                    return False, "Invalid user data: Missing user ID"
 
-    async def register_user(self, user_data):
-        """Register or update user information"""
-        try:
-            user_id = user_data.get('id')
-            if not user_id:
-                return False, "Invalid user data: Missing user ID"
+                user = await session.get(User, user_id)
+                if user:
+                    # Update existing user
+                    user.username = user_data.get('username')
+                    user.first_name = user_data.get('first_name')
+                    user.last_name = user_data.get('last_name')
+                    user.language_code = user_data.get('language_code')
+                    user.is_premium = user_data.get('is_premium', False)
+                    user.is_bot = user_data.get('is_bot', False)
+                else:
+                    # Create new user
+                    user = User(
+                        user_id=user_id,
+                        username=user_data.get('username'),
+                        first_name=user_data.get('first_name'),
+                        last_name=user_data.get('last_name'),
+                        language_code=user_data.get('language_code'),
+                        is_premium=user_data.get('is_premium', False),
+                        is_bot=user_data.get('is_bot', False)
+                    )
+                    session.add(user)
+                    # Create default settings
+                    user_settings = UserSettings(user_id=user_id)
+                    session.add(user_settings)
 
-            user_info = {
-                'user_id': user_id,
-                'username': user_data.get('username'),
-                'first_name': user_data.get('first_name'),
-                'last_name': user_data.get('last_name'),
-                'language_code': user_data.get('language_code'),
-                'is_premium': user_data.get('is_premium', False),
-                'is_bot': user_data.get('is_bot', False)
-            }
+            await session.commit()
+            return True, "User registered successfully"
 
-            success = self.user_model.add_user(**user_info)
-            if success:
-                return True, "User registered successfully"
-            return False, "Failed to register user"
+    @staticmethod
+    async def update_user_settings(user_id, settings):
+        """Update user settings."""
+        async with async_session_maker() as session:
+            async with session.begin():
+                valid, message = validate_settings(settings)
+                if not valid:
+                    return False, message
 
-        except Exception as e:
-            logger.error(f"User registration error: {str(e)}")
-            return False, "An error occurred during user registration"
+                user_settings = await session.get(UserSettings, user_id)
+                if not user_settings:
+                    user_settings = UserSettings(user_id=user_id)
+                    session.add(user_settings)
 
-    async def update_user_settings(self, user_id, settings):
-        """Update user settings"""
-        try:
-            # Validate settings
-            valid, message = validate_settings(settings)
-            if not valid:
-                return False, message
+                for key, value in settings.items():
+                    setattr(user_settings, key, value)
 
-            # Update settings in database
-            success = self.user_model.update_settings(
-                user_id,
-                download_quality=settings.get('download_quality'),
-                make_zip=settings.get('make_zip'),
-                language=settings.get('language')
-            )
-
-            if success:
+                await session.commit()
                 return True, "Settings updated successfully"
-            return False, "Failed to update settings"
 
-        except Exception as e:
-            logger.error(f"Settings update error: {str(e)}")
-            return False, "An error occurred while updating settings"
-
-    async def get_user_settings(self, user_id):
-        """Get user settings"""
-        try:
-            settings = self.user_model.get_settings(user_id)
-            if settings:
-                return True, settings
+    @staticmethod
+    async def get_user_settings(user_id):
+        """Get user settings."""
+        async with async_session_maker() as session:
+            user_settings = await session.get(UserSettings, user_id)
+            if user_settings:
+                return True, {
+                    "download_quality": user_settings.download_quality,
+                    "make_zip": user_settings.make_zip,
+                    "language": user_settings.language
+                }
             return False, "Settings not found"
 
-        except Exception as e:
-            logger.error(f"Error fetching settings: {str(e)}")
-            return False, "An error occurred while retrieving settings"
-
-    async def get_user_info(self, user_id):
-        """Get user information"""
-        try:
-            user_info = self.user_model.get_user(user_id)
-            if user_info:
-                return True, user_info
+    @staticmethod
+    async def get_user_info(user_id):
+        """Get user information."""
+        async with async_session_maker() as session:
+            user = await session.get(User, user_id)
+            if user:
+                return True, {
+                    "user_id": user.user_id,
+                    "username": user.username,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "is_bot": user.is_bot,
+                    "language_code": user.language_code,
+                    "is_premium": user.is_premium,
+                    "created_at": user.created_at,
+                    "last_activity": user.last_activity,
+                }
             return False, "User not found"
 
-        except Exception as e:
-            logger.error(f"Error fetching user info: {str(e)}")
-            return False, "An error occurred while retrieving user information"
-
-    async def get_user_downloads(self, user_id: int, limit: int = 10, offset: int = 0):
-        """Get user's download history"""
-        try:
-            downloads = self.download_model.get_user_downloads(user_id, limit, offset)
+    @staticmethod
+    async def get_user_downloads(user_id: int, limit: int = 10, offset: int = 0):
+        """Get user's download history."""
+        async with async_session_maker() as session:
+            result = await session.execute(
+                select(UserDownload)
+                .where(UserDownload.user_id == user_id)
+                .order_by(UserDownload.downloaded_at.desc())
+                .offset(offset)
+                .limit(limit)
+            )
+            downloads = result.scalars().all()
             return True, downloads
-        except Exception as e:
-            logger.error(f"Error getting user downloads: {str(e)}")
-            return False, "An error occurred while retrieving download history"

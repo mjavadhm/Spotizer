@@ -1,7 +1,8 @@
 import aiogram
 import os
-from models.download_model import DownloadModel
-from models.user_model import UserModel
+from sqlalchemy.future import select
+from database.session import async_session_maker
+from models.base import User, UserSettings, UserDownload, Track
 from services.deezer_service import DeezerService
 from services.spotify_service import SpotifyService
 from utils.file_handler import FileHandler
@@ -14,14 +15,55 @@ logger = get_logger(__name__)
 
 class DownloadController:
     def __init__(self):
-        self.download_model = DownloadModel()
-        self.user_model = UserModel()
         self.deezer_service = DeezerService()
         self.spotify_service = SpotifyService()
         self.file_handler = FileHandler()
         self.url_validator = URLValidator()
         logger.info("DownloadController initialized")
 
+    @staticmethod
+    async def add_download(user_id, deezer_id, content_type, file_id, quality, url, title, artist, album, duration=None, file_name=None):
+        """Add a download to the database."""
+        async with async_session_maker() as session:
+            async with session.begin():
+                download = UserDownload(
+                    user_id=user_id,
+                    deezer_id=deezer_id,
+                    content_type=content_type,
+                    file_id=file_id,
+                    quality=quality,
+                    url=url,
+                    title=title,
+                    artist=artist,
+                    album=album,
+                    duration=duration,
+                    file_name=file_name,
+                )
+                session.add(download)
+            await session.commit()
+
+    @staticmethod
+    async def get_track(track_id):
+        """Get a track from the database."""
+        async with async_session_maker() as session:
+            return await session.get(Track, track_id)
+
+    @staticmethod
+    async def add_track(track_id, url, file_id, title, artist, album, duration):
+        """Add a track to the database."""
+        async with async_session_maker() as session:
+            async with session.begin():
+                track = Track(
+                    track_id=track_id,
+                    url=url,
+                    file_id=file_id,
+                    title=title,
+                    artist=artist,
+                    album=album,
+                    duration=duration,
+                )
+                session.add(track)
+            await session.commit()
     async def search(self, query: str, search_type: str, page: int = 1) -> tuple[bool, list]:
         """
         Search for music content on Spotify
@@ -81,6 +123,20 @@ class DownloadController:
             logger.error(f"Error getting item info for {content_type} {item_id}: {str(e)}", exc_info=True)
             return False, {}
 
+    @staticmethod
+    async def get_track_by_deezer_id_quality(user_id, deezer_id, quality):
+        """Get a track by deezer_id and quality."""
+        async with async_session_maker() as session:
+            result = await session.execute(
+                select(UserDownload)
+                .where(
+                    UserDownload.user_id == user_id,
+                    UserDownload.deezer_id == deezer_id,
+                    UserDownload.quality == quality,
+                )
+            )
+            return result.scalars().first()
+
     async def process_download_request(self, user_id, url):
         """Process download request from user"""
         try:
@@ -91,9 +147,14 @@ class DownloadController:
                 return False, "Invalid URL format. Please provide a valid Deezer or Spotify link."
 
             # Get user settings
-            user_settings = self.user_model.get_user_settings(user_id)
-            quality = user_settings.get('download_quality', 'MP3_320')
-            make_zip = user_settings.get('make_zip', True)
+            success, user_settings = await UserController.get_user_settings(user_id)
+            if not success:
+                # Handle case where user settings are not found
+                quality = 'MP3_320'
+                make_zip = True
+            else:
+                quality = user_settings.get('download_quality', 'MP3_320')
+                make_zip = user_settings.get('make_zip', True)
             logger.info(f"User {user_id} settings - Quality: {quality}, Make ZIP: {make_zip}")
 
             # Convert Spotify URL to Deezer if needed
@@ -109,12 +170,12 @@ class DownloadController:
             logger.info(f"Extracted info - Type: {content_type}, ID: {deezer_id}")
 
             if make_zip and 'track' not in url:
-                existing_zip = self.download_model.get_track_by_deezer_id_quality(user_id, deezer_id, quality)
+                existing_zip = await self.get_track_by_deezer_id_quality(user_id, deezer_id, quality)
                 if existing_zip:
                     logger.info(f"Found existing ZIP for {content_type} {deezer_id}")
                     await bot.send_document(
                         chat_id=user_id,
-                        document=existing_zip['file_id'],
+                        document=existing_zip.file_id,
                         caption=f"@Spotizer_bot 🎧"
                     )
                     return True, "Sent existing ZIP file"
@@ -132,7 +193,7 @@ class DownloadController:
                         caption=f"@Spotizer_bot 🎧"
                     )
                     
-                    self.download_model.add_track(
+                    await self.add_download(
                         user_id=user_id,
                         deezer_id=deezer_id,
                         content_type='album',
@@ -158,7 +219,7 @@ class DownloadController:
                         caption=f"@Spotizer_bot 🎧"
                     )
                     
-                    self.download_model.add_track(
+                    await self.add_download(
                         user_id=user_id,
                         deezer_id=deezer_id,
                         content_type='playlist',
@@ -181,18 +242,30 @@ class DownloadController:
                 for track_id in track_ids:
                     try:
                         logger.info(f"Processing track: {track_id}")
-                        existing_track = self.download_model.get_track_by_deezer_id_quality(user_id, track_id, quality)
-                        
-                        if existing_track:
-                            logger.info(f"Found existing track: {existing_track['title']}")
+                        track = await self.get_track(track_id)
+                        if track:
+                            logger.info(f"Found cached track: {track.title}")
                             await bot.send_audio(
                                 chat_id=user_id,
-                                audio=existing_track['file_id'],
+                                audio=track.file_id,
                                 caption=f"@Spotizer_bot 🎧",
-                                title=existing_track['title'],
-                                performer=existing_track['artist']
+                                title=track.title,
+                                performer=track.artist,
                             )
-                            musics = (existing_track['title'], existing_track['duration'], existing_track['file_name'])
+                            await self.add_download(
+                                user_id=user_id,
+                                deezer_id=track_id,
+                                content_type="track",
+                                file_id=track.file_id,
+                                quality=quality,
+                                url=track.url,
+                                title=track.title,
+                                artist=track.artist,
+                                duration=track.duration,
+                                file_name=None, # Or retrieve if available
+                                album=track.album,
+                            )
+                            musics = (track.title, track.duration, None)
                             musics_playlist.append(musics)
                         else:
                             track_link = f"https://www.deezer.com/track/{track_id}"
@@ -200,27 +273,14 @@ class DownloadController:
                             smart = await self.deezer_service.download(track_link, quality_download=quality, make_zip=False)
                             
                             if smart.track:
-                                print("check")
                                 file_path = smart.track.song_path
                                 try:
-                                    print("check2")
                                     audio_file = FSInputFile(file_path)
                                     duration = self.file_handler.get_audio_duration(file_path)
                                     
-                                    title = None
-                                    if hasattr(smart.track, 'music'):
-                                        title = smart.track.music
-                                        logger.info(f"Track title: {title}")
-                                    else:
-                                        logger.warning(f"Title not found for track {track_id}, using default")
-                                        title = f"Track {track_id}"
-                                    
-                                    artist = None
-                                    if hasattr(smart.track, 'artist'):
-                                        artist = smart.track.artist
-                                    else:
-                                        logger.warning(f"Artist not found for track {track_id}, using default")
-                                        artist = "Unknown Artist"
+                                    title = smart.track.music if hasattr(smart.track, "music") else f"Track {track_id}"
+                                    artist = smart.track.artist if hasattr(smart.track, "artist") else "Unknown Artist"
+                                    album = smart.track.album if hasattr(smart.track, "album") else "Unknown Album"
 
                                     sent_message = await bot.send_audio(
                                         chat_id=user_id,
@@ -228,10 +288,20 @@ class DownloadController:
                                         caption=f"@Spotizer_bot 🎧",
                                         duration=duration,
                                         title=title,
-                                        performer=artist
+                                        performer=artist,
+                                    )
+
+                                    await self.add_track(
+                                        track_id=track_id,
+                                        url=track_link,
+                                        file_id=sent_message.audio.file_id,
+                                        title=title,
+                                        artist=artist,
+                                        album=album,
+                                        duration=duration,
                                     )
                                     
-                                    self.download_model.add_track(
+                                    await self.add_download(
                                         user_id=user_id,
                                         deezer_id=track_id,
                                         content_type='track',
@@ -242,7 +312,7 @@ class DownloadController:
                                         artist=artist,
                                         duration=duration,
                                         file_name=sent_message.audio.file_name,
-                                        album=None
+                                        album=album
                                     )
                                     
                                     musics = (title, duration, sent_message.audio.file_name)
@@ -284,15 +354,19 @@ class DownloadController:
             logger.error(f"Download processing error: {str(e)}", exc_info=True)
             return False, "An error occurred while processing your download request."
 
-    async def get_user_downloads(self, user_id, limit=5):
-        """Get user's download history"""
-        try:
-            logger.info(f"Fetching download history for user {user_id} (limit: {limit})")
-            downloads = self.download_model.get_user_downloads(user_id, limit)
+    @staticmethod
+    async def get_user_downloads(user_id, limit=5, offset=0):
+        """Get user's download history."""
+        async with async_session_maker() as session:
+            result = await session.execute(
+                select(UserDownload)
+                .where(UserDownload.user_id == user_id)
+                .order_by(UserDownload.downloaded_at.desc())
+                .offset(offset)
+                .limit(limit)
+            )
+            downloads = result.scalars().all()
             return True, downloads
-        except Exception as e:
-            logger.error(f"Error fetching download history: {str(e)}", exc_info=True)
-            return False, "Could not retrieve download history."
 
     async def get_artist_top_tracks(self, artist_id: str) -> list:
         """Get artist's top tracks"""
@@ -327,4 +401,3 @@ class DownloadController:
         except Exception as e:
             logger.error(f"Error getting artist albums: {str(e)}", exc_info=True)
             return []
-
