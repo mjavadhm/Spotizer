@@ -2,6 +2,7 @@ import aiogram
 import os
 from sqlalchemy.future import select
 from database.session import async_session_maker
+from controllers.user_controller import UserController
 from models.base import User, UserSettings, UserDownload, Track
 from services.deezer_service import DeezerService
 from services.spotify_service import SpotifyService

@@ -23,7 +23,7 @@ class MessageModel:
             # Extract message data
             message_id = message.message_id
             message_text = message.text or message.caption or ""
-            sent_at = message.date
+            sent_at = message.date.replace(tzinfo=None)
             
             # Determine message type and media content
             if message.content_type == "text":
