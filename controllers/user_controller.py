@@ -1,7 +1,7 @@
 import logging
 from sqlalchemy.future import select
 from database.session import async_session_maker
-from models.base import User, UserSettings, UserActivity
+from models.base import User, UserSettings, UserActivity, UserDownload
 from utils.url_validator import validate_settings
 
 logger = logging.getLogger(__name__)
