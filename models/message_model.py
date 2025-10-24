@@ -1,13 +1,14 @@
 import aiogram
-from typing import Dict, Optional, Any
-from datetime import datetime
-from database.connection import get_connection
+from sqlalchemy.future import select
+from database.session import async_session_maker
+from models.base import Message
 from logger import get_logger
 
 logger = get_logger(__name__)
 
 class MessageModel:
-    def add_message(self, user_id: int, message: aiogram.types.Message) -> bool:
+    @staticmethod
+    async def add_message(user_id: int, message: aiogram.types.Message) -> bool:
         """
         Extract data from aiogram Message and insert it into messages table
         
@@ -53,21 +54,20 @@ class MessageModel:
                 sent_by = 0
             else:
                 sent_by = 1
-            # Get database connection
             
-            # Insert into messages table
-            query = """
-            INSERT INTO messages (message_id, user_id, message_text, message_type, sent_at, sent_by, media)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """
-            with get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute(
-                        query, 
-                        (message_id, user_id, message_text, message_type, sent_at, sent_by, media)
+            async with async_session_maker() as session:
+                async with session.begin():
+                    new_message = Message(
+                        message_id=message_id,
+                        user_id=user_id,
+                        message_text=message_text,
+                        message_type=message_type,
+                        sent_at=sent_at,
+                        sent_by=sent_by,
+                        media=media,
                     )
-                
-                conn.commit()
+                    session.add(new_message)
+                await session.commit()
                 logger.info(f"Added message {message_id} from user {user_id}")
                 return True
             

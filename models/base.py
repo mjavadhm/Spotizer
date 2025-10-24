@@ -126,3 +126,16 @@ class PlaylistTrack(Base):
     added_at = Column(TIMESTAMP, server_default=func.now())
 
     playlist = relationship("Playlist", back_populates="tracks")
+
+
+class Message(Base):
+    __tablename__ = "messages"
+    message_id = Column(BigInteger, primary_key=True)
+    user_id = Column(BigInteger, ForeignKey("users.user_id", ondelete="CASCADE"))
+    message_text = Column(Text, nullable=True)
+    message_type = Column(String(50), nullable=False)
+    sent_at = Column(TIMESTAMP, server_default=func.now())
+    sent_by = Column(Integer, nullable=False)  # 0 for user, 1 for bot
+    media = Column(Text, nullable=True)
+
+    user = relationship("User")
