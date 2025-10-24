@@ -13,9 +13,10 @@ from sqlalchemy import (
     UniqueConstraint,
     Index,
 )
-from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy.orm import relationship, declarative_base, Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
+
 from database.session import Base
 
 
@@ -71,6 +72,7 @@ class Track(Base):
     title = Column(String(255), nullable=True)
     artist = Column(String(255), nullable=True)
     album = Column(String(255), nullable=True)
+    telethon_file_id: Mapped[Optional[str]] = mapped_column(Text)
     quality = Column(String(50), nullable=False)
     duration = Column(Integer, nullable=True)
     download_count = Column(Integer, default=1)
