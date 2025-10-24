@@ -71,6 +71,7 @@ class Track(Base):
     title = Column(String(255), nullable=True)
     artist = Column(String(255), nullable=True)
     album = Column(String(255), nullable=True)
+    quality = Column(String(50), nullable=False)
     duration = Column(Integer, nullable=True)
     download_count = Column(Integer, default=1)
     last_downloaded = Column(TIMESTAMP, server_default=func.now())

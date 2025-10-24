@@ -50,7 +50,7 @@ class DownloadController:
             return await session.get(Track, track_id)
 
     @staticmethod
-    async def add_track(track_id, url, file_id, title, artist, album, duration):
+    async def add_track(track_id, url, file_id, title, artist, album, duration, quality):
         """Add a track to the database."""
         async with async_session_maker() as session:
             async with session.begin():
@@ -62,6 +62,7 @@ class DownloadController:
                     artist=artist,
                     album=album,
                     duration=duration,
+                    quality=quality,
                 )
                 session.add(track)
             await session.commit()
@@ -300,6 +301,7 @@ class DownloadController:
                                         artist=artist,
                                         album=album,
                                         duration=duration,
+                                         quality=quality,
                                     )
                                     
                                     await self.add_download(
