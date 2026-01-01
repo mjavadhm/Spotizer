@@ -1,4 +1,5 @@
 import uuid
+from typing import Optional
 from sqlalchemy import (
     create_engine,
     Column,
