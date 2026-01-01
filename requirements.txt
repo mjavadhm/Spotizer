@@ -2,3 +2,4 @@ sqlalchemy
 asyncpg
 python-dotenv
 aiogram
+alembic

@@ -10,7 +10,7 @@ Usage:
 
 import asyncio
 from sqlalchemy import text
-from database.session import async_session_maker, engine
+from database.session import async_session_maker
 
 async def migrate():
     """Run the database migration"""
