@@ -1,28 +1,17 @@
 import os
-import requests
 import re
+import requests
+from dataclasses import dataclass
+from typing import Optional, Tuple, Dict, Any, List, Union
+
 from deezloader.deezloader import DeeLogin
 from deezloader.models.smart import Smart
-import json
-from dataclasses import dataclass
-from typing import Optional, Tuple, Dict, Any
+
 from utils.file_handler import FileHandler
 from logger import get_logger
 
 logger = get_logger(__name__)
 
-arl = "3bc1b698b6a71d212c0478f1037b1fa4a381134ca51ece628b00d5845ec19d2e3b284bce69688ffa570705b0f9e14d290e2d9f447421b0ab3732d5230455d86e03e0ed568922ae5fcd806ac87d0ea60b5ee2306fa740825e6f097b8732343b15"#os.getenv('DEEZER_ARL')
-deedownload = DeeLogin(arl=arl)
-
-async def reload_arl(arl):
-    """Reload ARL token from file"""
-    try:
-        global deedownload
-        deedownload = DeeLogin(arl=arl)
-        logger.info("Successfully reloaded ARL token")
-
-    except Exception as e:
-        logger.error(f"Error reloading ARL token: {str(e)}", exc_info=True)
 @dataclass
 class DownloadResult:
     success: bool
@@ -33,10 +22,29 @@ class DownloadResult:
 class DeezerService:
     def __init__(self):
         self.file_handler = FileHandler()
+        self.client: Optional[DeeLogin] = None
+        self._initialize_client()
         logger.info("DeezerService initialized")
-    
-    async def download(self, url: str, output_folder="downloads", quality_download: str = 'MP3_320', make_zip: bool = False) -> Smart:
+
+    def _initialize_client(self):
+        """Initialize the Deezer client with ARL from environment."""
+        arl = os.getenv('DEEZER_ARL')
+        if not arl:
+            logger.error("DEEZER_ARL environment variable is not set.")
+            return
+
+        try:
+            self.client = DeeLogin(arl=arl)
+            logger.info("Deezer client initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize Deezer client: {str(e)}", exc_info=True)
+
+    async def download(self, url: str, output_folder="downloads", quality_download: str = 'MP3_320', make_zip: bool = False) -> Union[Smart, DownloadResult, bool]:
         """Download track/album/playlist from Deezer"""
+        if not self.client:
+            logger.error("Deezer client is not initialized. Cannot download.")
+            return DownloadResult(False, error="Deezer client not initialized")
+
         try:
             logger.info(f"Starting download - URL: {url}, Quality: {quality_download}, Make ZIP: {make_zip}")
             content_type, deezer_id = self.extract_info_from_url(url)
@@ -46,7 +54,7 @@ class DeezerService:
                 return DownloadResult(False, error="Invalid Deezer URL")
 
             logger.info(f"Downloading {content_type} with ID: {deezer_id}")
-            smart = deedownload.download_smart(url, output_folder, quality_download=quality_download, make_zip=make_zip)
+            smart = self.client.download_smart(url, output_folder, quality_download=quality_download, make_zip=make_zip)
             logger.info(f"Successfully downloaded {content_type} - ID: {deezer_id}")
             return smart
 
@@ -57,7 +65,7 @@ class DeezerService:
     def extract_info_from_url(self, url: str) -> Tuple[Optional[str], Optional[int]]:
         """Extract content type and ID from Deezer URL"""
         try:
-            logger.info(f"Extracting info from URL: {url}")
+            # logger.info(f"Extracting info from URL: {url}")
             patterns = {
                 'track': r'deezer\.com(?:\/[a-z]{2})?\/track\/(\d+)',
                 'album': r'deezer\.com(?:\/[a-z]{2})?\/album\/(\d+)',
@@ -78,7 +86,7 @@ class DeezerService:
             logger.error(f"Error extracting info from URL {url}: {str(e)}", exc_info=True)
             return None, None
 
-    def get_deezer_info(self, content_type, deezer_id):
+    def get_deezer_info(self, content_type: str, deezer_id: int) -> Dict[str, Any]:
         """Get information from Deezer API"""
         try:
             url = f"https://api.deezer.com/{content_type}/{deezer_id}"
@@ -111,7 +119,7 @@ class DeezerService:
             logger.error(f"Error creating ZIP archive for {title}: {str(e)}", exc_info=True)
             return None
     
-    async def get_track_list(self, content_type: str, deezer_id: int) -> list:
+    async def get_track_list(self, content_type: str, deezer_id: int) -> List[int]:
         """Get list of track IDs from album or playlist"""
         try:
             logger.info(f"Getting track list for {content_type} {deezer_id}")
@@ -127,9 +135,7 @@ class DeezerService:
                     logger.info(f"Retrieved {len(track_ids)} tracks from {content_type} {deezer_id}")
                     return track_ids
                 else:
-                    # print(f"Error: {info}")
-                    # logger.error(f"Error retrieving track list: {info}")
-                    error_msg = f"error in getting track list: {content_type} {deezer_id}"
+                    error_msg = f"Error in getting track list: {content_type} {deezer_id}"
                     logger.error(error_msg)
                     raise ValueError(error_msg)
             else:
@@ -141,13 +147,17 @@ class DeezerService:
             logger.error(f"Error getting track list for {content_type} {deezer_id}: {str(e)}", exc_info=True)
             raise
     
-    def convert_to_deezer(self, url):
+    def convert_to_deezer(self, url: str) -> Optional[str]:
+        """Convert Spotify URL to Deezer URL"""
+        if not self.client:
+            logger.error("Deezer client is not initialized. Cannot convert URL.")
+            return None
+
         try:
             if 'track' in url:
-                url = deedownload.convert_spoty_to_dee_link_track(url)
+                return self.client.convert_spoty_to_dee_link_track(url)
             elif 'album' in url:
-                url = deedownload.convert_spoty_to_dee_link_album(url)
-        
+                return self.client.convert_spoty_to_dee_link_album(url)
             return url
         except Exception as e:
             logger.error(f"Error converting {url}: {str(e)}", exc_info=True)
