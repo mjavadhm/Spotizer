@@ -20,12 +20,176 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
     @router.callback_query(F.data.startswith("playlist:"))
     async def playlist_callback(callback_query: CallbackQuery, state: FSMContext):
         """Handle playlist-related callbacks"""
-        action = callback_query.data.split(":")[1]
-        user_id = callback_query.from_user.id
-        logger.info(f"Processing playlist callback for user {user_id} - Action: {action}")
+        try:
+            parts = callback_query.data.split(":")
+            action = parts[1]
+            user_id = callback_query.from_user.id
+            logger.info(f"Processing playlist callback for user {user_id} - Action: {action}")
 
-        if action == "add":
-            await playlist_controller.add_action(user_id, callback_query)
+            if action == "add":
+                await playlist_controller.add_action(user_id, callback_query)
+            
+            elif action == "new_and_add":
+                # Trigger FSM state to ask for playlist name
+                from states import PlaylistCreationStates
+                track_id = parts[2]
+                await state.set_state(PlaylistCreationStates.waiting_for_name_with_track)
+                await state.update_data(track_id=track_id)
+                from views.playlist_view import PlaylistView
+                message_text = PlaylistView.get_creation_with_track_message()
+                await callback_query.message.answer(message_text)
+                await callback_query.answer()
+            
+            elif action == "view_tracks":
+                playlist_id = int(parts[2])
+                page = int(parts[3]) if len(parts) > 3 else 1
+                
+                success, tracks = await playlist_controller.get_playlist_tracks(user_id, playlist_id)
+                if success and tracks:
+                    # Get playlist info
+                    from views.playlist_view import PlaylistView
+                    success_pl, playlists = await playlist_controller.get_user_playlists(user_id)
+                    playlist = next((p for p in playlists if p.playlist_id == playlist_id), None)
+                    
+                    if playlist:
+                        text = PlaylistView.format_playlist_tracks(playlist.name, tracks)
+                        keyboard = PlaylistView.get_playlist_track_keyboard(tracks, playlist_id, page)
+                        await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+                else:
+                    await callback_query.answer("No tracks in this playlist")
+                await callback_query.answer()
+            
+            elif action == "download_all":
+                playlist_id = int(parts[2])
+                success, tracks = await playlist_controller.get_playlist_tracks(user_id, playlist_id)
+                
+                if success and tracks:
+                    from views.playlist_view import PlaylistView
+                    keyboard = PlaylistView.get_download_all_keyboard(playlist_id, len(tracks))
+                    await callback_query.message.edit_reply_markup(reply_markup=keyboard)
+                    await callback_query.answer(f"Download {len(tracks)} tracks?")
+                else:
+                    await callback_query.answer("No tracks to download")
+            
+            elif action == "confirm_download":
+                playlist_id = int(parts[2])
+                await callback_query.answer("Starting download...")
+                
+                success, tracks = await playlist_controller.get_playlist_tracks(user_id, playlist_id)
+                if success and tracks:
+                    await callback_query.message.answer(f"⏳ Downloading {len(tracks)} tracks from playlist...")
+                    
+                    # Download each track
+                    for idx, track in enumerate(tracks, 1):
+                        try:
+                            track_url = f"https://www.deezer.com/track/{track['id']}"
+                            await download_controller.process_download_request(user_id, track_url)
+                        except Exception as e:
+                            logger.error(f"Error downloading track {track['id']}: {str(e)}")
+                    
+                    await callback_query.message.answer(f"✅ Downloaded {len(tracks)} tracks!")
+            
+            elif action == "delete":
+                playlist_id = int(parts[2])
+                success, message = await playlist_controller.delete_playlist(user_id, playlist_id)
+                
+                if success:
+                    await callback_query.message.edit_text(f"✅ {message}")
+                    await callback_query.answer("Playlist deleted")
+                else:
+                    await callback_query.answer(message, show_alert=True)
+            
+            elif action == "remove_track":
+                playlist_id = int(parts[2])
+                playlist_track_id = int(parts[3])
+                
+                success, message = await playlist_controller.remove_from_playlist(user_id, playlist_id, playlist_track_id)
+                await callback_query.answer(message)
+                
+                if success:
+                    # Refresh the track list
+                    from views.playlist_view import PlaylistView
+                    success, tracks = await playlist_controller.get_playlist_tracks(user_id, playlist_id)
+                    success_pl, playlists = await playlist_controller.get_user_playlists(user_id)
+                    playlist = next((p for p in playlists if p.playlist_id == playlist_id), None)
+                    
+                    if playlist and tracks:
+                        text = PlaylistView.format_playlist_tracks(playlist.name, tracks)
+                        keyboard = PlaylistView.get_playlist_track_keyboard(tracks, playlist_id, 1)
+                        await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+                    else:
+                        await callback_query.message.edit_text(f"🎶 *{playlist.name}*\n\nNo tracks in this playlist.")
+            
+            elif action == "page":
+                playlist_id = int(parts[2])
+                page = int(parts[3])
+                
+                from views.playlist_view import PlaylistView
+                success, tracks = await playlist_controller.get_playlist_tracks(user_id, playlist_id)
+                success_pl, playlists = await playlist_controller.get_user_playlists(user_id)
+                playlist = next((p for p in playlists if p.playlist_id == playlist_id), None)
+                
+                if playlist and tracks:
+                    text = PlaylistView.format_playlist_tracks(playlist.name, tracks)
+                    keyboard = PlaylistView.get_playlist_track_keyboard(tracks, playlist_id, page)
+                    await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+                await callback_query.answer()
+            
+            elif action == "back_to_list":
+                from views.playlist_view import PlaylistView
+                success, playlists = await playlist_controller.get_user_playlists(user_id)
+                if success and playlists:
+                    keyboard = PlaylistView.get_playlist_keyboard(playlists)
+                    await callback_query.message.edit_text(
+                        PlaylistView.get_choose_playlist_message(),
+                        reply_markup=keyboard
+                    )
+                else:
+                    await callback_query.message.edit_text("You have no playlists.")
+                await callback_query.answer()
+                
+        except Exception as e:
+            logger.error(f"Error in playlist callback: {str(e)}", exc_info=True)
+            await callback_query.answer("Error processing request", show_alert=True)
+
+
+    @router.callback_query(F.data.startswith("select_playlist:"))
+    async def select_playlist_callback(callback_query: CallbackQuery, state: FSMContext):
+        """Handle playlist selection from /playlists command"""
+        try:
+            user_id = callback_query.from_user.id
+            playlist_id = int(callback_query.data.split(":")[1])
+            logger.info(f"User {user_id} selected playlist {playlist_id}")
+            
+            # Get playlist info
+            success, playlists = await playlist_controller.get_user_playlists(user_id)
+            playlist = next((p for p in playlists if p.playlist_id == playlist_id), None)
+            
+            if playlist:
+                from views.playlist_view import PlaylistView
+                # Check if playlist has tracks
+                success_tracks, tracks = await playlist_controller.get_playlist_tracks(user_id, playlist_id)
+                has_tracks = success_tracks and len(tracks) > 0
+                
+                keyboard = PlaylistView.get_playlist_details_keyboard(playlist_id, has_tracks)
+                text = f"🎶 *{playlist.name}*\n\n"
+                if playlist.description:
+                    text += f"_{playlist.description}_\n\n"
+                text += f"Tracks: {len(tracks) if has_tracks else 0}"
+                
+                await callback_query.message.edit_text(
+                    text,
+                    reply_markup=keyboard,
+                    parse_mode="Markdown"
+                )
+            else:
+                await callback_query.answer("Playlist not found", show_alert=True)
+            
+            await callback_query.answer()
+            
+        except Exception as e:
+            logger.error(f"Error selecting playlist: {str(e)}", exc_info=True)
+            await callback_query.answer("Error loading playlist", show_alert=True)
 
     @router.callback_query(F.data.startswith("setting:"))
     async def settings_callback(callback_query: CallbackQuery, state: FSMContext):

@@ -3,10 +3,13 @@ from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 
 from controllers.download_controller import DownloadController
+from controllers.playlist_controller import PlayListController
 from utils.url_validator import URLValidator
 from views.message_view import MessageView
 from views.music_view import MusicView
+from views.playlist_view import PlaylistView
 from models.message_model import MessageModel
+from states import PlaylistCreationStates
 from logger import get_logger
 
 logger = get_logger(__name__)
@@ -15,9 +18,88 @@ def setup_message_routes(dp: Router, download_controller: DownloadController):
     """Set up message route handlers"""
     router = Router()
     url_validator = URLValidator()
+    playlist_controller = PlayListController()
     logger.info("Setting up message routes")
     
+    # FSM State Handlers for Playlist Creation
+    @router.message(PlaylistCreationStates.waiting_for_name)
+    async def process_playlist_name(message: Message, state: FSMContext):
+        """Handle playlist name input for new playlist"""
+        try:
+            user_id = message.from_user.id
+            playlist_name = message.text.strip()
+            
+            if not playlist_name:
+                await message.reply("❌ Playlist name cannot be empty. Please enter a valid name:")
+                return
+            
+            if len(playlist_name) > 100:
+                await message.reply("❌ Playlist name is too long (max 100 characters). Please enter a shorter name:")
+                return
+            
+            # Create the playlist
+            success, result = await playlist_controller.create_playlist(user_id, playlist_name)
+            
+            if success:
+                await message.reply(f"✅ Playlist '{playlist_name}' created successfully!")
+            else:
+                await message.reply(f"❌ {result}")
+            
+            await state.clear()
+            
+        except Exception as e:
+            logger.error(f"Error processing playlist name: {str(e)}", exc_info=True)
+            await message.reply("❌ Error creating playlist. Please try again.")
+            await state.clear()
+    
+    @router.message(PlaylistCreationStates.waiting_for_name_with_track)
+    async def process_playlist_name_with_track(message: Message, state: FSMContext):
+        """Handle playlist name input when adding a track"""
+        try:
+            user_id = message.from_user.id
+            playlist_name = message.text.strip()
+            data = await state.get_data()
+            track_id = data.get('track_id')
+            
+            if not playlist_name:
+                await message.reply("❌ Playlist name cannot be empty. Please enter a valid name:")
+                return
+            
+            if len(playlist_name) > 100:
+                await message.reply("❌ Playlist name is too long (max 100 characters). Please enter a shorter name:")
+                return
+            
+            if not track_id:
+                await message.reply("❌ Track information not found. Please try again.")
+                await state.clear()
+                return
+            
+            # Convert Spotify track ID to Deezer ID
+            from services.deezer_service import DeezerService
+            deezer_service = DeezerService()
+            spotify_url = f"https://open.spotify.com/track/{track_id}"
+            deezer_url = deezer_service.convert_to_deezer(spotify_url)
+            content_type, deezer_id = deezer_service.extract_info_from_url(deezer_url)
+            
+            # Create playlist and add track
+            success, result = await playlist_controller.create_playlist_and_add_track(
+                user_id, playlist_name, deezer_id
+            )
+            
+            if success:
+                await message.reply(f"✅ Playlist '{playlist_name}' created and track added successfully!")
+            else:
+                await message.reply(f"❌ {result}")
+            
+            await state.clear()
+            
+        except Exception as e:
+            logger.error(f"Error processing playlist with track: {str(e)}", exc_info=True)
+            await message.reply("❌ Error creating playlist. Please try again.")
+            await state.clear()
+    
     @router.message(F.text)
+
     async def handle_message(message: Message, state: FSMContext):
         """Handle text messages - either links or search queries"""
         try:

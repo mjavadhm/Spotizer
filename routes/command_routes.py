@@ -194,6 +194,29 @@ Thank you for using MusicDownloader Bot! 🎧"""
             await MessageModel.add_message(user_id, sm)
             raise
     
+    @router.message(Command("newplaylist"))
+    async def newplaylist_command(message: Message, state: FSMContext):
+        """Handle /newplaylist command"""
+        try:
+            user_id = message.from_user.id
+            logger.info(f"Processing /newplaylist command for user {user_id}")
+            
+            from states import PlaylistCreationStates
+            from views.playlist_view import PlaylistView
+            
+            # Set FSM state to wait for playlist name
+            await state.set_state(PlaylistCreationStates.waiting_for_name)
+            message_text = PlaylistView.get_creation_message()
+            sm = await message.reply(message_text)
+            await MessageModel.add_message(user_id, sm)
+            logger.info(f"Sent playlist creation prompt to user {user_id}")
+            
+        except Exception as e:
+            logger.error(f"Error processing /newplaylist command for user {user_id}: {str(e)}", exc_info=True)
+            sm = await message.reply("Error creating playlist. Please try again.")
+            await MessageModel.add_message(user_id, sm)
+            raise
+    
     @router.message(Command("playlists"))
     async def playlists_command(message: Message, state: FSMContext):
         try:

@@ -91,3 +91,141 @@ class PlaylistView:
             
         ])
         return keyboard
+
+    @staticmethod
+    def get_playlist_details_keyboard(playlist_id, has_tracks=True):
+        """Create keyboard for viewing playlist details"""
+        buttons = []
+        
+        if has_tracks:
+            buttons.append([
+                InlineKeyboardButton(
+                    text="📋 View Tracks",
+                    callback_data=f"playlist:view_tracks:{playlist_id}"
+                )
+            ])
+            buttons.append([
+                InlineKeyboardButton(
+                    text="⬇️ Download All",
+                    callback_data=f"playlist:download_all:{playlist_id}"
+                )
+            ])
+        
+        buttons.append([
+            InlineKeyboardButton(
+                text="🗑️ Delete Playlist",
+                callback_data=f"playlist:delete:{playlist_id}"
+            )
+        ])
+        
+        return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    @staticmethod
+    def format_playlist_tracks(playlist_name, tracks):
+        """Format playlist tracks for display"""
+        if not tracks:
+            return f"🎶 *{playlist_name}*\n\nNo tracks in this playlist yet."
+        
+        text = f"🎶 *{playlist_name}*\n\n"
+        text += f"Total: {len(tracks)} track(s)\n\n"
+        
+        for idx, track in enumerate(tracks, 1):
+            artist_name = track.get('artist', {}).get('name', 'Unknown Artist')
+            track_name = track.get('title', 'Unknown Track')
+            duration = track.get('duration', 0)
+            minutes = duration // 60
+            seconds = duration % 60
+            
+            text += f"{idx}. *{track_name}* - {artist_name}\n"
+            text += f"   ⏱ {minutes}:{seconds:02d}\n\n"
+        
+        return text
+
+    @staticmethod
+    def get_playlist_track_keyboard(tracks, playlist_id, page=1, per_page=5):
+        """Create keyboard for playlist tracks with download/remove options"""
+        buttons = []
+        
+        # Calculate pagination
+        total_tracks = len(tracks)
+        start_idx = (page - 1) * per_page
+        end_idx = min(start_idx + per_page, total_tracks)
+        page_tracks = tracks[start_idx:end_idx]
+        
+        # Add track buttons
+        for track in page_tracks:
+            track_name = track.get('title', 'Unknown Track')
+            artist_name = track.get('artist', {}).get('name', 'Unknown Artist')
+            display_name = f"{track_name} - {artist_name}"
+            if len(display_name) > 40:
+                display_name = display_name[:37] + "..."
+            
+            buttons.append([
+                InlineKeyboardButton(
+                    text=f"⬇️ {display_name}",
+                    callback_data=f"download:track:{track['id']}"
+                ),
+                InlineKeyboardButton(
+                    text="❌",
+                    callback_data=f"playlist:remove_track:{playlist_id}:{track['playlist_track_id']}"
+                )
+            ])
+        
+        # Pagination buttons
+        nav_buttons = []
+        if page > 1:
+            nav_buttons.append(
+                InlineKeyboardButton(
+                    text="◀️ Previous",
+                    callback_data=f"playlist:page:{playlist_id}:{page-1}"
+                )
+            )
+        if end_idx < total_tracks:
+            nav_buttons.append(
+                InlineKeyboardButton(
+                    text="Next ▶️",
+                    callback_data=f"playlist:page:{playlist_id}:{page+1}"
+                )
+            )
+        
+        if nav_buttons:
+            buttons.append(nav_buttons)
+        
+        # Back button
+        buttons.append([
+            InlineKeyboardButton(
+                text="🔙 Back to Playlists",
+                callback_data="playlist:back_to_list"
+            )
+        ])
+        
+        return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    @staticmethod
+    def get_download_all_keyboard(playlist_id, track_count):
+        """Create keyboard for downloading all tracks from playlist"""
+        buttons = [
+            [
+                InlineKeyboardButton(
+                    text=f"✅ Confirm Download ({track_count} tracks)",
+                    callback_data=f"playlist:confirm_download:{playlist_id}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="❌ Cancel",
+                    callback_data=f"playlist:view_tracks:{playlist_id}"
+                )
+            ]
+        ]
+        return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    @staticmethod
+    def get_creation_message():
+        """Message for playlist creation"""
+        return "✏️ Please enter a name for your new playlist:"
+
+    @staticmethod
+    def get_creation_with_track_message():
+        """Message for playlist creation when adding a track"""
+        return "✏️ Please enter a name for your new playlist.\n\n💡 The selected track will be added to this playlist."
