@@ -100,7 +100,7 @@ class UserDownload(Base):
     user = relationship("User", back_populates="downloads")
 
     __table_args__ = (
-        UniqueConstraint("user_id", "deezer_id", "content_type", name="user_content_unique"),
+        UniqueConstraint("user_id", "deezer_id", "content_type", "quality", name="user_content_unique"),
         Index("idx_downloads_user_id", "user_id"),
         Index("idx_downloads_timestamp", "downloaded_at"),
     )

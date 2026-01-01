@@ -270,14 +270,21 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
     @router.callback_query(F.data.startswith("download:"))
     async def download_callback(callback_query: CallbackQuery, state: FSMContext):
         """Handle download callbacks"""
+        status_message = None
         try:
             # Extract download info
             _, content_type, item_id = callback_query.data.split(":")
             user_id = callback_query.from_user.id
             logger.info(f"Processing download for user {user_id} - Type: {content_type}, ID: {item_id}")
             
+            # Answer callback query IMMEDIATELY to remove loading state
+            await callback_query.answer()
+            
             # Send processing message
-            status_message = await callback_query.message.reply("⏳")
+            try:
+                status_message = await callback_query.message.reply("⏳")
+            except Exception as e:
+                logger.warning(f"Failed to send status message: {str(e)}")
             
             # Convert Spotify URL to Deezer and process download
             spotify_url = f"https://open.spotify.com/{content_type}/{item_id}"
@@ -287,20 +294,33 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
             )
             
             # Clean up status message
-            await status_message.delete()
+            if status_message:
+                try:
+                    await status_message.delete()
+                except Exception as e:
+                    logger.warning(f"Failed to delete status message: {str(e)}")
             
             if not success:
                 logger.error(f"Download failed for user {user_id}: {result}")
-                await callback_query.answer("Download failed")
                 return
             
-            await callback_query.answer("Download complete")
+            logger.info(f"Download completed successfully for user {user_id}")
             
         except Exception as e:
             logger.error(f"Download callback error for user {user_id}: {str(e)}", exc_info=True)
-            await callback_query.answer("Error processing download")
-            if 'status_message' in locals():
-                await status_message.delete()
+            
+            # Try to answer callback if not already answered
+            try:
+                await callback_query.answer("Error processing download", show_alert=True)
+            except:
+                pass
+            
+            # Clean up status message if it exists
+            if status_message:
+                try:
+                    await status_message.delete()
+                except:
+                    pass
             raise
 
     @router.callback_query(F.data == "delete")
