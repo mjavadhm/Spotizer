@@ -121,23 +121,37 @@ class PlaylistView:
         return InlineKeyboardMarkup(inline_keyboard=buttons)
 
     @staticmethod
-    def format_playlist_tracks(playlist_name, tracks):
-        """Format playlist tracks for display"""
+    def format_playlist_tracks(playlist_name, tracks, page=1, per_page=5):
+        """Format playlist tracks for display with pagination"""
         if not tracks:
             return f"🎶 *{playlist_name}*\n\nNo tracks in this playlist yet."
         
-        text = f"🎶 *{playlist_name}*\n\n"
-        text += f"Total: {len(tracks)} track(s)\n\n"
+        total_tracks = len(tracks)
+        total_pages = (total_tracks + per_page - 1) // per_page
         
-        for idx, track in enumerate(tracks, 1):
+        # Slice tracks for current page
+        start_idx = (page - 1) * per_page
+        end_idx = min(start_idx + per_page, total_tracks)
+        current_tracks = tracks[start_idx:end_idx]
+        
+        text = f"🎶 *{playlist_name}*\n"
+        text += f"Total: {total_tracks} track(s)\n\n"
+        
+        for idx, track in enumerate(current_tracks, start_idx + 1):
             artist_name = track.get('artist', {}).get('name', 'Unknown Artist')
             track_name = track.get('title', 'Unknown Track')
             duration = track.get('duration', 0)
             minutes = duration // 60
             seconds = duration % 60
             
+            # Escape markdown special characters in names
+            artist_name = artist_name.replace('*', '').replace('_', '').replace('`', '')
+            track_name = track_name.replace('*', '').replace('_', '').replace('`', '')
+            
             text += f"{idx}. *{track_name}* - {artist_name}\n"
             text += f"   ⏱ {minutes}:{seconds:02d}\n\n"
+            
+        text += f"📄 Page {page} of {total_pages}"
         
         return text
 

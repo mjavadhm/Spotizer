@@ -52,7 +52,8 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                     playlist = next((p for p in playlists if p.playlist_id == playlist_id), None)
                     
                     if playlist:
-                        text = PlaylistView.format_playlist_tracks(playlist.name, tracks)
+                    if playlist:
+                        text = PlaylistView.format_playlist_tracks(playlist.name, tracks, page)
                         keyboard = PlaylistView.get_playlist_track_keyboard(tracks, playlist_id, page)
                         await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
                 else:
@@ -114,7 +115,8 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                     playlist = next((p for p in playlists if p.playlist_id == playlist_id), None)
                     
                     if playlist and tracks:
-                        text = PlaylistView.format_playlist_tracks(playlist.name, tracks)
+                    if playlist and tracks:
+                        text = PlaylistView.format_playlist_tracks(playlist.name, tracks, 1)
                         keyboard = PlaylistView.get_playlist_track_keyboard(tracks, playlist_id, 1)
                         await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
                     else:
@@ -130,7 +132,8 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                 playlist = next((p for p in playlists if p.playlist_id == playlist_id), None)
                 
                 if playlist and tracks:
-                    text = PlaylistView.format_playlist_tracks(playlist.name, tracks)
+                if playlist and tracks:
+                    text = PlaylistView.format_playlist_tracks(playlist.name, tracks, page)
                     keyboard = PlaylistView.get_playlist_track_keyboard(tracks, playlist_id, page)
                     await callback_query.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
                 await callback_query.answer()
