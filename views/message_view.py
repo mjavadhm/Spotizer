@@ -64,14 +64,14 @@ class MessageView:
         for i, download in enumerate(downloads, 1):
             track_info = f"{i}. "
             
-            if download['title'] and download['artist']:
-                track_info += f"{download['title']} - {download['artist']}"
+            if download.title and download.artist:
+                track_info += f"{download.title} - {download.artist}"
             else:
-                track_info += f"{download['content_type'].capitalize()} #{download['deezer_id']}"
+                track_info += f"{download.content_type.capitalize()} #{download.deezer_id}"
             
-            track_info += f"\n   🎭 Type: {download['content_type'].capitalize()}"
-            track_info += f"\n   🔊 Quality: {download['quality']}"
-            track_info += f"\n   📅 {download['downloaded_at'].strftime('%Y-%m-%d %H:%M')}"
+            track_info += f"\n   🎭 Type: {download.content_type.capitalize()}"
+            track_info += f"\n   🔊 Quality: {download.quality}"
+            track_info += f"\n   📅 {download.downloaded_at.strftime('%Y-%m-%d %H:%M')}"
             history_text += track_info + "\n\n"
             
         return history_text
