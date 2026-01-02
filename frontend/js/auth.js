@@ -19,19 +19,8 @@ function checkAuth() {
 function onTelegramAuth(user) {
     console.log('Telegram auth success:', user);
 
-    // Store user data
-    storeUser({
-        id: user.id,
-        first_name: user.first_name,
-        last_name: user.last_name || '',
-        username: user.username || '',
-        photo_url: user.photo_url || '',
-        auth_date: user.auth_date,
-        hash: user.hash
-    });
-
     // Show success message
-    showToast('Login successful! Redirecting...', 'success');
+    showToast('Authenticating with server...', 'success');
 
     // Register/authenticate with backend
     fetch(apiUrl('/auth/telegram'), {
@@ -41,9 +30,28 @@ function onTelegramAuth(user) {
         },
         body: JSON.stringify(user)
     })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
-            if (data.success) {
+            // Backend returns: { access_token, token_type, user, is_new_user }
+            if (data.access_token) {
+                // Store user data with access token
+                storeUser({
+                    id: data.user.user_id,
+                    first_name: data.user.first_name || '',
+                    last_name: data.user.last_name || '',
+                    username: data.user.username || '',
+                    photo_url: user.photo_url || '',
+                    access_token: data.access_token,
+                    token_type: data.token_type
+                });
+
+                showToast('Login successful! Redirecting...', 'success');
+
                 // Redirect to dashboard
                 setTimeout(() => {
                     window.location.href = 'dashboard.html';

@@ -13,7 +13,8 @@ async function apiRequest(endpoint, options = {}) {
     const defaultOptions = {
         headers: {
             'Content-Type': 'application/json',
-            ...(user && { 'X-User-ID': user.id.toString() })
+            // Use JWT Bearer token for authentication
+            ...(user && user.access_token && { 'Authorization': `Bearer ${user.access_token}` })
         }
     };
 
