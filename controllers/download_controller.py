@@ -42,28 +42,26 @@ class DownloadController:
             
             if existing:
                 # Update timestamp for existing download
-                async with session.begin():
-                    existing.downloaded_at = func.now()
-                    existing.file_id = file_id  # Update file_id in case it changed
+                existing.downloaded_at = func.now()
+                existing.file_id = file_id  # Update file_id in case it changed
                 await session.commit()
                 return existing.download_id
             
             # Insert new download
-            async with session.begin():
-                download = UserDownload(
-                    user_id=user_id,
-                    deezer_id=deezer_id,
-                    content_type=content_type,
-                    file_id=file_id,
-                    quality=quality,
-                    url=url,
-                    title=title,
-                    artist=artist,
-                    album=album,
-                    duration=duration,
-                    file_name=file_name,
-                )
-                session.add(download)
+            download = UserDownload(
+                user_id=user_id,
+                deezer_id=deezer_id,
+                content_type=content_type,
+                file_id=file_id,
+                quality=quality,
+                url=url,
+                title=title,
+                artist=artist,
+                album=album,
+                duration=duration,
+                file_name=file_name,
+            )
+            session.add(download)
             await session.commit()
             await session.refresh(download)
             return download.download_id
