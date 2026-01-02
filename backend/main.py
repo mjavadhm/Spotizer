@@ -122,6 +122,32 @@ async def root():
     }
 
 
+# Convenience routes for frontend compatibility
+from fastapi import Query
+from fastapi.responses import RedirectResponse
+
+@app.get(f"{settings.API_V1_PREFIX}/settings", tags=["Settings"])
+async def get_settings_redirect(request: Request):
+    """Redirect to user settings endpoint"""
+    return RedirectResponse(url=f"{settings.API_V1_PREFIX}/users/me/settings", status_code=307)
+
+
+@app.patch(f"{settings.API_V1_PREFIX}/settings", tags=["Settings"])
+@app.put(f"{settings.API_V1_PREFIX}/settings", tags=["Settings"])
+async def update_settings_redirect(request: Request):
+    """Redirect to user settings update endpoint"""
+    return RedirectResponse(url=f"{settings.API_V1_PREFIX}/users/me/settings", status_code=307)
+
+
+@app.get(f"{settings.API_V1_PREFIX}/history", tags=["History"])
+async def get_history_redirect(
+    request: Request,
+    limit: int = Query(20, ge=1, le=100)
+):
+    """Redirect to downloads history endpoint"""
+    return RedirectResponse(url=f"{settings.API_V1_PREFIX}/downloads/history?page_size={limit}", status_code=307)
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(

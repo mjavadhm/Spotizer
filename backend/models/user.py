@@ -9,8 +9,7 @@ class User(Base):
 
     user_id = Column(BigInteger, primary_key=True, index=True)
     username = Column(String(255), nullable=True)
-    email = Column(String(255), unique=True, nullable=True, index=True)
-    hashed_password = Column(String(255), nullable=True)
+    # Note: email and hashed_password removed - this is a Telegram-only auth system
     first_name = Column(String(255), nullable=True)
     last_name = Column(String(255), nullable=True)
     is_bot = Column(Boolean, default=False)

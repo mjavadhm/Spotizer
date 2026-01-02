@@ -5,14 +5,12 @@ from datetime import datetime
 
 class UserBase(BaseModel):
     username: Optional[str] = None
-    email: Optional[EmailStr] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
 
 
 class UserCreate(UserBase):
-    email: EmailStr
-    password: str = Field(..., min_length=6)
+    # Note: Email/password auth disabled - Telegram-only auth
     user_id: Optional[int] = None
 
 
@@ -51,7 +49,7 @@ class UserResponse(UserBase):
 
 
 class UserInDB(UserResponse):
-    hashed_password: Optional[str] = None
+    pass  # No password for Telegram-only auth
 
 
 class Token(BaseModel):
@@ -61,7 +59,6 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     user_id: Optional[int] = None
-    email: Optional[str] = None
 
 
 class TelegramLoginData(BaseModel):

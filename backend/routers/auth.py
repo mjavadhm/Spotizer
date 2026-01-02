@@ -1,18 +1,15 @@
 from datetime import timedelta
-from typing import Annotated
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_async_db
 from ..schemas.user import (
-    UserCreate, UserResponse, Token,
+    UserResponse, Token,
     TelegramLoginData, TelegramBotAuth, TelegramAuthResponse
 )
 from ..dependencies import (
-    authenticate_user, create_user, get_user_by_email,
     create_access_token, get_current_user,
     verify_telegram_login, verify_telegram_bot_auth_token,
     get_or_create_telegram_user, generate_telegram_bot_auth_token,
@@ -25,59 +22,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(
-    user_data: UserCreate,
-    db: AsyncSession = Depends(get_async_db)
-):
-    """Register a new user"""
-    # Check if user already exists
-    existing_user = await get_user_by_email(db, user_data.email)
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
-        )
-
-    # Create new user
-    user = await create_user(
-        db,
-        email=user_data.email,
-        password=user_data.password,
-        username=user_data.username,
-        first_name=user_data.first_name,
-        last_name=user_data.last_name,
-        user_id=user_data.user_id
-    )
-
-    logger.info(f"New user registered: {user.email}")
-    return user
-
-
-@router.post("/login", response_model=Token)
-async def login(
-    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-    db: AsyncSession = Depends(get_async_db)
-):
-    """Login and get access token"""
-    user = await authenticate_user(db, form_data.username, form_data.password)
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.user_id, "email": user.email},
-        expires_delta=access_token_expires
-    )
-
-    logger.info(f"User logged in: {user.email}")
-    return Token(access_token=access_token, token_type="bearer")
+# Note: Email-based /register and /login endpoints removed - using Telegram-only auth
 
 
 @router.get("/me", response_model=UserResponse)
@@ -95,7 +40,7 @@ async def refresh_token(
     """Refresh access token"""
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": current_user.user_id, "email": current_user.email},
+        data={"sub": current_user.user_id},
         expires_delta=access_token_expires
     )
 
@@ -138,7 +83,7 @@ async def login_with_telegram(
     # Generate access token
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.user_id, "email": user.email},
+        data={"sub": user.user_id},
         expires_delta=access_token_expires
     )
 
@@ -199,7 +144,7 @@ async def login_from_bot(
     # Generate access token
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.user_id, "email": user.email},
+        data={"sub": user.user_id},
         expires_delta=access_token_expires
     )
 

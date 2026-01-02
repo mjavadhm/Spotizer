@@ -20,37 +20,42 @@ router = APIRouter(prefix="/search", tags=["Search"])
 
 @router.get("", response_model=SearchResponse)
 async def search(
-    query: str = Query(..., min_length=1, description="Search query"),
-    search_type: SearchType = Query(SearchType.TRACK, description="Type of content to search"),
+    query: Optional[str] = Query(None, min_length=1, description="Search query", alias="query"),
+    q: Optional[str] = Query(None, min_length=1, description="Search query (alias)"),
+    search_type: Optional[SearchType] = Query(None, description="Type of content to search"),
+    type: Optional[SearchType] = Query(None, description="Type of content to search (alias)"),
     limit: int = Query(10, ge=1, le=50, description="Number of results"),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
-    """
-    Search for music content on Spotify.
-
-    Supports searching for:
-    - Tracks
-    - Albums
-    - Playlists
-    - Artists
-    """
+    # Handle parameter aliases
+    search_query = query or q
+    if not search_query:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=422, detail="Search query is required (use 'query' or 'q' parameter)")
+    query = search_query  # Use the resolved query for the rest of the function
+    
+    # Handle search_type alias
+    resolved_type = search_type or type or SearchType.TRACK
+    
+    # Search for music content on Spotify.
+    # Supports: Tracks, Albums, Playlists, Artists
     try:
         spotify = get_spotify_service()
         results = await spotify.search(
             query=query,
-            search_type=search_type.value,
+            search_type=resolved_type.value,
             limit=limit,
             offset=offset
         )
 
         has_more = len(results) == limit
 
-        logger.info(f"Search query: '{query}', type: {search_type}, results: {len(results)}")
+        logger.info(f"Search query: '{query}', type: {resolved_type}, results: {len(results)}")
 
         return SearchResponse(
             query=query,
-            search_type=search_type.value,
+            search_type=resolved_type.value,
             results=results,
             total=len(results),
             limit=limit,

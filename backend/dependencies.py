@@ -55,10 +55,9 @@ def decode_token(token: str) -> Optional[TokenData]:
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id: int = payload.get("sub")
-        email: str = payload.get("email")
         if user_id is None:
             return None
-        return TokenData(user_id=user_id, email=email)
+        return TokenData(user_id=user_id)
     except JWTError:
         return None
 
@@ -111,10 +110,7 @@ async def get_current_user_optional(
     return user
 
 
-async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
-    """Get a user by email"""
-    result = await db.execute(select(User).where(User.email == email))
-    return result.scalar_one_or_none()
+# Note: get_user_by_email removed - using Telegram-only auth
 
 
 async def get_user_by_id(db: AsyncSession, user_id: int) -> Optional[User]:
@@ -123,49 +119,7 @@ async def get_user_by_id(db: AsyncSession, user_id: int) -> Optional[User]:
     return result.scalar_one_or_none()
 
 
-async def authenticate_user(db: AsyncSession, email: str, password: str) -> Optional[User]:
-    """Authenticate a user by email and password"""
-    user = await get_user_by_email(db, email)
-    if not user:
-        return None
-    if not user.hashed_password:
-        return None
-    if not verify_password(password, user.hashed_password):
-        return None
-    return user
-
-
-async def create_user(db: AsyncSession, email: str, password: str, **kwargs) -> User:
-    """Create a new user"""
-    import random
-
-    # Generate a unique user_id
-    user_id = kwargs.get('user_id') or random.randint(1000000000, 9999999999)
-
-    user = User(
-        user_id=user_id,
-        email=email,
-        hashed_password=get_password_hash(password),
-        username=kwargs.get('username'),
-        first_name=kwargs.get('first_name'),
-        last_name=kwargs.get('last_name')
-    )
-    db.add(user)
-    await db.flush()
-
-    # Create default settings
-    user_settings = UserSettings(
-        user_id=user.user_id,
-        download_quality="MP3_320",
-        make_zip=True,
-        language="en"
-    )
-    db.add(user_settings)
-
-    await db.commit()
-    await db.refresh(user)
-
-    return user
+# Note: authenticate_user and create_user removed - using Telegram-only auth
 
 
 # ==================== Telegram Authentication ====================
