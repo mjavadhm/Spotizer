@@ -39,7 +39,6 @@ class UserSettingsResponse(UserSettingsBase):
 class UserResponse(UserBase):
     user_id: int
     is_premium: bool = False
-    is_active: bool = True
     created_at: Optional[datetime] = None
     last_activity: Optional[datetime] = None
     settings: Optional[UserSettingsResponse] = None

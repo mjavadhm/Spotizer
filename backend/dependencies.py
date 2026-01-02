@@ -83,11 +83,7 @@ async def get_current_user(
     if user is None:
         raise credentials_exception
 
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Inactive user"
-        )
+    # Note: is_active check removed - column doesn't exist in database
 
     return user
 
@@ -259,8 +255,7 @@ async def get_or_create_telegram_user(
             first_name=first_name,
             last_name=last_name,
             language_code=language_code,
-            is_premium=is_premium,
-            is_active=True
+            is_premium=is_premium
         )
         db.add(user)
         await db.flush()

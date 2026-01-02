@@ -9,7 +9,7 @@ class User(Base):
 
     user_id = Column(BigInteger, primary_key=True, index=True)
     username = Column(String(255), nullable=True)
-    # Note: email and hashed_password removed - this is a Telegram-only auth system
+    # Note: email, hashed_password, and is_active removed - matching actual database schema
     first_name = Column(String(255), nullable=True)
     last_name = Column(String(255), nullable=True)
     is_bot = Column(Boolean, default=False)
@@ -19,7 +19,6 @@ class User(Base):
     can_join_groups = Column(Boolean, default=True)
     can_read_all_group_messages = Column(Boolean, default=False)
     supports_inline_queries = Column(Boolean, default=False)
-    is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     last_activity = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

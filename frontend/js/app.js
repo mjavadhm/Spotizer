@@ -93,7 +93,9 @@ async function performSearch() {
     resultsContainer.innerHTML = '<div class="loading"></div>';
 
     try {
-        const results = await searchMusic(query, type);
+        const response = await searchMusic(query, type);
+        // API returns { results: [...], ... } - extract the results array
+        const results = response.results || response;
         displaySearchResults(results, type);
     } catch (error) {
         console.error('Search failed:', error);
