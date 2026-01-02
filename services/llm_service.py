@@ -15,6 +15,10 @@ class Recommendation(BaseModel):
     artist: str = Field(description="The name of the music artist")
     title: str = Field(description="The title of the song")
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 class LLMService:
     def __init__(self):
         self._setup_chain()
@@ -24,8 +28,7 @@ class LLMService:
         # Ensure GEMINI_API_KEY is in your .env
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
-            # We might want to log a warning here, but for now we'll assume it's set or will be set
-            pass
+            logger.warning("GEMINI_API_KEY not found in environment variables. Recommendation features will fail.")
 
         self.llm = ChatGoogleGenerativeAI(
             model="gemini-2.5-flash",
@@ -83,5 +86,5 @@ Return ONLY the JSON array.
             
         except Exception as e:
             # Log the error properly in a real aplication
-            print(f"Error generating recommendations: {e}")
+            logger.error(f"Error generating recommendations: {e}", exc_info=True)
             return []

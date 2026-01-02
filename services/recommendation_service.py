@@ -34,8 +34,8 @@ class RecommendationService:
             .limit(20)
         )
 
-        liked_results = self.db.execute(liked_query).all()
-        disliked_results = self.db.execute(disliked_query).all()
+        liked_results = (await self.db.execute(liked_query)).all()
+        disliked_results = (await self.db.execute(disliked_query)).all()
 
         liked_songs = [f"{row.artist} - {row.title}" for row in liked_results if row.artist and row.title]
         disliked_songs = [f"{row.artist} - {row.title}" for row in disliked_results if row.artist and row.title]
