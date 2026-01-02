@@ -8,6 +8,7 @@ from services.deezer_service import DeezerService
 from services.spotify_service import SpotifyService
 from utils.file_handler import FileHandler
 from utils.url_validator import URLValidator
+from views.music_view import MusicView
 from aiogram.types import FSInputFile
 from bot import bot
 from logger import get_logger
@@ -24,7 +25,7 @@ class DownloadController:
 
     @staticmethod
     async def add_download(user_id, deezer_id, content_type, file_id, quality, url, title, artist, album, duration=None, file_name=None):
-        """Add a download to the database."""
+        """Add a download to the database. Returns download_id for rating buttons."""
         async with async_session_maker() as session:
             async with session.begin():
                 download = UserDownload(
@@ -42,6 +43,8 @@ class DownloadController:
                 )
                 session.add(download)
             await session.commit()
+            await session.refresh(download)
+            return download.download_id
 
     @staticmethod
     async def get_track(track_id):
@@ -254,7 +257,7 @@ class DownloadController:
                                 title=track.title,
                                 performer=track.artist,
                             )
-                            await self.add_download(
+                            download_id = await self.add_download(
                                 user_id=user_id,
                                 deezer_id=track_id,
                                 content_type="track",
@@ -266,6 +269,12 @@ class DownloadController:
                                 duration=track.duration,
                                 file_name=None, # Or retrieve if available
                                 album=track.album,
+                            )
+                            # Send rating buttons
+                            await bot.send_message(
+                                chat_id=user_id,
+                                text="Rate this track:",
+                                reply_markup=MusicView.get_rating_keyboard(download_id)
                             )
                             musics = (track.title, track.duration, None)
                             musics_playlist.append(musics)
@@ -304,7 +313,7 @@ class DownloadController:
                                          quality=quality,
                                     )
                                     
-                                    await self.add_download(
+                                    download_id = await self.add_download(
                                         user_id=user_id,
                                         deezer_id=track_id,
                                         content_type='track',
@@ -316,6 +325,13 @@ class DownloadController:
                                         duration=duration,
                                         file_name=sent_message.audio.file_name,
                                         album=album
+                                    )
+                                    
+                                    # Send rating buttons
+                                    await bot.send_message(
+                                        chat_id=user_id,
+                                        text="Rate this track:",
+                                        reply_markup=MusicView.get_rating_keyboard(download_id)
                                     )
                                     
                                     musics = (title, duration, sent_message.audio.file_name)
@@ -376,6 +392,31 @@ class DownloadController:
             )
             downloads = result.scalars().all()
             return True, downloads
+
+    @staticmethod
+    async def update_download_rating(user_id: int, download_id: int, rating: int) -> tuple[bool, str]:
+        """
+        Update rating for a download.
+        Args:
+            user_id: User's telegram ID
+            download_id: ID of the download record
+            rating: 1=like, -1=dislike, 0=remove rating
+        Returns:
+            tuple[bool, str]: Success status and message
+        """
+        async with async_session_maker() as session:
+            async with session.begin():
+                result = await session.execute(
+                    select(UserDownload).where(
+                        UserDownload.download_id == download_id,
+                        UserDownload.user_id == user_id
+                    )
+                )
+                download = result.scalars().first()
+                if download:
+                    download.user_rating = rating if rating != 0 else None
+                    return True, "Rating updated"
+                return False, "Download not found"
 
     async def get_artist_top_tracks(self, artist_id: str) -> list:
         """Get artist's top tracks"""

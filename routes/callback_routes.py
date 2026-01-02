@@ -506,6 +506,38 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
             logger.error(f"Delete callback error for user {callback_query.from_user.id}: {str(e)}", exc_info=True)
             await callback_query.answer("Error deleting message")
 
+    @router.callback_query(F.data.startswith("rate:"))
+    async def rate_callback(callback_query: CallbackQuery, state: FSMContext):
+        """Handle like/dislike rating callbacks"""
+        try:
+            # Parse: rate:like:123 or rate:dislike:123
+            parts = callback_query.data.split(":")
+            action = parts[1]
+            download_id = int(parts[2])
+            user_id = callback_query.from_user.id
+            
+            rating = 1 if action == "like" else -1
+            logger.info(f"User {user_id} rating download {download_id} as {action}")
+            
+            success, msg = await download_controller.update_download_rating(user_id, download_id, rating)
+            
+            if success:
+                emoji = "👍" if rating == 1 else "👎"
+                await callback_query.answer(f"{emoji} {'Liked' if rating == 1 else 'Disliked'}!")
+                # Update keyboard to show which button was clicked
+                try:
+                    new_keyboard = MusicView.get_rating_keyboard(download_id, rating)
+                    await callback_query.message.edit_reply_markup(reply_markup=new_keyboard)
+                except:
+                    pass
+            else:
+                await callback_query.answer(msg, show_alert=True)
+                
+        except Exception as e:
+            logger.error(f"Rate callback error for user {callback_query.from_user.id}: {str(e)}", exc_info=True)
+            await callback_query.answer("Error updating rating")
+
     # Register all routes
     dp.include_router(router)
     logger.info("Callback routes setup completed")
+

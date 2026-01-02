@@ -97,6 +97,7 @@ class UserDownload(Base):
     duration = Column(Integer, nullable=True)
     file_name = Column(Text, nullable=True)
     downloaded_at = Column(TIMESTAMP, server_default=func.now())
+    user_rating = Column(Integer, nullable=True)  # 1=like, -1=dislike, NULL=no rating
 
     user = relationship("User", back_populates="downloads")
 
