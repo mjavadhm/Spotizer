@@ -250,13 +250,7 @@ class DownloadController:
                         track = await self.get_track(str(track_id))
                         if track:
                             logger.info(f"Found cached track: {track.title}")
-                            await bot.send_audio(
-                                chat_id=user_id,
-                                audio=track.file_id,
-                                caption=f"@Spotizer_bot 🎧",
-                                title=track.title,
-                                performer=track.artist,
-                            )
+                            # Add download first to get download_id for rating keyboard
                             download_id = await self.add_download(
                                 user_id=user_id,
                                 deezer_id=track_id,
@@ -267,13 +261,16 @@ class DownloadController:
                                 title=track.title,
                                 artist=track.artist,
                                 duration=track.duration,
-                                file_name=None, # Or retrieve if available
+                                file_name=None,
                                 album=track.album,
                             )
-                            # Send rating buttons
-                            await bot.send_message(
+                            # Send audio with rating buttons attached
+                            await bot.send_audio(
                                 chat_id=user_id,
-                                text="Rate this track:",
+                                audio=track.file_id,
+                                caption=f"@Spotizer_bot 🎧",
+                                title=track.title,
+                                performer=track.artist,
                                 reply_markup=MusicView.get_rating_keyboard(download_id)
                             )
                             musics = (track.title, track.duration, None)
@@ -327,10 +324,8 @@ class DownloadController:
                                         album=album
                                     )
                                     
-                                    # Send rating buttons
-                                    await bot.send_message(
-                                        chat_id=user_id,
-                                        text="Rate this track:",
+                                    # Add rating buttons to the audio message
+                                    await sent_message.edit_reply_markup(
                                         reply_markup=MusicView.get_rating_keyboard(download_id)
                                     )
                                     
