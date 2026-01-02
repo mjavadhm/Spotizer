@@ -62,12 +62,19 @@ class MessageView:
 
         history_text = "Your recent downloads:\n\n"
         for i, download in enumerate(downloads, 1):
+            # Show rating emoji if user has rated
+            rating_emoji = ""
+            if download.user_rating == 1:
+                rating_emoji = " 👍"
+            elif download.user_rating == -1:
+                rating_emoji = " 👎"
+            
             track_info = f"{i}. "
             
             if download.title and download.artist:
-                track_info += f"{download.title} - {download.artist}"
+                track_info += f"{download.title} - {download.artist}{rating_emoji}"
             else:
-                track_info += f"{download.content_type.capitalize()} #{download.deezer_id}"
+                track_info += f"{download.content_type.capitalize()} #{download.deezer_id}{rating_emoji}"
             
             track_info += f"\n   🎭 Type: {download.content_type.capitalize()}"
             track_info += f"\n   🔊 Quality: {download.quality}"

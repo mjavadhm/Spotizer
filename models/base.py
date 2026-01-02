@@ -1,4 +1,5 @@
 import uuid
+from typing import Optional
 from sqlalchemy import (
     create_engine,
     Column,
@@ -96,11 +97,12 @@ class UserDownload(Base):
     duration = Column(Integer, nullable=True)
     file_name = Column(Text, nullable=True)
     downloaded_at = Column(TIMESTAMP, server_default=func.now())
+    user_rating = Column(Integer, nullable=True)  # 1=like, -1=dislike, NULL=no rating
 
     user = relationship("User", back_populates="downloads")
 
     __table_args__ = (
-        UniqueConstraint("user_id", "deezer_id", "content_type", name="user_content_unique"),
+        UniqueConstraint("user_id", "deezer_id", "content_type", "quality", name="user_content_unique"),
         Index("idx_downloads_user_id", "user_id"),
         Index("idx_downloads_timestamp", "downloaded_at"),
     )

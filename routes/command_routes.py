@@ -5,7 +5,6 @@ from aiogram.fsm.context import FSMContext
 
 from controllers.user_controller import UserController
 from controllers.playlist_controller import PlayListController
-from services.deezer_service import reload_arl
 from views.message_view import MessageView
 from views.playlist_view import PlaylistView
 from models.message_model import MessageModel
@@ -195,32 +194,29 @@ Thank you for using MusicDownloader Bot! 🎧"""
             await MessageModel.add_message(user_id, sm)
             raise
     
-    @router.message(Command("reload_arl"))
-    async def reload_arl_command(message: Message, command: CommandObject, state: FSMContext):
-        """Handle /reload_arl command"""
+    @router.message(Command("newplaylist"))
+    async def newplaylist_command(message: Message, state: FSMContext):
+        """Handle /newplaylist command"""
         try:
             user_id = message.from_user.id
-            logger.info(f"Processing /reload_arl command for user {user_id}")
-
-            # استخراج توکن ARL از آرگومان‌های دستور
-            arl = command.args
-
-            if not arl:
-                # اگر کاربر هیچ مقداری بعد از دستور وارد نکرده باشد
-                await message.reply("لطفاً توکن ARL را بعد از دستور وارد کنید.\nمثال: /reload_arl 12345...")
-                logger.warning(f"User {user_id} did not provide an ARL token.")
-                return
-
-            # در اینجا می‌توانید با متغیر arl کار کنید
-            # برای مثال، آن را در جایی ذخیره کنید یا اعتبارسنجی کنید
-            logger.info(f"User {user_id} provided ARL: {arl}")
-            await message.reply(f"توکن ARL شما با موفقیت دریافت شد: `{arl}`", parse_mode="MarkdownV2")
-            await reload_arl(arl)
+            logger.info(f"Processing /newplaylist command for user {user_id}")
+            
+            from states import PlaylistCreationStates
+            from views.playlist_view import PlaylistView
+            
+            # Set FSM state to wait for playlist name
+            await state.set_state(PlaylistCreationStates.waiting_for_name)
+            message_text = PlaylistView.get_creation_message()
+            sm = await message.reply(message_text)
+            await MessageModel.add_message(user_id, sm)
+            logger.info(f"Sent playlist creation prompt to user {user_id}")
+            
         except Exception as e:
-            logger.error(f"Error processing /about command for user {user_id}: {str(e)}", exc_info=True)
-            # sm = await message.reply("Error displaying about information.")
-            # message_model.add_message(user_id, sm)
+            logger.error(f"Error processing /newplaylist command for user {user_id}: {str(e)}", exc_info=True)
+            sm = await message.reply("Error creating playlist. Please try again.")
+            await MessageModel.add_message(user_id, sm)
             raise
+    
     @router.message(Command("playlists"))
     async def playlists_command(message: Message, state: FSMContext):
         try:

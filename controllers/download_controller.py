@@ -1,6 +1,7 @@
 import aiogram
 import os
 from sqlalchemy.future import select
+from sqlalchemy.sql import func
 from database.session import async_session_maker
 from controllers.user_controller import UserController
 from models.base import User, UserSettings, UserDownload, Track
@@ -8,6 +9,7 @@ from services.deezer_service import DeezerService
 from services.spotify_service import SpotifyService
 from utils.file_handler import FileHandler
 from utils.url_validator import URLValidator
+from views.music_view import MusicView
 from aiogram.types import FSInputFile
 from bot import bot
 from logger import get_logger
@@ -24,24 +26,45 @@ class DownloadController:
 
     @staticmethod
     async def add_download(user_id, deezer_id, content_type, file_id, quality, url, title, artist, album, duration=None, file_name=None):
-        """Add a download to the database."""
+        """Add a download to the database. Returns download_id for rating buttons.
+        If the same track was already downloaded by this user, updates timestamp and returns existing download_id."""
         async with async_session_maker() as session:
-            async with session.begin():
-                download = UserDownload(
-                    user_id=user_id,
-                    deezer_id=deezer_id,
-                    content_type=content_type,
-                    file_id=file_id,
-                    quality=quality,
-                    url=url,
-                    title=title,
-                    artist=artist,
-                    album=album,
-                    duration=duration,
-                    file_name=file_name,
+            # Check if this download already exists
+            result = await session.execute(
+                select(UserDownload).where(
+                    UserDownload.user_id == user_id,
+                    UserDownload.deezer_id == deezer_id,
+                    UserDownload.content_type == content_type,
+                    UserDownload.quality == quality
                 )
-                session.add(download)
+            )
+            existing = result.scalars().first()
+            
+            if existing:
+                # Update timestamp for existing download
+                existing.downloaded_at = func.now()
+                existing.file_id = file_id  # Update file_id in case it changed
+                await session.commit()
+                return existing.download_id
+            
+            # Insert new download
+            download = UserDownload(
+                user_id=user_id,
+                deezer_id=deezer_id,
+                content_type=content_type,
+                file_id=file_id,
+                quality=quality,
+                url=url,
+                title=title,
+                artist=artist,
+                album=album,
+                duration=duration,
+                file_name=file_name,
+            )
+            session.add(download)
             await session.commit()
+            await session.refresh(download)
+            return download.download_id
 
     @staticmethod
     async def get_track(track_id):
@@ -247,14 +270,8 @@ class DownloadController:
                         track = await self.get_track(str(track_id))
                         if track:
                             logger.info(f"Found cached track: {track.title}")
-                            await bot.send_audio(
-                                chat_id=user_id,
-                                audio=track.file_id,
-                                caption=f"@Spotizer_bot 🎧",
-                                title=track.title,
-                                performer=track.artist,
-                            )
-                            await self.add_download(
+                            # Add download first to get download_id for rating keyboard
+                            download_id = await self.add_download(
                                 user_id=user_id,
                                 deezer_id=track_id,
                                 content_type="track",
@@ -264,8 +281,17 @@ class DownloadController:
                                 title=track.title,
                                 artist=track.artist,
                                 duration=track.duration,
-                                file_name=None, # Or retrieve if available
+                                file_name=None,
                                 album=track.album,
+                            )
+                            # Send audio with rating buttons attached
+                            await bot.send_audio(
+                                chat_id=user_id,
+                                audio=track.file_id,
+                                caption=f"@Spotizer_bot 🎧",
+                                title=track.title,
+                                performer=track.artist,
+                                reply_markup=MusicView.get_rating_keyboard(download_id)
                             )
                             musics = (track.title, track.duration, None)
                             musics_playlist.append(musics)
@@ -304,7 +330,7 @@ class DownloadController:
                                          quality=quality,
                                     )
                                     
-                                    await self.add_download(
+                                    download_id = await self.add_download(
                                         user_id=user_id,
                                         deezer_id=track_id,
                                         content_type='track',
@@ -316,6 +342,11 @@ class DownloadController:
                                         duration=duration,
                                         file_name=sent_message.audio.file_name,
                                         album=album
+                                    )
+                                    
+                                    # Add rating buttons to the audio message
+                                    await sent_message.edit_reply_markup(
+                                        reply_markup=MusicView.get_rating_keyboard(download_id)
                                     )
                                     
                                     musics = (title, duration, sent_message.audio.file_name)
@@ -376,6 +407,31 @@ class DownloadController:
             )
             downloads = result.scalars().all()
             return True, downloads
+
+    @staticmethod
+    async def update_download_rating(user_id: int, download_id: int, rating: int) -> tuple[bool, str]:
+        """
+        Update rating for a download.
+        Args:
+            user_id: User's telegram ID
+            download_id: ID of the download record
+            rating: 1=like, -1=dislike, 0=remove rating
+        Returns:
+            tuple[bool, str]: Success status and message
+        """
+        async with async_session_maker() as session:
+            async with session.begin():
+                result = await session.execute(
+                    select(UserDownload).where(
+                        UserDownload.download_id == download_id,
+                        UserDownload.user_id == user_id
+                    )
+                )
+                download = result.scalars().first()
+                if download:
+                    download.user_rating = rating if rating != 0 else None
+                    return True, "Rating updated"
+                return False, "Download not found"
 
     async def get_artist_top_tracks(self, artist_id: str) -> list:
         """Get artist's top tracks"""
