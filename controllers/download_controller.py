@@ -1,6 +1,7 @@
 import aiogram
 import os
 from sqlalchemy.future import select
+from sqlalchemy.sql import func
 from database.session import async_session_maker
 from controllers.user_controller import UserController
 from models.base import User, UserSettings, UserDownload, Track
@@ -25,8 +26,29 @@ class DownloadController:
 
     @staticmethod
     async def add_download(user_id, deezer_id, content_type, file_id, quality, url, title, artist, album, duration=None, file_name=None):
-        """Add a download to the database. Returns download_id for rating buttons."""
+        """Add a download to the database. Returns download_id for rating buttons.
+        If the same track was already downloaded by this user, updates timestamp and returns existing download_id."""
         async with async_session_maker() as session:
+            # Check if this download already exists
+            result = await session.execute(
+                select(UserDownload).where(
+                    UserDownload.user_id == user_id,
+                    UserDownload.deezer_id == deezer_id,
+                    UserDownload.content_type == content_type,
+                    UserDownload.quality == quality
+                )
+            )
+            existing = result.scalars().first()
+            
+            if existing:
+                # Update timestamp for existing download
+                async with session.begin():
+                    existing.downloaded_at = func.now()
+                    existing.file_id = file_id  # Update file_id in case it changed
+                await session.commit()
+                return existing.download_id
+            
+            # Insert new download
             async with session.begin():
                 download = UserDownload(
                     user_id=user_id,
