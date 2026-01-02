@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +8,7 @@
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
+
 <body>
     <div class="app-container">
         <!-- Sidebar -->
@@ -132,6 +134,18 @@
                     </button>
                 </div>
             </section>
+
+            <!-- Detail Page (for track/album/artist) -->
+            <section id="page-detail" class="page">
+                <div class="detail-header">
+                    <button onclick="goBackToSearch()" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </button>
+                </div>
+                <div id="detail-content" class="detail-content">
+                    <!-- Filled by JS -->
+                </div>
+            </section>
         </main>
     </div>
 
@@ -179,4 +193,5 @@
     <script src="js/api.js"></script>
     <script src="js/app.js"></script>
 </body>
+
 </html>

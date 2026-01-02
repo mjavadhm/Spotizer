@@ -128,30 +128,67 @@ function createResultCard(item, type) {
         item.images?.[0]?.url ||
         item.cover_url || '';
 
+    const artistInfo = getArtistInfo(item);
+    const albumInfo = getAlbumInfo(item);
+
     card.innerHTML = `
         <div class="cover">
             ${coverUrl ? `<img src="${coverUrl}" alt="${item.name}">` : '<i class="fas fa-music"></i>'}
         </div>
         <div class="title">${item.name}</div>
-        <div class="artist">${getArtistName(item)}</div>
+        <div class="artist">
+            ${type === 'artist' ? '' : `<span class="clickable-link" data-type="artist" data-id="${artistInfo.id}" data-name="${artistInfo.name}">${artistInfo.name}</span>`}
+        </div>
+        ${type === 'track' && albumInfo.name ? `
+        <div class="album-link">
+            <span class="clickable-link" data-type="album" data-id="${albumInfo.id}" data-name="${albumInfo.name}" style="font-size: 12px; color: var(--text-secondary);">${albumInfo.name}</span>
+        </div>
+        ` : ''}
         <div class="meta">
             ${getMetaInfo(item, type)}
         </div>
     `;
 
-    card.addEventListener('click', () => handleResultClick(item, type));
+    // Make the whole card clickable to go to detail page
+    card.addEventListener('click', (e) => {
+        // If clicked on a link, handle that instead
+        if (e.target.classList.contains('clickable-link')) {
+            e.stopPropagation();
+            const linkType = e.target.dataset.type;
+            const linkId = e.target.dataset.id;
+            const linkName = e.target.dataset.name;
+            if (linkType === 'artist' && linkId) {
+                showArtistDetail(linkId, linkName);
+            } else if (linkType === 'album' && linkId) {
+                showAlbumDetail(linkId);
+            }
+        } else {
+            openDetailPage(item, type);
+        }
+    });
 
     return card;
 }
 
-function getArtistName(item) {
+function getArtistInfo(item) {
     if (item.artists && item.artists.length > 0) {
-        return item.artists[0].name;
+        return { id: item.artists[0].id, name: item.artists[0].name };
     }
     if (item.artist && item.artist.name) {
-        return item.artist.name;
+        return { id: item.artist.id || '', name: item.artist.name };
     }
-    return 'Unknown Artist';
+    return { id: '', name: 'Unknown Artist' };
+}
+
+function getAlbumInfo(item) {
+    if (item.album) {
+        return { id: item.album.id, name: item.album.name };
+    }
+    return { id: '', name: '' };
+}
+
+function getArtistName(item) {
+    return getArtistInfo(item).name;
 }
 
 function getMetaInfo(item, type) {
@@ -166,46 +203,272 @@ function getMetaInfo(item, type) {
         const seconds = ((item.duration_ms % 60000) / 1000).toFixed(0);
         return `<span>${minutes}:${seconds.padStart(2, '0')}</span>`;
     }
+    if (type === 'artist') {
+        return `<span>${item.followers?.total || ''} followers</span>`;
+    }
     return '';
 }
 
-function handleResultClick(item, type) {
-    showTrackDetail(item, type);
+// ==================== Detail Page Functions ====================
+
+function openDetailPage(item, type) {
+    // Store current item for back navigation
+    window.currentDetailItem = item;
+    window.currentDetailType = type;
+
+    // Switch to detail page
+    switchPage('detail');
+
+    // Load detail content based on type
+    if (type === 'track') {
+        showTrackDetailPage(item);
+    } else if (type === 'album') {
+        showAlbumDetailPage(item);
+    } else if (type === 'artist') {
+        showArtistDetailPage(item);
+    } else if (type === 'playlist') {
+        showPlaylistDetailPage(item);
+    }
 }
 
-function showTrackDetail(item, type) {
-    const modal = document.getElementById('modal-track-detail');
-    const title = document.getElementById('track-detail-title');
-    const content = document.getElementById('track-detail-content');
+function goBackToSearch() {
+    switchPage('search');
+    // Re-activate search nav item
+    document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+    document.querySelector('.nav-item[data-page="search"]').classList.add('active');
+}
 
-    title.textContent = item.name;
-
-    const coverUrl = item.album?.images?.[0]?.url ||
-        item.images?.[0]?.url ||
-        item.cover_url || '';
+function showTrackDetailPage(item) {
+    const content = document.getElementById('detail-content');
+    const coverUrl = item.album?.images?.[0]?.url || item.images?.[0]?.url || '';
+    const artistInfo = getArtistInfo(item);
+    const albumInfo = getAlbumInfo(item);
+    const duration = item.duration ? item.duration : formatDuration(item.duration_ms);
 
     content.innerHTML = `
-        <div style="text-align: center; margin-bottom: 20px;">
-            ${coverUrl ? `<img src="${coverUrl}" alt="${item.name}" style="max-width: 200px; border-radius: 8px;">` : ''}
+        <div class="detail-hero">
+            <div class="detail-cover">
+                ${coverUrl ? `<img src="${coverUrl}" alt="${item.name}">` : '<div class="placeholder-cover"><i class="fas fa-music"></i></div>'}
+            </div>
+            <div class="detail-info">
+                <div class="detail-type">Track</div>
+                <h1 class="detail-title">${item.name}</h1>
+                <div class="detail-meta">
+                    <a href="#" onclick="showArtistDetail('${artistInfo.id}', '${artistInfo.name}'); return false;">${artistInfo.name}</a>
+                    ${albumInfo.name ? ` • <a href="#" onclick="showAlbumDetail('${albumInfo.id}'); return false;">${albumInfo.name}</a>` : ''}
+                    ${duration ? ` • ${duration}` : ''}
+                </div>
+                <div class="detail-actions">
+                    <button onclick="downloadItem('${item.id}', 'track')" class="btn btn-primary">
+                        <i class="fas fa-download"></i> Download
+                    </button>
+                    <button onclick="addToPlaylistModal('${item.id}')" class="btn btn-secondary">
+                        <i class="fas fa-plus"></i> Add to Playlist
+                    </button>
+                </div>
+            </div>
         </div>
-        <p><strong>Artist:</strong> ${getArtistName(item)}</p>
-        ${type === 'track' ? `<p><strong>Album:</strong> ${item.album?.name || 'Unknown'}</p>` : ''}
-        ${type === 'album' || type === 'playlist' ? `<p><strong>Tracks:</strong> ${item.total_tracks || item.tracks?.total || 0}</p>` : ''}
-        <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
-            <button onclick="downloadItem('${item.id}', '${type}')" class="btn btn-primary">
-                <i class="fas fa-download"></i> Download
-            </button>
-            ${type === 'track' ? `<button onclick="addToPlaylist('${item.id}')" class="btn btn-secondary">
-                <i class="fas fa-plus"></i> Add to Playlist
-            </button>` : ''}
+    `;
+}
+
+function showAlbumDetailPage(item) {
+    const content = document.getElementById('detail-content');
+    const coverUrl = item.images?.[0]?.url || '';
+    const artistInfo = getArtistInfo(item);
+
+    content.innerHTML = `
+        <div class="detail-hero">
+            <div class="detail-cover">
+                ${coverUrl ? `<img src="${coverUrl}" alt="${item.name}">` : '<div class="placeholder-cover"><i class="fas fa-compact-disc"></i></div>'}
+            </div>
+            <div class="detail-info">
+                <div class="detail-type">Album</div>
+                <h1 class="detail-title">${item.name}</h1>
+                <div class="detail-meta">
+                    <a href="#" onclick="showArtistDetail('${artistInfo.id}', '${artistInfo.name}'); return false;">${artistInfo.name}</a>
+                    • ${item.total_tracks || 0} tracks
+                    ${item.release_date ? ` • ${item.release_date.split('-')[0]}` : ''}
+                </div>
+                <div class="detail-actions">
+                    <button onclick="downloadItem('${item.id}', 'album')" class="btn btn-primary">
+                        <i class="fas fa-download"></i> Download Album
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="detail-section">
+            <h3>Tracks</h3>
+            <div id="album-tracks" class="track-list">
+                <div class="loading"></div>
+            </div>
         </div>
     `;
 
-    modal.classList.add('active');
+    // Load album tracks
+    loadAlbumTracks(item.id);
+}
+
+async function showAlbumDetail(albumId) {
+    const content = document.getElementById('detail-content');
+    content.innerHTML = '<div class="loading"></div>';
+    switchPage('detail');
+
+    try {
+        const album = await apiRequest(`/search/albums/${albumId}`);
+        showAlbumDetailPage(album);
+    } catch (error) {
+        console.error('Failed to load album:', error);
+        content.innerHTML = '<p class="placeholder-text">Failed to load album details</p>';
+    }
+}
+
+async function loadAlbumTracks(albumId) {
+    const container = document.getElementById('album-tracks');
+    try {
+        const album = await apiRequest(`/search/albums/${albumId}`);
+        const tracks = album.tracks?.items || album.tracks || [];
+
+        if (tracks.length === 0) {
+            container.innerHTML = '<p class="placeholder-text">No tracks available</p>';
+            return;
+        }
+
+        container.innerHTML = tracks.map((track, index) => `
+            <div class="track-item">
+                <div class="track-number">${index + 1}</div>
+                <div class="track-info">
+                    <div class="track-name">${track.name}</div>
+                    <div class="track-artist">
+                        ${track.artists?.map(a => `<a href="#" onclick="showArtistDetail('${a.id}', '${a.name}'); return false;">${a.name}</a>`).join(', ') || ''}
+                    </div>
+                </div>
+                <div class="track-duration">${track.duration || formatDuration(track.duration_ms)}</div>
+                <div class="track-actions">
+                    <button onclick="downloadItem('${track.id}', 'track')" title="Download">
+                        <i class="fas fa-download"></i>
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        container.innerHTML = '<p class="placeholder-text">Failed to load tracks</p>';
+    }
+}
+
+function showArtistDetailPage(item) {
+    const content = document.getElementById('detail-content');
+    const imageUrl = item.images?.[0]?.url || '';
+
+    content.innerHTML = `
+        <div class="detail-hero">
+            <div class="detail-cover" style="border-radius: 50%;">
+                ${imageUrl ? `<img src="${imageUrl}" alt="${item.name}">` : '<div class="placeholder-cover"><i class="fas fa-user"></i></div>'}
+            </div>
+            <div class="detail-info">
+                <div class="detail-type">Artist</div>
+                <h1 class="detail-title">${item.name}</h1>
+                <div class="detail-meta">
+                    ${item.followers?.total ? `${item.followers.total.toLocaleString()} followers` : ''}
+                    ${item.genres?.length ? ` • ${item.genres.slice(0, 3).join(', ')}` : ''}
+                </div>
+            </div>
+        </div>
+        <div class="detail-section">
+            <h3>Top Tracks</h3>
+            <div id="artist-top-tracks" class="track-list">
+                <div class="loading"></div>
+            </div>
+        </div>
+        <div class="detail-section">
+            <h3>Albums</h3>
+            <div id="artist-albums" class="albums-grid">
+                <div class="loading"></div>
+            </div>
+        </div>
+    `;
+
+    // Load artist's top tracks and albums
+    loadArtistContent(item.id);
+}
+
+async function showArtistDetail(artistId, artistName = '') {
+    const content = document.getElementById('detail-content');
+    content.innerHTML = '<div class="loading"></div>';
+    switchPage('detail');
+
+    try {
+        const artist = await apiRequest(`/search/artists/${artistId}`);
+        showArtistDetailPage(artist);
+    } catch (error) {
+        console.error('Failed to load artist:', error);
+        // Show basic info if API fails
+        content.innerHTML = `
+            <div class="detail-hero">
+                <div class="detail-cover" style="border-radius: 50%;">
+                    <div class="placeholder-cover"><i class="fas fa-user"></i></div>
+                </div>
+                <div class="detail-info">
+                    <div class="detail-type">Artist</div>
+                    <h1 class="detail-title">${artistName || 'Unknown Artist'}</h1>
+                </div>
+            </div>
+            <p class="placeholder-text">Could not load artist details</p>
+        `;
+    }
+}
+
+async function loadArtistContent(artistId) {
+    // For now, show placeholder - API would need to support this
+    const tracksContainer = document.getElementById('artist-top-tracks');
+    const albumsContainer = document.getElementById('artist-albums');
+
+    tracksContainer.innerHTML = '<p class="placeholder-text">Search for this artist to see their tracks</p>';
+    albumsContainer.innerHTML = '<p class="placeholder-text">Search for this artist\'s albums</p>';
+}
+
+function showPlaylistDetailPage(item) {
+    const content = document.getElementById('detail-content');
+    const coverUrl = item.images?.[0]?.url || '';
+
+    content.innerHTML = `
+        <div class="detail-hero">
+            <div class="detail-cover">
+                ${coverUrl ? `<img src="${coverUrl}" alt="${item.name}">` : '<div class="placeholder-cover"><i class="fas fa-list"></i></div>'}
+            </div>
+            <div class="detail-info">
+                <div class="detail-type">Playlist</div>
+                <h1 class="detail-title">${item.name}</h1>
+                <div class="detail-meta">
+                    ${item.owner?.display_name || 'Unknown'} • ${item.tracks?.total || 0} tracks
+                </div>
+                <div class="detail-actions">
+                    <button onclick="downloadItem('${item.id}', 'playlist')" class="btn btn-primary">
+                        <i class="fas fa-download"></i> Download Playlist
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function formatDuration(ms) {
+    if (!ms) return '';
+    const minutes = Math.floor(ms / 60000);
+    const seconds = ((ms % 60000) / 1000).toFixed(0);
+    return `${minutes}:${seconds.padStart(2, '0')}`;
+}
+
+function addToPlaylistModal(trackId) {
+    // For now, just show toast - would need modal implementation
+    showToast('Feature coming soon!', 'success');
+}
+
+// Legacy function for modal (keeping for backwards compatibility)
+function showTrackDetail(item, type) {
+    openDetailPage(item, type);
 }
 
 async function downloadItem(itemId, type) {
-    closeModal('modal-track-detail');
     showToast('Download started...', 'success');
 
     try {
