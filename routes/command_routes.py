@@ -236,6 +236,34 @@ Thank you for using MusicDownloader Bot! 🎧"""
             logger.error(f"Error processing /playlists command for user {user_id}: {str(e)}", exc_info=True)
             await message.reply("Error displaying playlists.")
 
+    @router.message(Command("recommend"))
+    async def recommend_command(message: Message, state: FSMContext):
+        """Handle /recommend command"""
+        try:
+            user_id = message.from_user.id
+            logger.info(f"Processing /recommend command for user {user_id}")
+            
+            # Send initial "typing" action or message since LLM might be slow
+            await message.bot.send_chat_action(chat_id=message.chat.id, action="typing")
+            processing_msg = await message.reply("🤖 Thinking... Analyzing your taste...")
+            
+            from controllers.recommendation_controller import RecommendationController
+            
+            success, result_text = await RecommendationController.recommend_music(user_id)
+            
+            # Delete processing message
+            await processing_msg.delete()
+            
+            # Send result
+            sm = await message.reply(result_text, parse_mode="Markdown")
+            await MessageModel.add_message(user_id, sm)
+            logger.info(f"Sent recommendations to user {user_id}")
+            
+        except Exception as e:
+            logger.error(f"Error processing /recommend command for user {user_id}: {str(e)}", exc_info=True)
+            sm = await message.reply("Error getting recommendations.")
+            await MessageModel.add_message(user_id, sm)
+
     # Register all routes
     dp.include_router(router)
     logger.info("Command routes setup completed")
