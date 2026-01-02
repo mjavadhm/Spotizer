@@ -1,0 +1,234 @@
+import logging
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from ..schemas.search import SearchType, SearchResponse
+from ..schemas.track import (
+    TrackDetailResponse, AlbumDetailResponse,
+    PlaylistDetailResponse, ArtistDetailResponse
+)
+from ..services.spotify_service import get_spotify_service, SpotifyService
+from ..services.deezer_service import get_deezer_service, DeezerService
+from ..dependencies import get_current_user_optional
+from ..models.user import User
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/search", tags=["Search"])
+
+
+@router.get("", response_model=SearchResponse)
+async def search(
+    query: str = Query(..., min_length=1, description="Search query"),
+    search_type: SearchType = Query(SearchType.TRACK, description="Type of content to search"),
+    limit: int = Query(10, ge=1, le=50, description="Number of results"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """
+    Search for music content on Spotify.
+
+    Supports searching for:
+    - Tracks
+    - Albums
+    - Playlists
+    - Artists
+    """
+    try:
+        spotify = get_spotify_service()
+        results = await spotify.search(
+            query=query,
+            search_type=search_type.value,
+            limit=limit,
+            offset=offset
+        )
+
+        has_more = len(results) == limit
+
+        logger.info(f"Search query: '{query}', type: {search_type}, results: {len(results)}")
+
+        return SearchResponse(
+            query=query,
+            search_type=search_type.value,
+            results=results,
+            total=len(results),
+            limit=limit,
+            offset=offset,
+            has_more=has_more
+        )
+
+    except Exception as e:
+        logger.error(f"Search error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Search failed: {str(e)}"
+        )
+
+
+@router.get("/tracks/{track_id}")
+async def get_track_info(
+    track_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """Get detailed information about a track"""
+    try:
+        spotify = get_spotify_service()
+        info = await spotify.get_item_info('track', track_id)
+
+        if not info:
+            raise HTTPException(
+                status_code=404,
+                detail="Track not found"
+            )
+
+        return info
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting track info: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get track info: {str(e)}"
+        )
+
+
+@router.get("/albums/{album_id}")
+async def get_album_info(
+    album_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """Get detailed information about an album"""
+    try:
+        spotify = get_spotify_service()
+        info = await spotify.get_item_info('album', album_id)
+
+        if not info:
+            raise HTTPException(
+                status_code=404,
+                detail="Album not found"
+            )
+
+        return info
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting album info: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get album info: {str(e)}"
+        )
+
+
+@router.get("/playlists/{playlist_id}")
+async def get_playlist_info(
+    playlist_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """Get detailed information about a playlist"""
+    try:
+        spotify = get_spotify_service()
+        info = await spotify.get_item_info('playlist', playlist_id)
+
+        if not info:
+            raise HTTPException(
+                status_code=404,
+                detail="Playlist not found"
+            )
+
+        return info
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting playlist info: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get playlist info: {str(e)}"
+        )
+
+
+@router.get("/artists/{artist_id}")
+async def get_artist_info(
+    artist_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """Get detailed information about an artist including top tracks and albums"""
+    try:
+        spotify = get_spotify_service()
+        info = await spotify.get_item_info('artist', artist_id)
+
+        if not info:
+            raise HTTPException(
+                status_code=404,
+                detail="Artist not found"
+            )
+
+        return info
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting artist info: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get artist info: {str(e)}"
+        )
+
+
+@router.get("/deezer/track/{track_id}")
+async def get_deezer_track_info(
+    track_id: int,
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """Get track information from Deezer"""
+    try:
+        deezer = get_deezer_service()
+        info = await deezer.get_track_info(track_id)
+
+        if not info:
+            raise HTTPException(
+                status_code=404,
+                detail="Track not found on Deezer"
+            )
+
+        return info
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting Deezer track info: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get track info from Deezer: {str(e)}"
+        )
+
+
+@router.get("/deezer/album/{album_id}")
+async def get_deezer_album_info(
+    album_id: int,
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """Get album information from Deezer"""
+    try:
+        deezer = get_deezer_service()
+        info = await deezer.get_album_info(album_id)
+
+        if not info:
+            raise HTTPException(
+                status_code=404,
+                detail="Album not found on Deezer"
+            )
+
+        return info
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting Deezer album info: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get album info from Deezer: {str(e)}"
+        )
