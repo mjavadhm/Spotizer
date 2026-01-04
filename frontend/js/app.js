@@ -806,7 +806,9 @@ async function loadPlaylists() {
     playlistsList.innerHTML = '<div class="loading"></div>';
 
     try {
-        const playlists = await getUserPlaylists();
+        const response = await getUserPlaylists();
+        // API returns { playlists: [...], total: n }
+        const playlists = response.playlists || response || [];
         displayPlaylists(playlists);
     } catch (error) {
         console.error('Failed to load playlists:', error);
@@ -838,10 +840,10 @@ function displayPlaylists(playlists) {
                 ${playlist.track_count || 0} tracks
             </p>
             <div class="playlist-actions">
-                <button onclick="viewPlaylist(${playlist.id})" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px;">
+                <button onclick="viewPlaylist(${playlist.playlist_id || playlist.id})" class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px;">
                     View
                 </button>
-                <button onclick="deletePlaylistConfirm(${playlist.id})" class="btn btn-danger" style="font-size: 12px; padding: 6px 12px;">
+                <button onclick="deletePlaylistConfirm(${playlist.playlist_id || playlist.id})" class="btn btn-danger" style="font-size: 12px; padding: 6px 12px;">
                     Delete
                 </button>
             </div>
@@ -903,7 +905,8 @@ async function loadHistory() {
     historyList.innerHTML = '<div class="loading"></div>';
 
     try {
-        const history = await getDownloadHistory();
+        const response = await getDownloadHistory();
+        const history = response.downloads || response || [];
         displayHistory(history);
     } catch (error) {
         console.error('Failed to load history:', error);
