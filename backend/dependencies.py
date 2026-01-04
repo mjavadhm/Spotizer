@@ -53,12 +53,17 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 def decode_token(token: str) -> Optional[TokenData]:
     """Decode and validate a JWT token"""
     try:
+        logger.debug(f"Decoding token: {token[:50]}...")
+        logger.debug(f"Using SECRET_KEY: {settings.SECRET_KEY[:10]}...")
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id: int = payload.get("sub")
+        logger.debug(f"Token decoded successfully, user_id: {user_id}")
         if user_id is None:
+            logger.warning("No 'sub' claim in token")
             return None
         return TokenData(user_id=user_id)
-    except JWTError:
+    except JWTError as e:
+        logger.error(f"JWT decode error: {str(e)}")
         return None
 
 
@@ -67,6 +72,8 @@ async def get_current_user(
     db: AsyncSession = Depends(get_async_db)
 ) -> User:
     """Get the current authenticated user"""
+    logger.debug(f"get_current_user called with token: {token[:30] if token else 'None'}...")
+    
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -75,14 +82,18 @@ async def get_current_user(
 
     token_data = decode_token(token)
     if token_data is None:
+        logger.error("Token decode returned None")
         raise credentials_exception
 
+    logger.debug(f"Looking up user with user_id: {token_data.user_id}")
     result = await db.execute(select(User).where(User.user_id == token_data.user_id))
     user = result.scalar_one_or_none()
 
     if user is None:
+        logger.error(f"User not found in database: {token_data.user_id}")
         raise credentials_exception
 
+    logger.debug(f"User authenticated: {user.user_id}")
     # Note: is_active check removed - column doesn't exist in database
 
     return user
