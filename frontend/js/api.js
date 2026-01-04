@@ -16,6 +16,13 @@ function hasValidToken() {
 async function apiRequest(endpoint, options = {}) {
     const user = getCurrentUser();
 
+    // Debug: log token status
+    console.log(`[API] Request to ${endpoint}`);
+    console.log(`[API] User from localStorage:`, user ? 'Found' : 'NOT FOUND');
+    if (user) {
+        console.log(`[API] Token present:`, user.access_token ? `YES (${user.access_token.substring(0, 20)}...)` : 'NO');
+    }
+
     const defaultOptions = {
         headers: {
             'Content-Type': 'application/json',
@@ -35,7 +42,9 @@ async function apiRequest(endpoint, options = {}) {
 
     // Debug: log if we're sending a token
     if (!user || !user.access_token) {
-        console.warn('API request without auth token:', endpoint);
+        console.warn('[API] Request WITHOUT auth token:', endpoint);
+    } else {
+        console.log('[API] Sending with Authorization header');
     }
 
     try {

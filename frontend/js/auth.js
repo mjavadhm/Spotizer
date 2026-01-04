@@ -37,10 +37,13 @@ function onTelegramAuth(user) {
             return response.json();
         })
         .then(data => {
+            console.log('=== AUTH DEBUG ===');
+            console.log('Received from backend:', data);
+
             // Backend returns: { access_token, token_type, user, is_new_user }
             if (data.access_token) {
                 // Store user data with access token
-                storeUser({
+                const userToStore = {
                     id: data.user.user_id,
                     first_name: data.user.first_name || '',
                     last_name: data.user.last_name || '',
@@ -48,7 +51,16 @@ function onTelegramAuth(user) {
                     photo_url: user.photo_url || '',
                     access_token: data.access_token,
                     token_type: data.token_type
-                });
+                };
+
+                console.log('Storing user:', userToStore);
+                storeUser(userToStore);
+
+                // Verify it was stored
+                const storedUser = getStoredUser();
+                console.log('Verified stored user:', storedUser);
+                console.log('Token present:', storedUser?.access_token ? 'YES' : 'NO');
+                console.log('=== END AUTH DEBUG ===');
 
                 showToast('Login successful! Redirecting...', 'success');
 
@@ -57,6 +69,7 @@ function onTelegramAuth(user) {
                     window.location.href = 'dashboard.html';
                 }, 1000);
             } else {
+                console.error('No access_token in response:', data);
                 showToast('Authentication failed. Please try again.', 'error');
             }
         })
