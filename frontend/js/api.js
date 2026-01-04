@@ -6,6 +6,12 @@ function getCurrentUser() {
     return userData ? JSON.parse(userData) : null;
 }
 
+// Check if user has valid auth token
+function hasValidToken() {
+    const user = getCurrentUser();
+    return user && user.access_token;
+}
+
 // Generic API request helper
 async function apiRequest(endpoint, options = {}) {
     const user = getCurrentUser();
@@ -27,8 +33,22 @@ async function apiRequest(endpoint, options = {}) {
         }
     };
 
+    // Debug: log if we're sending a token
+    if (!user || !user.access_token) {
+        console.warn('API request without auth token:', endpoint);
+    }
+
     try {
         const response = await fetch(apiUrl(endpoint), mergedOptions);
+
+        if (response.status === 401) {
+            console.error('Unauthorized - token may be expired or invalid');
+            // Show toast suggesting to re-login
+            if (typeof showToast === 'function') {
+                showToast('Session expired. Please log out and log in again.', 'error');
+            }
+            throw new Error('Unauthorized - please log in again');
+        }
 
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);

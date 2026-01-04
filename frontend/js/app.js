@@ -97,10 +97,14 @@ function initializeApp() {
     // Set up navigation
     setupNavigation();
 
-    // Load initial data
-    loadPlaylists();
-    loadHistory();
-    loadSettings();
+    // Only load protected data if user has a valid token
+    if (hasValidToken()) {
+        loadPlaylists();
+        loadHistory();
+        loadSettings();
+    } else {
+        console.warn('No auth token - protected features will not work');
+    }
 
     // Set up search
     setupSearch();

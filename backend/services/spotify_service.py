@@ -293,31 +293,69 @@ class SpotifyService:
         try:
             logger.info(f"Getting recommendations for track: {track_id}")
             
-            # Use Spotify's recommendations API
-            recommendations = self.sp.recommendations(
-                seed_tracks=[track_id],
-                limit=limit
-            )
+            # First try Spotify's recommendations API
+            try:
+                recommendations = self.sp.recommendations(
+                    seed_tracks=[track_id],
+                    limit=limit
+                )
+                
+                if recommendations and recommendations.get('tracks'):
+                    tracks = []
+                    for track in recommendations['tracks']:
+                        tracks.append({
+                            'id': track['id'],
+                            'name': track['name'],
+                            'artists': [{'id': artist['id'], 'name': artist['name']} for artist in track['artists']],
+                            'artist': track['artists'][0]['name'],
+                            'album': track['album']['name'],
+                            'album_id': track['album']['id'],
+                            'image': track['album']['images'][0]['url'] if track['album']['images'] else None,
+                            'duration_ms': track['duration_ms'],
+                            'duration': self._format_duration(track['duration_ms']),
+                            'preview_url': track.get('preview_url'),
+                            'popularity': track.get('popularity', 0),
+                            'url': track['external_urls']['spotify']
+                        })
+                    
+                    logger.info(f"Found {len(tracks)} recommendations from Spotify API")
+                    return tracks
+            except Exception as rec_error:
+                logger.warning(f"Recommendations API failed, falling back to artist tracks: {str(rec_error)}")
             
-            tracks = []
-            for track in recommendations['tracks']:
-                tracks.append({
-                    'id': track['id'],
-                    'name': track['name'],
-                    'artists': [{'id': artist['id'], 'name': artist['name']} for artist in track['artists']],
-                    'artist': track['artists'][0]['name'],
-                    'album': track['album']['name'],
-                    'album_id': track['album']['id'],
-                    'image': track['album']['images'][0]['url'] if track['album']['images'] else None,
-                    'duration_ms': track['duration_ms'],
-                    'duration': self._format_duration(track['duration_ms']),
-                    'preview_url': track.get('preview_url'),
-                    'popularity': track.get('popularity', 0),
-                    'url': track['external_urls']['spotify']
-                })
+            # Fallback: Get artist's top tracks from the same track
+            try:
+                track_info = self.sp.track(track_id)
+                if track_info and track_info.get('artists'):
+                    artist_id = track_info['artists'][0]['id']
+                    top_tracks_data = self.sp.artist_top_tracks(artist_id, country='US')['tracks']
+                    
+                    tracks = []
+                    for track in top_tracks_data:
+                        if track['id'] != track_id:  # Exclude the current track
+                            tracks.append({
+                                'id': track['id'],
+                                'name': track['name'],
+                                'artists': [{'id': artist['id'], 'name': artist['name']} for artist in track['artists']],
+                                'artist': track['artists'][0]['name'],
+                                'album': track['album']['name'],
+                                'album_id': track['album']['id'],
+                                'image': track['album']['images'][0]['url'] if track['album']['images'] else None,
+                                'duration_ms': track['duration_ms'],
+                                'duration': self._format_duration(track['duration_ms']),
+                                'preview_url': track.get('preview_url'),
+                                'popularity': track.get('popularity', 0),
+                                'url': track['external_urls']['spotify']
+                            })
+                            if len(tracks) >= limit:
+                                break
+                    
+                    logger.info(f"Found {len(tracks)} similar tracks from artist")
+                    return tracks
+            except Exception as artist_error:
+                logger.error(f"Artist fallback also failed: {str(artist_error)}")
             
-            logger.info(f"Found {len(tracks)} recommendations")
-            return tracks
+            return []
             
         except Exception as e:
             logger.error(f"Error getting recommendations: {str(e)}")
