@@ -89,10 +89,22 @@ async def login_with_telegram(
 
     logger.info(f"Telegram login successful for user {user.user_id} (new: {is_new})")
 
+    # Manually construct response to avoid lazy loading issues
+    user_response = UserResponse(
+        user_id=user.user_id,
+        username=user.username,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        is_premium=user.is_premium if hasattr(user, 'is_premium') else False,
+        created_at=user.created_at if hasattr(user, 'created_at') else None,
+        last_activity=user.last_activity if hasattr(user, 'last_activity') else None,
+        settings=None  # Don't load settings to avoid async issues
+    )
+
     return TelegramAuthResponse(
         access_token=access_token,
         token_type="bearer",
-        user=UserResponse.model_validate(user),
+        user=user_response,
         is_new_user=is_new
     )
 
@@ -150,10 +162,22 @@ async def login_from_bot(
 
     logger.info(f"Bot login successful for user {user.user_id}")
 
+    # Manually construct response to avoid lazy loading issues
+    user_response = UserResponse(
+        user_id=user.user_id,
+        username=user.username,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        is_premium=user.is_premium if hasattr(user, 'is_premium') else False,
+        created_at=user.created_at if hasattr(user, 'created_at') else None,
+        last_activity=user.last_activity if hasattr(user, 'last_activity') else None,
+        settings=None
+    )
+
     return TelegramAuthResponse(
         access_token=access_token,
         token_type="bearer",
-        user=UserResponse.model_validate(user),
+        user=user_response,
         is_new_user=is_new
     )
 
