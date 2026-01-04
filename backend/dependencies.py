@@ -56,14 +56,19 @@ def decode_token(token: str) -> Optional[TokenData]:
         logger.debug(f"Decoding token: {token[:50]}...")
         logger.debug(f"Using SECRET_KEY: {settings.SECRET_KEY[:10]}...")
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        user_id: int = payload.get("sub")
-        logger.debug(f"Token decoded successfully, user_id: {user_id}")
-        if user_id is None:
+        user_id_str = payload.get("sub")
+        logger.debug(f"Token decoded successfully, user_id: {user_id_str}")
+        if user_id_str is None:
             logger.warning("No 'sub' claim in token")
             return None
+        # Convert string to int (sub is stored as string per JWT spec)
+        user_id = int(user_id_str)
         return TokenData(user_id=user_id)
     except JWTError as e:
         logger.error(f"JWT decode error: {str(e)}")
+        return None
+    except ValueError as e:
+        logger.error(f"Invalid user_id in token: {str(e)}")
         return None
 
 

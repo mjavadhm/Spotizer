@@ -83,7 +83,7 @@ async def login_with_telegram(
     # Generate access token
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.user_id},
+        data={"sub": str(user.user_id)},  # JWT sub must be a string
         expires_delta=access_token_expires
     )
 
@@ -156,7 +156,7 @@ async def login_from_bot(
     # Generate access token
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.user_id},
+        data={"sub": str(user.user_id)},  # JWT sub must be a string
         expires_delta=access_token_expires
     )
 
