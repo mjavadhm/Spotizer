@@ -79,26 +79,6 @@ function onTelegramAuth(user) {
         });
 }
 
-// Demo login for testing
-function demoLogin() {
-    const demoUser = {
-        id: 123456789,
-        first_name: 'Demo',
-        last_name: 'User',
-        username: 'demouser',
-        photo_url: '',
-        auth_date: Math.floor(Date.now() / 1000),
-        hash: 'demo_hash'
-    };
-
-    storeUser(demoUser);
-    showToast('Demo login successful! Redirecting...', 'success');
-
-    setTimeout(() => {
-        window.location.href = 'dashboard.html';
-    }, 1000);
-}
-
 // Logout function
 function logout() {
     if (confirm('Are you sure you want to logout?')) {
