@@ -431,7 +431,8 @@ async function loadSimilarTracks(artistId, excludeTrackId) {
 
     try {
         const artist = await apiRequest(`/search/artists/${artistId}`);
-        const topTracks = artist.top_tracks || [];
+        // Access top_tracks from more_artist_info
+        const topTracks = artist.more_artist_info?.top_tracks || artist.top_tracks || [];
 
         // Filter out current track and limit to 5
         const similarTracks = topTracks
@@ -599,9 +600,15 @@ async function loadAlbumTracks(albumId) {
 function showArtistDetailPage(item) {
     const content = document.getElementById('detail-content');
     const imageUrl = item.images?.[0]?.url || item.image || '';
-    const topTracks = item.top_tracks || [];
-    const albums = item.albums || [];
-    const relatedArtists = item.related_artists || [];
+
+    // Data is inside more_artist_info in the API response
+    const moreInfo = item.more_artist_info || {};
+    const topTracks = moreInfo.top_tracks || item.top_tracks || [];
+    const albums = moreInfo.albums || item.albums || [];
+    const relatedArtists = moreInfo.related_artists || item.related_artists || [];
+
+    // Handle followers as both number and object
+    const followersCount = typeof item.followers === 'number' ? item.followers : item.followers?.total;
 
     content.innerHTML = `
         <div class="detail-hero">
@@ -612,7 +619,7 @@ function showArtistDetailPage(item) {
                 <div class="detail-type">Artist</div>
                 <h1 class="detail-title">${item.name}</h1>
                 <div class="detail-meta">
-                    ${item.followers?.total ? `${item.followers.total.toLocaleString()} followers` : ''}
+                    ${followersCount ? `${followersCount.toLocaleString()} followers` : ''}
                     ${item.genres?.length ? ` • ${item.genres.slice(0, 3).join(', ')}` : ''}
                 </div>
             </div>
