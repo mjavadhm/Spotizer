@@ -288,6 +288,41 @@ class SpotifyService:
             logger.error(f"Error getting {item_type} info: {str(e)}")
             return None
 
+    async def get_recommendations(self, track_id: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """Get track recommendations based on a seed track"""
+        try:
+            logger.info(f"Getting recommendations for track: {track_id}")
+            
+            # Use Spotify's recommendations API
+            recommendations = self.sp.recommendations(
+                seed_tracks=[track_id],
+                limit=limit
+            )
+            
+            tracks = []
+            for track in recommendations['tracks']:
+                tracks.append({
+                    'id': track['id'],
+                    'name': track['name'],
+                    'artists': [{'id': artist['id'], 'name': artist['name']} for artist in track['artists']],
+                    'artist': track['artists'][0]['name'],
+                    'album': track['album']['name'],
+                    'album_id': track['album']['id'],
+                    'image': track['album']['images'][0]['url'] if track['album']['images'] else None,
+                    'duration_ms': track['duration_ms'],
+                    'duration': self._format_duration(track['duration_ms']),
+                    'preview_url': track.get('preview_url'),
+                    'popularity': track.get('popularity', 0),
+                    'url': track['external_urls']['spotify']
+                })
+            
+            logger.info(f"Found {len(tracks)} recommendations")
+            return tracks
+            
+        except Exception as e:
+            logger.error(f"Error getting recommendations: {str(e)}")
+            return []
+
     def _format_duration(self, ms: int) -> str:
         """Format milliseconds to MM:SS format"""
         seconds = ms // 1000

@@ -413,31 +413,26 @@ function showTrackDetailPage(item) {
         
         <!-- Similar Tracks Section -->
         <div class="detail-section">
-            <h3>More from ${artistInfo.name}</h3>
+            <h3>Similar Tracks</h3>
             <div id="similar-tracks" class="track-list">
                 <div class="loading"></div>
             </div>
         </div>
     `;
 
-    // Load similar tracks (from artist's other tracks)
-    loadSimilarTracks(artistInfo.id, item.id);
+    // Load similar tracks using the recommendations API
+    loadSimilarTracks(item.id);
 }
 
-// Load similar/related tracks
-async function loadSimilarTracks(artistId, excludeTrackId) {
+// Load similar/related tracks using Spotify recommendations API
+async function loadSimilarTracks(trackId) {
     const container = document.getElementById('similar-tracks');
     if (!container) return;
 
     try {
-        const artist = await apiRequest(`/search/artists/${artistId}`);
-        // Access top_tracks from more_artist_info
-        const topTracks = artist.more_artist_info?.top_tracks || artist.top_tracks || [];
-
-        // Filter out current track and limit to 5
-        const similarTracks = topTracks
-            .filter(t => t.id !== excludeTrackId)
-            .slice(0, 5);
+        // Use the new recommendations endpoint
+        const response = await apiRequest(`/search/tracks/${trackId}/recommendations?limit=5`);
+        const similarTracks = response.recommendations || [];
 
         if (similarTracks.length === 0) {
             container.innerHTML = '<p class="placeholder-text">No similar tracks found</p>';
@@ -452,8 +447,9 @@ async function loadSimilarTracks(artistId, excludeTrackId) {
                 </div>
                 <div class="track-info">
                     <div class="track-name">${track.name}</div>
-                    <div class="track-artist">${track.album || ''}</div>
+                    <div class="track-artist">${track.artist || ''}</div>
                 </div>
+                <div class="track-duration">${track.duration || ''}</div>
                 <div class="track-actions">
                     <button onclick="event.stopPropagation(); downloadItem('${track.id}', 'track')" title="Download">
                         <i class="fas fa-download"></i>

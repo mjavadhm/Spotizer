@@ -237,3 +237,27 @@ async def get_deezer_album_info(
             status_code=500,
             detail=f"Failed to get album info from Deezer: {str(e)}"
         )
+
+
+@router.get("/tracks/{track_id}/recommendations")
+async def get_track_recommendations(
+    track_id: str,
+    limit: int = Query(5, ge=1, le=20, description="Number of recommendations"),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """Get similar track recommendations based on a seed track"""
+    try:
+        spotify = get_spotify_service()
+        recommendations = await spotify.get_recommendations(track_id, limit)
+
+        return {
+            "track_id": track_id,
+            "recommendations": recommendations
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting recommendations: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get recommendations: {str(e)}"
+        )
