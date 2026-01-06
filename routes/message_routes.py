@@ -3,10 +3,13 @@ from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 
 from controllers.download_controller import DownloadController
+from controllers.playlist_controller import PlayListController
 from utils.url_validator import URLValidator
 from views.message_view import MessageView
 from views.music_view import MusicView
+from views.playlist_view import PlaylistView
 from models.message_model import MessageModel
+from states import PlaylistCreationStates
 from logger import get_logger
 
 logger = get_logger(__name__)
@@ -15,16 +18,95 @@ def setup_message_routes(dp: Router, download_controller: DownloadController):
     """Set up message route handlers"""
     router = Router()
     url_validator = URLValidator()
+    playlist_controller = PlayListController()
     logger.info("Setting up message routes")
-    message_model = MessageModel()
+    
+    # FSM State Handlers for Playlist Creation
+    @router.message(PlaylistCreationStates.waiting_for_name)
+    async def process_playlist_name(message: Message, state: FSMContext):
+        """Handle playlist name input for new playlist"""
+        try:
+            user_id = message.from_user.id
+            playlist_name = message.text.strip()
+            
+            if not playlist_name:
+                await message.reply("❌ Playlist name cannot be empty. Please enter a valid name:")
+                return
+            
+            if len(playlist_name) > 100:
+                await message.reply("❌ Playlist name is too long (max 100 characters). Please enter a shorter name:")
+                return
+            
+            # Create the playlist
+            success, result = await playlist_controller.create_playlist(user_id, playlist_name)
+            
+            if success:
+                await message.reply(f"✅ Playlist '{playlist_name}' created successfully!")
+            else:
+                await message.reply(f"❌ {result}")
+            
+            await state.clear()
+            
+        except Exception as e:
+            logger.error(f"Error processing playlist name: {str(e)}", exc_info=True)
+            await message.reply("❌ Error creating playlist. Please try again.")
+            await state.clear()
+    
+    @router.message(PlaylistCreationStates.waiting_for_name_with_track)
+    async def process_playlist_name_with_track(message: Message, state: FSMContext):
+        """Handle playlist name input when adding a track"""
+        try:
+            user_id = message.from_user.id
+            playlist_name = message.text.strip()
+            data = await state.get_data()
+            track_id = data.get('track_id')
+            
+            if not playlist_name:
+                await message.reply("❌ Playlist name cannot be empty. Please enter a valid name:")
+                return
+            
+            if len(playlist_name) > 100:
+                await message.reply("❌ Playlist name is too long (max 100 characters). Please enter a shorter name:")
+                return
+            
+            if not track_id:
+                await message.reply("❌ Track information not found. Please try again.")
+                await state.clear()
+                return
+            
+            # Convert Spotify track ID to Deezer ID
+            from services.deezer_service import DeezerService
+            deezer_service = DeezerService()
+            spotify_url = f"https://open.spotify.com/track/{track_id}"
+            deezer_url = deezer_service.convert_to_deezer(spotify_url)
+            content_type, deezer_id = deezer_service.extract_info_from_url(deezer_url)
+            
+            # Create playlist and add track
+            success, result = await playlist_controller.create_playlist_and_add_track(
+                user_id, playlist_name, deezer_id
+            )
+            
+            if success:
+                await message.reply(f"✅ Playlist '{playlist_name}' created and track added successfully!")
+            else:
+                await message.reply(f"❌ {result}")
+            
+            await state.clear()
+            
+        except Exception as e:
+            logger.error(f"Error processing playlist with track: {str(e)}", exc_info=True)
+            await message.reply("❌ Error creating playlist. Please try again.")
+            await state.clear()
+    
     @router.message(F.text)
+
     async def handle_message(message: Message, state: FSMContext):
         """Handle text messages - either links or search queries"""
         try:
             user_input = message.text
             chat_id = message.chat.id
             user_id = message.from_user.id
-            message_model.add_message(user_id, message)
+            await MessageModel.add_message(user_id, message)
             logger.info(f"Handling message from user {user_id} in chat {chat_id}: {user_input}")
             
             # Check if input is a URL
@@ -39,11 +121,12 @@ def setup_message_routes(dp: Router, download_controller: DownloadController):
             logger.error(f"Error handling message: {str(e)}", exc_info=True)
             error_message = MessageView.get_error_message('general_error')
             sm = await message.reply(error_message)
-            message_model.add_message(user_id, sm)
+            await MessageModel.add_message(user_id, sm)
             raise
 
     async def handle_music_link(message: Message, url: str, download_controller: DownloadController):
         """Handle music download links"""
+        status_message = None
         try:
             user_id = message.from_user.id
             logger.info(f"Processing music link for user {user_id}: {url}")
@@ -57,8 +140,9 @@ def setup_message_routes(dp: Router, download_controller: DownloadController):
                 if 'playlist' in url:
                     logger.warning(f"Spotify playlist not supported: {url}")
                     sm = await message.reply(MessageView.get_error_message('spotify_playlist'))
-                    message_model.add_message(user_id, sm)
-                    await status_message.delete()
+                    await MessageModel.add_message(user_id, sm)
+                    if status_message:
+                        await status_message.delete()
                     return
                     
             # Process download request
@@ -72,21 +156,26 @@ def setup_message_routes(dp: Router, download_controller: DownloadController):
                 logger.error(f"Download failed for user {user_id}: {result}")
                 error_message = MessageView.get_error_message('download_failed')
                 sm = await message.reply(error_message)
-                message_model.add_message(user_id, sm)
-                await status_message.delete()
+                await MessageModel.add_message(user_id, sm)
+                if status_message:
+                    await status_message.delete()
                 return
             
             logger.info(f"Download completed successfully for user {user_id}")
             # Delete processing message after successful download
-            await status_message.delete()
+            if status_message:
+                await status_message.delete()
             
         except Exception as e:
             logger.error(f"Error handling music link for user {user_id}: {str(e)}", exc_info=True)
             error_message = MessageView.get_error_message('download_failed')
             sm = await message.reply(error_message)
-            message_model.add_message(user_id, sm)
-            if 'status_message' in locals():
-                await status_message.delete()
+            await MessageModel.add_message(user_id, sm)
+            if status_message:
+                try:
+                    await status_message.delete()
+                except:
+                    pass
             raise
 
     async def handle_search_query(message: Message, query: str, state: FSMContext):
@@ -107,7 +196,7 @@ def setup_message_routes(dp: Router, download_controller: DownloadController):
                 f"What would you like to search for '{query}'?",
                 reply_markup=keyboard
             )
-            message_model.add_message(user_id, sm)
+            await MessageModel.add_message(user_id, sm)
             logger.info(f"Sent search options to user {user_id}")
             
         except Exception as e:
@@ -120,39 +209,39 @@ def setup_message_routes(dp: Router, download_controller: DownloadController):
     async def handle_audio(message: Message):
         """Handle audio file messages"""
         user_id = message.from_user.id
-        message_model.add_message(user_id, message)
+        await MessageModel.add_message(user_id, message)
         logger.info(f"Received audio message from user {user_id}")
         sm = await message.reply(
             "I can help you download music from Deezer and Spotify. "
             "Please send me a link to download music!"
         )
-        message_model.add_message(user_id, sm)
+        await MessageModel.add_message(user_id, sm)
         logger.info(f"Sent help message to user {user_id}")
 
     @router.message(F.document)
     async def handle_document(message: Message):
         """Handle document messages"""
         user_id = message.from_user.id
-        message_model.add_message(user_id, message)
+        await MessageModel.add_message(user_id, message)
         logger.info(f"Received document message from user {user_id}")
         sm = await message.reply(
             "I can help you download music from Deezer and Spotify. "
             "Please send me a link to download music!"
         )
-        message_model.add_message(user_id, sm)
+        await MessageModel.add_message(user_id, sm)
         logger.info(f"Sent help message to user {user_id}")
 
     @router.message(F.voice)
     async def handle_voice(message: Message):
         """Handle voice messages"""
         user_id = message.from_user.id
-        message_model.add_message(user_id, message)
+        await MessageModel.add_message(user_id, message)
         logger.info(f"Received voice message from user {user_id}")
         sm = await message.reply(
             "I can help you download music from Deezer and Spotify. "
             "Please send me a link to download music!"
         )
-        message_model.add_message(user_id, sm)
+        await MessageModel.add_message(user_id, sm)
         logger.info(f"Sent help message to user {user_id}")
 
     # Error handler for messages
