@@ -1,3 +1,10 @@
+sqlalchemy
+asyncpg
+python-dotenv
+aiogram
+alembic
+langchain
+langchain-google-genai
 # ================================================================
 # Spotizer - Music Downloader Bot Requirements
 # ================================================================

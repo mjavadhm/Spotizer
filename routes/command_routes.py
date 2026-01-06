@@ -5,7 +5,6 @@ from aiogram.fsm.context import FSMContext
 
 from controllers.user_controller import UserController
 from controllers.playlist_controller import PlayListController
-from services.deezer_service import reload_arl
 from views.message_view import MessageView
 from views.playlist_view import PlaylistView
 from models.message_model import MessageModel
@@ -18,7 +17,6 @@ def setup_command_routes(dp: Router, user_controller: UserController, playlist_c
     """Set up command route handlers"""
     router = Router()
     logger.info("Setting up command routes")
-    message_model = MessageModel()
 
     @router.message(Command("start"))
     async def start_command(message: Message, state: FSMContext):
@@ -45,7 +43,7 @@ def setup_command_routes(dp: Router, user_controller: UserController, playlist_c
             if not success:
                 logger.error(f"Failed to register user {user_id}: {result}")
                 sm = await message.reply("Error registering user. Please try again.")
-                message_model.add_message(user_id, sm)
+                await MessageModel.add_message(user_id, sm)
                 return
             
             logger.info(f"User {user_id} registered successfully")
@@ -53,13 +51,13 @@ def setup_command_routes(dp: Router, user_controller: UserController, playlist_c
             # Send welcome message
             welcome_message = MessageView.get_welcome_message()
             sm = await message.reply(welcome_message)
-            message_model.add_message(user_id, sm)
+            await MessageModel.add_message(user_id, sm)
             logger.info(f"Sent welcome message to user {user_id}")
             
         except Exception as e:
             logger.error(f"Error processing /start command for user {user_id}: {str(e)}", exc_info=True)
             sm = await message.reply("An error occurred. Please try again later.")
-            message_model.add_message(user_id, sm)
+            await MessageModel.add_message(user_id, sm)
             raise
 
     @router.message(Command("settings"))
@@ -74,7 +72,7 @@ def setup_command_routes(dp: Router, user_controller: UserController, playlist_c
             if not success:
                 logger.error(f"Failed to get settings for user {user_id}: {settings}")
                 sm = await message.reply("Error accessing settings. Please try again.")
-                message_model.add_message(user_id, sm)
+                await MessageModel.add_message(user_id, sm)
                 return
             
             logger.info(f"Retrieved settings for user {user_id}: {settings}")
@@ -82,13 +80,13 @@ def setup_command_routes(dp: Router, user_controller: UserController, playlist_c
             # Create settings keyboard
             keyboard = MessageView.get_settings_keyboard(settings)
             sm = await message.reply("⚙️ Your settings:", reply_markup=keyboard)
-            message_model.add_message(user_id, sm)
+            await MessageModel.add_message(user_id, sm)
             logger.info(f"Sent settings keyboard to user {user_id}")
             
         except Exception as e:
             logger.error(f"Error processing /settings command for user {user_id}: {str(e)}", exc_info=True)
             sm = await message.reply("Error accessing settings. Please try again later.")
-            message_model.add_message(user_id, sm)
+            await MessageModel.add_message(user_id, sm)
             raise
 
     @router.message(Command("history"))
@@ -107,7 +105,7 @@ def setup_command_routes(dp: Router, user_controller: UserController, playlist_c
             if not success:
                 logger.error(f"Failed to get download history for user {user_id}: {downloads}")
                 sm = await message.reply("Error retrieving download history.")
-                message_model.add_message(user_id, sm)
+                await MessageModel.add_message(user_id, sm)
                 return
             
             logger.info(f"Retrieved {len(downloads)} download records for user {user_id}")
@@ -115,13 +113,13 @@ def setup_command_routes(dp: Router, user_controller: UserController, playlist_c
             # Format history message
             history_text = MessageView.format_download_history(downloads)
             sm = await message.reply(history_text)
-            message_model.add_message(user_id, sm)
+            await MessageModel.add_message(user_id, sm)
             logger.info(f"Sent download history to user {user_id}")
             
         except Exception as e:
             logger.error(f"Error processing /history command for user {user_id}: {str(e)}", exc_info=True)
             sm = await message.reply("Error retrieving download history.")
-            message_model.add_message(user_id, sm)
+            await MessageModel.add_message(user_id, sm)
             raise
 
     @router.message(Command("help"))
@@ -154,13 +152,13 @@ def setup_command_routes(dp: Router, user_controller: UserController, playlist_c
 If you have any issues or questions, feel free to contact support."""
 
             sm = await message.reply(help_text, parse_mode="Markdown")
-            message_model.add_message(user_id, sm)
+            await MessageModel.add_message(user_id, sm)
             logger.info(f"Sent help message to user {user_id}")
             
         except Exception as e:
             logger.error(f"Error processing /help command for user {user_id}: {str(e)}", exc_info=True)
             sm = await message.reply("Error displaying help message.")
-            message_model.add_message(user_id, sm)
+            await MessageModel.add_message(user_id, sm)
             raise
 
     @router.message(Command("about"))
@@ -187,41 +185,38 @@ A powerful music downloading bot that helps you get your favorite music from Dee
 Thank you for using MusicDownloader Bot! 🎧"""
 
             sm = await message.reply(about_text, parse_mode="Markdown")
-            message_model.add_message(user_id, sm)
+            await MessageModel.add_message(user_id, sm)
             logger.info(f"Sent about message to user {user_id}")
             
         except Exception as e:
             logger.error(f"Error processing /about command for user {user_id}: {str(e)}", exc_info=True)
             sm = await message.reply("Error displaying about information.")
-            message_model.add_message(user_id, sm)
+            await MessageModel.add_message(user_id, sm)
             raise
     
-    @router.message(Command("reload_arl"))
-    async def reload_arl_command(message: Message, command: CommandObject, state: FSMContext):
-        """Handle /reload_arl command"""
+    @router.message(Command("newplaylist"))
+    async def newplaylist_command(message: Message, state: FSMContext):
+        """Handle /newplaylist command"""
         try:
             user_id = message.from_user.id
-            logger.info(f"Processing /reload_arl command for user {user_id}")
-
-            # استخراج توکن ARL از آرگومان‌های دستور
-            arl = command.args
-
-            if not arl:
-                # اگر کاربر هیچ مقداری بعد از دستور وارد نکرده باشد
-                await message.reply("لطفاً توکن ARL را بعد از دستور وارد کنید.\nمثال: /reload_arl 12345...")
-                logger.warning(f"User {user_id} did not provide an ARL token.")
-                return
-
-            # در اینجا می‌توانید با متغیر arl کار کنید
-            # برای مثال، آن را در جایی ذخیره کنید یا اعتبارسنجی کنید
-            logger.info(f"User {user_id} provided ARL: {arl}")
-            await message.reply(f"توکن ARL شما با موفقیت دریافت شد: `{arl}`", parse_mode="MarkdownV2")
-            await reload_arl(arl)
+            logger.info(f"Processing /newplaylist command for user {user_id}")
+            
+            from states import PlaylistCreationStates
+            from views.playlist_view import PlaylistView
+            
+            # Set FSM state to wait for playlist name
+            await state.set_state(PlaylistCreationStates.waiting_for_name)
+            message_text = PlaylistView.get_creation_message()
+            sm = await message.reply(message_text)
+            await MessageModel.add_message(user_id, sm)
+            logger.info(f"Sent playlist creation prompt to user {user_id}")
+            
         except Exception as e:
-            logger.error(f"Error processing /about command for user {user_id}: {str(e)}", exc_info=True)
-            # sm = await message.reply("Error displaying about information.")
-            # message_model.add_message(user_id, sm)
+            logger.error(f"Error processing /newplaylist command for user {user_id}: {str(e)}", exc_info=True)
+            sm = await message.reply("Error creating playlist. Please try again.")
+            await MessageModel.add_message(user_id, sm)
             raise
+    
     @router.message(Command("playlists"))
     async def playlists_command(message: Message, state: FSMContext):
         try:
@@ -240,6 +235,34 @@ Thank you for using MusicDownloader Bot! 🎧"""
         except Exception as e:
             logger.error(f"Error processing /playlists command for user {user_id}: {str(e)}", exc_info=True)
             await message.reply("Error displaying playlists.")
+
+    @router.message(Command("recommend"))
+    async def recommend_command(message: Message, state: FSMContext):
+        """Handle /recommend command"""
+        try:
+            user_id = message.from_user.id
+            logger.info(f"Processing /recommend command for user {user_id}")
+            
+            # Send initial "typing" action or message since LLM might be slow
+            await message.bot.send_chat_action(chat_id=message.chat.id, action="typing")
+            processing_msg = await message.reply("🤖 Thinking... Analyzing your taste...")
+            
+            from controllers.recommendation_controller import RecommendationController
+            
+            success, result_text = await RecommendationController.recommend_music(user_id)
+            
+            # Delete processing message
+            await processing_msg.delete()
+            
+            # Send result
+            sm = await message.reply(result_text, parse_mode="Markdown")
+            await MessageModel.add_message(user_id, sm)
+            logger.info(f"Sent recommendations to user {user_id}")
+            
+        except Exception as e:
+            logger.error(f"Error processing /recommend command for user {user_id}: {str(e)}", exc_info=True)
+            sm = await message.reply("Error getting recommendations.")
+            await MessageModel.add_message(user_id, sm)
 
     # Register all routes
     dp.include_router(router)

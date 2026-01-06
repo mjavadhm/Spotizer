@@ -314,6 +314,27 @@ class MusicView:
         track_list = [track_format(track, i+1) for i, track in enumerate(artists)]
         
         return header + "\n".join(track_list)
+
+    @staticmethod
+    def get_rating_keyboard(download_id: int, current_rating: int = None) -> InlineKeyboardMarkup:
+        """Create like/dislike keyboard for a downloaded track
+        
+        Args:
+            download_id: ID of the download record
+            current_rating: Current rating (1=like, -1=dislike, None=no rating)
+        """
+        # Show filled emoji for selected, outline for unselected
+        like_text = "👍" if current_rating != 1 else "👍 ✓"
+        dislike_text = "👎" if current_rating != -1 else "👎 ✓"
+        
+        buttons = [
+            [
+                InlineKeyboardButton(text=like_text, callback_data=f"rate:like:{download_id}"),
+                InlineKeyboardButton(text=dislike_text, callback_data=f"rate:dislike:{download_id}")
+            ]
+        ]
+        return InlineKeyboardMarkup(inline_keyboard=buttons)
+
     @staticmethod
     def get_list_keyboard(items: List[Dict[str, Any]], content_type: str, action: str, page: int = 1, spoid = 1) -> InlineKeyboardMarkup:
         buttons = []
