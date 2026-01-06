@@ -126,9 +126,29 @@ class DownloadController:
                     logger.info(f"Processing album download: {smart.album.title}")
                     file_path = smart.album.zip_path
                     document = FSInputFile(file_path)
+                    
+                    # Send to music channel first if configured
+                    music_channel_id = os.getenv('MUSIC_CHANNEL_ID')
+                    channel_msg_id = None
+                    file_id_to_send = document
+
+                    if music_channel_id:
+                        try:
+                            channel_msg = await bot.send_document(
+                                chat_id=music_channel_id,
+                                document=document,
+                                caption=f"@Spotizer_bot 🎧\n📀 {smart.album.title} - {smart.album.artist}"
+                            )
+                            channel_msg_id = channel_msg.message_id
+                            file_id_to_send = channel_msg.document.file_id
+                            logger.info(f"Sent album to channel {music_channel_id}, msg_id: {channel_msg_id}")
+                        except Exception as e:
+                            logger.error(f"Failed to send album to music channel: {e}")
+
+                    # Send to user
                     sent_message = await bot.send_document(
                         chat_id=user_id, 
-                        document=document, 
+                        document=file_id_to_send, 
                         caption=f"@Spotizer_bot 🎧"
                     )
                     
@@ -141,7 +161,9 @@ class DownloadController:
                         url=url,
                         title=smart.album.title,
                         artist=smart.album.artist,
-                        album=smart.album.title
+                        album=smart.album.title,
+                        channel_id=int(music_channel_id) if music_channel_id else None,
+                        message_id=channel_msg_id
                     )
                     
                     if os.path.exists(file_path):
@@ -152,9 +174,29 @@ class DownloadController:
                     logger.info(f"Processing playlist download: {smart.playlist.title}")
                     file_path = smart.playlist.zip_path
                     document = FSInputFile(file_path)
+                    
+                    # Send to music channel first if configured
+                    music_channel_id = os.getenv('MUSIC_CHANNEL_ID')
+                    channel_msg_id = None
+                    file_id_to_send = document
+
+                    if music_channel_id:
+                        try:
+                            channel_msg = await bot.send_document(
+                                chat_id=music_channel_id,
+                                document=document,
+                                caption=f"@Spotizer_bot 🎧\n📋 {smart.playlist.title}"
+                            )
+                            channel_msg_id = channel_msg.message_id
+                            file_id_to_send = channel_msg.document.file_id
+                            logger.info(f"Sent playlist to channel {music_channel_id}, msg_id: {channel_msg_id}")
+                        except Exception as e:
+                            logger.error(f"Failed to send playlist to music channel: {e}")
+
+                    # Send to user
                     sent_message = await bot.send_document(
                         chat_id=user_id, 
-                        document=document, 
+                        document=file_id_to_send, 
                         caption=f"@Spotizer_bot 🎧"
                     )
                     
@@ -167,7 +209,9 @@ class DownloadController:
                         url=url,
                         title=smart.playlist.title,
                         artist=smart.playlist.artist,
-                        album='album.title'
+                        album=None,
+                        channel_id=int(music_channel_id) if music_channel_id else None,
+                        message_id=channel_msg_id
                     )
                     
                     if os.path.exists(file_path):

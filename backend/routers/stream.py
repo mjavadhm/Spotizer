@@ -1,55 +1,54 @@
-from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import StreamingResponse
-from models.download_model import DownloadModel
-from backend.services.telegram_client import telegram_service
 import logging
+from typing import Optional
 
-router = APIRouter(tags=["Stream"])
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+
+from ..database import get_async_db
+from ..models.track import Track
+from ..services.telegram_client import telegram_service
+
+router = APIRouter(prefix="/stream", tags=["Stream"])
 logger = logging.getLogger(__name__)
 
-# Re-use download model from bot.
-# Note: In a larger app, we might want a separate service layer in backend/services
-# but here we reuse the existing model which uses the same DB.
-download_model = DownloadModel()
 
-@router.get("/stream/{track_id}")
+@router.get("/{track_id}")
 async def stream_track(
     track_id: int,
-    quality: str = Query("MP3_320", description="Audio quality")
+    quality: str = Query("MP3_320", description="Audio quality"),
+    db: AsyncSession = Depends(get_async_db)
 ):
     """
     Stream a track from Telegram via Telethon.
     """
     try:
-        # 1. Lookup track in DB
-        # User ID is required by the model method but for public streaming/by ID we might not need a specific user.
-        # However, the method signature is `get_track_by_deezer_id_quality(self, user_id, deezer_id, quality)`
-        # The implementation in DownloadModel ignores user_id for the SELECT query on `tracks` table.
-        # It only uses user_id for `user_downloads` table lookups which we aren't using here.
-        # Wait, let's verify `get_track_by_deezer_id_quality` implementation.
-        # It does: `SELECT ... FROM tracks WHERE track_id = %s AND quality = %s`
-        # It does NOT filter by user_id. So passing 0 or any dummy ID is fine.
+        # Lookup track in DB using async SQLAlchemy
+        query = select(Track).where(
+            Track.track_id == track_id,
+            Track.quality == quality
+        )
+        result = await db.execute(query)
+        track = result.scalar_one_or_none()
 
-        track_info = download_model.get_track_by_deezer_id_quality(0, track_id, quality)
-
-        if not track_info:
+        if not track:
             raise HTTPException(status_code=404, detail="Track not found or quality not available")
 
-        message_id = track_info.get('message_id')
-        channel_id = track_info.get('channel_id')
+        message_id = track.message_id
+        channel_id = track.channel_id
 
         if not message_id or not channel_id:
-             raise HTTPException(status_code=404, detail="Track source not available (message_id/channel_id missing)")
+            raise HTTPException(status_code=404, detail="Track source not available (message_id/channel_id missing)")
 
-        # 2. Get stream generator from Telethon
+        # Get stream generator from Telethon
         file_iterator = await telegram_service.get_file_stream(message_id, channel_id)
 
         if not file_iterator:
             raise HTTPException(status_code=404, detail="File content not found in Telegram")
 
-        # 3. Return StreamingResponse
-        # Determine media type based on quality or filename extension
-        media_type = "audio/mpeg" # Default to MP3
+        # Determine media type based on quality
+        media_type = "audio/mpeg"  # Default to MP3
         if "flac" in quality.lower():
             media_type = "audio/flac"
 
@@ -65,23 +64,30 @@ async def stream_track(
 @router.get("/download/{track_id}")
 async def download_track(
     track_id: int,
-    quality: str = Query("MP3_320", description="Audio quality")
+    quality: str = Query("MP3_320", description="Audio quality"),
+    db: AsyncSession = Depends(get_async_db)
 ):
     """
     Download a track from Telegram via Telethon.
     """
     try:
-        track_info = download_model.get_track_by_deezer_id_quality(0, track_id, quality)
+        # Lookup track in DB using async SQLAlchemy
+        query = select(Track).where(
+            Track.track_id == track_id,
+            Track.quality == quality
+        )
+        result = await db.execute(query)
+        track = result.scalar_one_or_none()
 
-        if not track_info:
+        if not track:
             raise HTTPException(status_code=404, detail="Track not found or quality not available")
 
-        message_id = track_info.get('message_id')
-        channel_id = track_info.get('channel_id')
-        file_name = track_info.get('file_name', f"track_{track_id}.mp3")
+        message_id = track.message_id
+        channel_id = track.channel_id
+        file_name = track.file_name or f"track_{track_id}.mp3"
 
         if not message_id or not channel_id:
-             raise HTTPException(status_code=404, detail="Track source not available")
+            raise HTTPException(status_code=404, detail="Track source not available")
 
         file_iterator = await telegram_service.get_file_stream(message_id, channel_id)
 
