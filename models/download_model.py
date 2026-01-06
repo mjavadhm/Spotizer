@@ -196,7 +196,7 @@ class DownloadModel:
             with get_connection() as conn:
                 with conn.cursor() as cur:
                     query = """
-                            SELECT track_id, file_id, title, artist, album, download_count, quality, duration, file_name
+                            SELECT track_id, file_id, title, artist, album, download_count, quality, duration, file_name, channel_id, message_id
                             FROM tracks
                             WHERE track_id = %s AND quality = %s
                         """
@@ -214,7 +214,9 @@ class DownloadModel:
                             'download_count': row[5],
                             'quality': row[6],
                             'duration': row[7],
-                            'file_name': row[8]
+                            'file_name': row[8],
+                            'channel_id': row[9],
+                            'message_id': row[10]
                         }
                     logger.info(f"No track found for Deezer ID {deezer_id} with quality {quality}")
                     return None
@@ -222,20 +224,34 @@ class DownloadModel:
             logger.error(f"Failed to retrieve track: {str(e)}", exc_info=True)
             return None
     
-    def add_track(self, user_id, deezer_id, content_type, file_id, quality, title, artist=None, album=None, duration=None, file_name=None, url=None):
+    def add_track(self, user_id, deezer_id, content_type, file_id, quality, title, artist=None, album=None, duration=None, file_name=None, url=None, channel_id=None, message_id=None):
         """Add a new track to the database"""
         try:
             deezer_id = str(deezer_id)
             with get_connection() as conn:
                 with conn.cursor() as cur:
                     query = """
-                    INSERT INTO tracks (track_id, content_type, file_id, quality, title, artist, album, duration, file_name, url)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO tracks (track_id, file_id, quality, title, artist, album, duration, url, channel_id, message_id, file_name)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (track_id)
+                    DO UPDATE SET
+                        file_id = EXCLUDED.file_id,
+                        quality = EXCLUDED.quality,
+                        title = EXCLUDED.title,
+                        artist = EXCLUDED.artist,
+                        album = EXCLUDED.album,
+                        duration = EXCLUDED.duration,
+                        url = EXCLUDED.url,
+                        channel_id = EXCLUDED.channel_id,
+                        message_id = EXCLUDED.message_id,
+                        file_name = EXCLUDED.file_name,
+                        last_downloaded = CURRENT_TIMESTAMP,
+                        download_count = tracks.download_count + 1
                     """
-                    params = [deezer_id, content_type, file_id, quality, title, artist, album, duration, file_name, url]
+                    params = [deezer_id, file_id, quality, title, artist, album, duration, url, channel_id, message_id, file_name]
                     cur.execute(query, params)
                     conn.commit()
-                    logger.info(f"Added new track record: {title} (Deezer ID: {deezer_id}, User: {user_id})")
+                    logger.info(f"Added/Updated track record: {title} (Deezer ID: {deezer_id}, User: {user_id})")
                     return True
         except Exception as e:
             logger.error(f"Failed to add track record: {str(e)}", exc_info=True)

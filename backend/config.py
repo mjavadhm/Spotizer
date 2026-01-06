@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     BOT_TOKEN: str = ""
     TELEGRAM_AUTH_EXPIRY_SECONDS: int = 86400  # 24 hours
 
+    # Telethon
+    API_ID: int = 0
+    API_HASH: str = ""
+    MUSIC_CHANNEL_ID: int = 0
+    SESSION_NAME: str = "spotizer_stream/telegram_service/my_session"
+
     # App
     DEBUG: bool = False
     API_V1_PREFIX: str = "/api/v1"

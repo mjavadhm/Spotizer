@@ -222,9 +222,31 @@ class DownloadController:
                                         logger.warning(f"Artist not found for track {track_id}, using default")
                                         artist = "Unknown Artist"
 
+                                    # Send to music channel first if configured
+                                    music_channel_id = os.getenv('MUSIC_CHANNEL_ID')
+                                    channel_msg_id = None
+                                    file_id_to_send = audio_file
+
+                                    if music_channel_id:
+                                        try:
+                                            channel_msg = await bot.send_audio(
+                                                chat_id=music_channel_id,
+                                                audio=audio_file,
+                                                caption=f"@Spotizer_bot 🎧\n{title} - {artist}",
+                                                duration=duration,
+                                                title=title,
+                                                performer=artist
+                                            )
+                                            channel_msg_id = channel_msg.message_id
+                                            file_id_to_send = channel_msg.audio.file_id # Use the file_id from channel
+                                            logger.info(f"Sent track to channel {music_channel_id}, msg_id: {channel_msg_id}")
+                                        except Exception as e:
+                                            logger.error(f"Failed to send to music channel: {e}")
+
+                                    # Send to user
                                     sent_message = await bot.send_audio(
                                         chat_id=user_id,
-                                        audio=audio_file,
+                                        audio=file_id_to_send,
                                         caption=f"@Spotizer_bot 🎧",
                                         duration=duration,
                                         title=title,
@@ -242,7 +264,9 @@ class DownloadController:
                                         artist=artist,
                                         duration=duration,
                                         file_name=sent_message.audio.file_name,
-                                        album=None
+                                        album=None,
+                                        channel_id=int(music_channel_id) if music_channel_id else None,
+                                        message_id=channel_msg_id
                                     )
                                     
                                     musics = (title, duration, sent_message.audio.file_name)

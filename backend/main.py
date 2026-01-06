@@ -13,8 +13,10 @@ from .routers import (
     users_router,
     search_router,
     downloads_router,
-    playlists_router
+    playlists_router,
+    stream_router
 )
+from .services.telegram_client import telegram_service
 
 # Configure logging
 logging.basicConfig(
@@ -31,9 +33,11 @@ async def lifespan(app: FastAPI):
     logger.info("Starting Spotizer API...")
     await init_db()
     logger.info("Database initialized")
+    await telegram_service.start()
     yield
     # Shutdown
     logger.info("Shutting down Spotizer API...")
+    await telegram_service.stop()
     await close_db()
     logger.info("Database connections closed")
 
@@ -103,6 +107,7 @@ app.include_router(users_router, prefix=settings.API_V1_PREFIX)
 app.include_router(search_router, prefix=settings.API_V1_PREFIX)
 app.include_router(downloads_router, prefix=settings.API_V1_PREFIX)
 app.include_router(playlists_router, prefix=settings.API_V1_PREFIX)
+app.include_router(stream_router, prefix=settings.API_V1_PREFIX)
 
 
 # Health check endpoint
