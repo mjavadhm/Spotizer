@@ -56,16 +56,22 @@ class DeezerService:
                 return DownloadResult(False, error="Invalid Deezer URL")
 
             logger.info(f"Downloading {content_type} with ID: {deezer_id}")
-            # Run blocking deezloader call in thread pool to avoid blocking event loop
-            smart = await asyncio.to_thread(
-                self.client.download_smart, 
-                url, 
-                output_folder, 
-                quality_download=quality_download, 
-                make_zip=make_zip
-            )
-            logger.info(f"Successfully downloaded {content_type} - ID: {deezer_id}")
-            return smart
+            loop = asyncio.get_event_loop()
+            
+            # Run blocking deezloader call in thread pool with timeout
+            try:
+                smart = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        None,
+                        lambda: self.client.download_smart(url, output_folder, quality_download=quality_download, make_zip=make_zip)
+                    ),
+                    timeout=300.0  # 5 minute timeout for downloads
+                )
+                logger.info(f"Successfully downloaded {content_type} - ID: {deezer_id}")
+                return smart
+            except asyncio.TimeoutError:
+                logger.error(f"Timeout downloading {content_type} {deezer_id}")
+                return DownloadResult(False, error="Download timed out")
 
         except Exception as e:
             logger.error(f"Download error for URL {url}: {str(e)}", exc_info=True)
@@ -169,11 +175,41 @@ class DeezerService:
             return None
 
         try:
+            loop = asyncio.get_event_loop()
+            
             if 'track' in url:
-                # Run blocking call in thread pool to avoid blocking event loop
-                return await asyncio.to_thread(self.client.convert_spoty_to_dee_link_track, url)
+                logger.info(f"Starting Spotify to Deezer conversion for track: {url}")
+                # Run blocking call in executor with timeout
+                try:
+                    result = await asyncio.wait_for(
+                        loop.run_in_executor(
+                            None,
+                            self.client.convert_spoty_to_dee_link_track, 
+                            url
+                        ),
+                        timeout=30.0  # 30 second timeout
+                    )
+                    logger.info(f"Conversion completed: {result}")
+                    return result
+                except asyncio.TimeoutError:
+                    logger.error(f"Timeout converting track URL: {url}")
+                    return None
             elif 'album' in url:
-                return await asyncio.to_thread(self.client.convert_spoty_to_dee_link_album, url)
+                logger.info(f"Starting Spotify to Deezer conversion for album: {url}")
+                try:
+                    result = await asyncio.wait_for(
+                        loop.run_in_executor(
+                            None,
+                            self.client.convert_spoty_to_dee_link_album, 
+                            url
+                        ),
+                        timeout=30.0
+                    )
+                    logger.info(f"Conversion completed: {result}")
+                    return result
+                except asyncio.TimeoutError:
+                    logger.error(f"Timeout converting album URL: {url}")
+                    return None
             return url
         except Exception as e:
             logger.error(f"Error converting {url}: {str(e)}", exc_info=True)
