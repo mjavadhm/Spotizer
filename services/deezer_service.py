@@ -167,64 +167,36 @@ class DeezerService:
             raise
     
     async def convert_to_deezer(self, url: str) -> Optional[str]:
-        """Convert Spotify URL to Deezer URL"""
+        """Convert Spotify URL to Deezer URL using SpotifyService (non-blocking)"""
         import asyncio
+        from services.spotify_service import SpotifyService
         
         print(f"[DEBUG] convert_to_deezer: ENTER - url={url}")
         
-        if not self.client:
-            print(f"[DEBUG] convert_to_deezer: client is None!")
-            logger.error("Deezer client is not initialized. Cannot convert URL.")
-            return None
-
         try:
-            loop = asyncio.get_event_loop()
-            print(f"[DEBUG] convert_to_deezer: got event loop")
+            # Use SpotifyService instead of deezloader's blocking librespot
+            spotify_service = SpotifyService()
             
-            if 'track' in url:
-                print(f"[DEBUG] convert_to_deezer: detected TRACK url")
-                logger.info(f"Starting Spotify to Deezer conversion for track: {url}")
-                # Run blocking call in executor with timeout
-                try:
-                    print(f"[DEBUG] convert_to_deezer: calling run_in_executor...")
-                    result = await asyncio.wait_for(
-                        loop.run_in_executor(
-                            None,
-                            self.client.convert_spoty_to_dee_link_track, 
-                            url
-                        ),
-                        timeout=30.0  # 30 second timeout
-                    )
-                    print(f"[DEBUG] convert_to_deezer: executor returned - result={result}")
-                    logger.info(f"Conversion completed: {result}")
-                    return result
-                except asyncio.TimeoutError:
-                    print(f"[DEBUG] convert_to_deezer: TIMEOUT!")
-                    logger.error(f"Timeout converting track URL: {url}")
-                    return None
-            elif 'album' in url:
-                print(f"[DEBUG] convert_to_deezer: detected ALBUM url")
-                logger.info(f"Starting Spotify to Deezer conversion for album: {url}")
-                try:
-                    print(f"[DEBUG] convert_to_deezer: calling run_in_executor...")
-                    result = await asyncio.wait_for(
-                        loop.run_in_executor(
-                            None,
-                            self.client.convert_spoty_to_dee_link_album, 
-                            url
-                        ),
-                        timeout=30.0
-                    )
-                    print(f"[DEBUG] convert_to_deezer: executor returned - result={result}")
-                    logger.info(f"Conversion completed: {result}")
-                    return result
-                except asyncio.TimeoutError:
-                    print(f"[DEBUG] convert_to_deezer: TIMEOUT!")
-                    logger.error(f"Timeout converting album URL: {url}")
-                    return None
-            print(f"[DEBUG] convert_to_deezer: returning url as-is")
-            return url
+            print(f"[DEBUG] convert_to_deezer: using SpotifyService.convert_to_deezer_url")
+            
+            loop = asyncio.get_event_loop()
+            # Run in executor since spotipy uses requests which is blocking
+            result = await loop.run_in_executor(
+                None,
+                spotify_service.convert_to_deezer_url,
+                url
+            )
+            
+            print(f"[DEBUG] convert_to_deezer: result={result}")
+            
+            if result:
+                logger.info(f"Converted {url} to {result}")
+            else:
+                logger.warning(f"Could not convert {url} to Deezer URL")
+            
+            return result
+            
         except Exception as e:
             print(f"[DEBUG] convert_to_deezer: EXCEPTION - {e}")
             logger.error(f"Error converting {url}: {str(e)}", exc_info=True)
-            raise
+            return None
