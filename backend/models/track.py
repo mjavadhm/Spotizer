@@ -18,7 +18,6 @@ class Track(Base):
     file_name = Column(Text, nullable=True)
     download_count = Column(Integer, default=1)
     last_downloaded = Column(DateTime(timezone=True), server_default=func.now())
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
     # Telegram message reference for streaming
     channel_id = Column(BigInteger, nullable=True)
     message_id = Column(BigInteger, nullable=True)
