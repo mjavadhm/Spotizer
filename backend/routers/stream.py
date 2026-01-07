@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 @router.get("/{track_id}")
 async def stream_track(
-    track_id: int,
+    track_id: str,
     quality: str = Query("MP3_320", description="Audio quality"),
     db: AsyncSession = Depends(get_async_db)
 ):
@@ -26,7 +26,7 @@ async def stream_track(
     try:
         # Lookup track in DB using async SQLAlchemy
         query = select(Track).where(
-            Track.track_id == track_id,
+            Track.track_id == str(track_id),
             Track.quality == quality
         )
         result = await db.execute(query)
@@ -63,7 +63,7 @@ async def stream_track(
 
 @router.get("/download/{track_id}")
 async def download_track(
-    track_id: int,
+    track_id: str,
     quality: str = Query("MP3_320", description="Audio quality"),
     db: AsyncSession = Depends(get_async_db)
 ):
@@ -73,7 +73,7 @@ async def download_track(
     try:
         # Lookup track in DB using async SQLAlchemy
         query = select(Track).where(
-            Track.track_id == track_id,
+            Track.track_id == str(track_id),
             Track.quality == quality
         )
         result = await db.execute(query)
