@@ -1115,3 +1115,313 @@ a {
         width: 100%;
     }
 }
+
+/* ==================== Audio Player Bar ==================== */
+.audio-player-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 90px;
+    background: linear-gradient(180deg, rgba(24, 24, 24, 0.98) 0%, rgba(0, 0, 0, 0.99) 100%);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    z-index: 1000;
+    transition: transform 0.3s ease;
+}
+
+.audio-player-bar.hidden {
+    transform: translateY(100%);
+}
+
+/* Track Info */
+.player-track-info {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 200px;
+    max-width: 280px;
+}
+
+.player-cover {
+    width: 56px;
+    height: 56px;
+    border-radius: 4px;
+    background: var(--bg-hover);
+    overflow: hidden;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.player-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.player-cover img[src=""],
+.player-cover img:not([src]) {
+    display: none;
+}
+
+.player-cover i {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 24px;
+    color: var(--text-secondary);
+}
+
+.player-cover img:not([src=""])+i {
+    display: none;
+}
+
+.player-text {
+    overflow: hidden;
+}
+
+.player-title {
+    font-weight: 600;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+}
+
+.player-artist {
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Player Controls */
+.player-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    max-width: 700px;
+}
+
+.player-buttons {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.player-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    transition: all 0.2s;
+}
+
+.player-btn:hover {
+    color: var(--text-primary);
+    transform: scale(1.1);
+}
+
+.player-btn-main {
+    width: 40px;
+    height: 40px;
+    background: var(--text-primary);
+    color: var(--bg-dark);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+}
+
+.player-btn-main:hover {
+    background: var(--primary-color);
+    color: white;
+    transform: scale(1.05);
+}
+
+/* Progress Bar */
+.player-progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+
+.player-time {
+    font-size: 11px;
+    color: var(--text-secondary);
+    min-width: 40px;
+    text-align: center;
+}
+
+.player-progress-bar {
+    flex: 1;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    position: relative;
+    cursor: pointer;
+}
+
+.player-progress-bar input[type="range"] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 2;
+}
+
+.player-progress-fill {
+    height: 100%;
+    background: var(--primary-color);
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.1s linear;
+    position: relative;
+}
+
+.player-progress-fill::after {
+    content: '';
+    position: absolute;
+    right: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 12px;
+    height: 12px;
+    background: var(--text-primary);
+    border-radius: 50%;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.player-progress-bar:hover .player-progress-fill::after {
+    opacity: 1;
+}
+
+/* Volume Control */
+.player-volume {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 150px;
+    justify-content: flex-end;
+}
+
+.volume-slider {
+    width: 100px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    position: relative;
+}
+
+.volume-slider input[type="range"] {
+    width: 100%;
+    height: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+}
+
+.volume-slider input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    background: var(--text-primary);
+    border-radius: 50%;
+    cursor: pointer;
+    margin-top: -4px;
+}
+
+.volume-slider input[type="range"]::-webkit-slider-runnable-track {
+    height: 4px;
+    background: linear-gradient(to right, var(--primary-color) 0%, var(--primary-color) var(--volume-percent, 80%), rgba(255, 255, 255, 0.1) var(--volume-percent, 80%));
+    border-radius: 2px;
+}
+
+/* Adjust main content padding when player is visible */
+.main-content.player-visible {
+    padding-bottom: 120px;
+}
+
+/* Play button overlay for tracks */
+.track-play-btn {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    width: 40px;
+    height: 40px;
+    background: var(--primary-color);
+    border: none;
+    border-radius: 50%;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: all 0.2s;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.result-card:hover .track-play-btn,
+.track-item:hover .track-play-btn {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.track-play-btn:hover {
+    transform: scale(1.1);
+    background: var(--primary-hover);
+}
+
+/* Responsive adjustments for player */
+@media (max-width: 768px) {
+    .audio-player-bar {
+        height: 70px;
+        padding: 0 12px;
+    }
+
+    .player-track-info {
+        min-width: 120px;
+        max-width: 150px;
+    }
+
+    .player-cover {
+        width: 44px;
+        height: 44px;
+    }
+
+    .player-title {
+        font-size: 12px;
+    }
+
+    .player-volume {
+        display: none;
+    }
+
+    .player-controls {
+        max-width: 400px;
+    }
+
+    .main-content.player-visible {
+        padding-bottom: 100px;
+    }
+}

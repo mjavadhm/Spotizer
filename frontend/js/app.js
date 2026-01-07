@@ -226,9 +226,15 @@ function createResultCard(item, type) {
     const artistInfo = getArtistInfo(item);
     const albumInfo = getAlbumInfo(item);
 
+    // Add play button for tracks only
+    const playButton = type === 'track'
+        ? `<button class="track-play-btn" data-track-id="${item.id}" title="Stream"><i class="fas fa-play"></i></button>`
+        : '';
+
     card.innerHTML = `
-        <div class="cover">
+        <div class="cover" style="position: relative;">
             ${coverUrl ? `<img src="${coverUrl}" alt="${item.name}">` : '<i class="fas fa-music"></i>'}
+            ${playButton}
         </div>
         <div class="title">${item.name}</div>
         <div class="artist">
@@ -246,6 +252,12 @@ function createResultCard(item, type) {
 
     // Make the whole card clickable to go to detail page
     card.addEventListener('click', (e) => {
+        // If clicked on play button, stream the track
+        if (e.target.closest('.track-play-btn')) {
+            e.stopPropagation();
+            playTrackFromItem(item);
+            return;
+        }
         // If clicked on a link, handle that instead
         if (e.target.classList.contains('clickable-link')) {
             e.stopPropagation();
@@ -366,15 +378,15 @@ function showTrackDetailPage(item) {
                     ${item.explicit ? `<span class="explicit-badge">E</span>` : ''}
                 </div>
                 <div class="detail-actions">
-                    <button onclick="downloadItem('${item.id}', 'track')" class="btn btn-primary">
+                    <button onclick="playTrackFromDetail()" class="btn btn-primary">
+                        <i class="fas fa-play"></i> Stream
+                    </button>
+                    <button onclick="downloadItem('${item.id}', 'track')" class="btn btn-secondary">
                         <i class="fas fa-download"></i> Download
                     </button>
                     <button onclick="addToPlaylistModal('${item.id}')" class="btn btn-secondary">
                         <i class="fas fa-plus"></i> Add to Playlist
                     </button>
-                    ${item.preview_url ? `<button onclick="playPreview('${item.preview_url}')" class="btn btn-secondary">
-                        <i class="fas fa-play"></i> Preview
-                    </button>` : ''}
                 </div>
             </div>
         </div>
@@ -993,3 +1005,234 @@ document.addEventListener('click', (e) => {
         e.target.classList.remove('active');
     }
 });
+
+// ==================== Audio Player ====================
+
+class AudioPlayer {
+    constructor() {
+        this.audio = document.getElementById('audio-element');
+        this.playerBar = document.getElementById('audio-player-bar');
+        this.playPauseBtn = document.getElementById('player-play-pause');
+        this.seekSlider = document.getElementById('player-seek');
+        this.progressFill = document.getElementById('player-progress-fill');
+        this.currentTimeEl = document.getElementById('player-current-time');
+        this.durationEl = document.getElementById('player-duration');
+        this.volumeSlider = document.getElementById('player-volume');
+        this.muteBtn = document.getElementById('player-mute');
+        this.coverImg = document.getElementById('player-cover-img');
+        this.titleEl = document.getElementById('player-track-title');
+        this.artistEl = document.getElementById('player-track-artist');
+
+        this.currentTrack = null;
+        this.isPlaying = false;
+        this.previousVolume = 0.8;
+
+        this.init();
+    }
+
+    init() {
+        if (!this.audio || !this.playerBar) {
+            console.warn('Audio player elements not found');
+            return;
+        }
+
+        // Play/Pause button
+        this.playPauseBtn?.addEventListener('click', () => this.togglePlayPause());
+
+        // Seek slider
+        this.seekSlider?.addEventListener('input', (e) => {
+            const percent = e.target.value;
+            const time = (percent / 100) * this.audio.duration;
+            if (!isNaN(time)) {
+                this.audio.currentTime = time;
+            }
+        });
+
+        // Volume slider
+        this.volumeSlider?.addEventListener('input', (e) => {
+            const volume = e.target.value / 100;
+            this.audio.volume = volume;
+            this.updateVolumeIcon(volume);
+            this.updateVolumeSliderTrack(volume);
+        });
+
+        // Mute button
+        this.muteBtn?.addEventListener('click', () => this.toggleMute());
+
+        // Audio events
+        this.audio.addEventListener('timeupdate', () => this.updateProgress());
+        this.audio.addEventListener('loadedmetadata', () => this.updateDuration());
+        this.audio.addEventListener('play', () => this.onPlay());
+        this.audio.addEventListener('pause', () => this.onPause());
+        this.audio.addEventListener('ended', () => this.onEnded());
+        this.audio.addEventListener('error', (e) => this.onError(e));
+
+        // Set initial volume
+        this.audio.volume = 0.8;
+        this.updateVolumeSliderTrack(0.8);
+    }
+
+    async play(trackId, title, artist, coverUrl, quality = 'MP3_320') {
+        try {
+            const streamUrl = getStreamUrl(trackId, quality);
+
+            this.currentTrack = { trackId, title, artist, coverUrl, quality };
+
+            // Update UI
+            this.titleEl.textContent = title || 'Unknown Title';
+            this.artistEl.textContent = artist || 'Unknown Artist';
+
+            if (coverUrl) {
+                this.coverImg.src = coverUrl;
+                this.coverImg.style.display = 'block';
+            } else {
+                this.coverImg.src = '';
+                this.coverImg.style.display = 'none';
+            }
+
+            // Show player bar
+            this.show();
+
+            // Load and play
+            this.audio.src = streamUrl;
+            await this.audio.play();
+
+            showToast(`Now playing: ${title}`, 'success');
+        } catch (error) {
+            console.error('Failed to play track:', error);
+            showToast('Failed to play track. It may not be available for streaming.', 'error');
+        }
+    }
+
+    togglePlayPause() {
+        if (this.isPlaying) {
+            this.audio.pause();
+        } else {
+            this.audio.play();
+        }
+    }
+
+    toggleMute() {
+        if (this.audio.volume > 0) {
+            this.previousVolume = this.audio.volume;
+            this.audio.volume = 0;
+            this.volumeSlider.value = 0;
+        } else {
+            this.audio.volume = this.previousVolume;
+            this.volumeSlider.value = this.previousVolume * 100;
+        }
+        this.updateVolumeIcon(this.audio.volume);
+        this.updateVolumeSliderTrack(this.audio.volume);
+    }
+
+    updateProgress() {
+        if (!isNaN(this.audio.duration)) {
+            const percent = (this.audio.currentTime / this.audio.duration) * 100;
+            this.seekSlider.value = percent;
+            this.progressFill.style.width = `${percent}%`;
+            this.currentTimeEl.textContent = this.formatTime(this.audio.currentTime);
+        }
+    }
+
+    updateDuration() {
+        if (!isNaN(this.audio.duration)) {
+            this.durationEl.textContent = this.formatTime(this.audio.duration);
+        }
+    }
+
+    updateVolumeIcon(volume) {
+        const icon = this.muteBtn?.querySelector('i');
+        if (!icon) return;
+
+        if (volume === 0) {
+            icon.className = 'fas fa-volume-mute';
+        } else if (volume < 0.5) {
+            icon.className = 'fas fa-volume-down';
+        } else {
+            icon.className = 'fas fa-volume-up';
+        }
+    }
+
+    updateVolumeSliderTrack(volume) {
+        if (this.volumeSlider) {
+            this.volumeSlider.style.setProperty('--volume-percent', `${volume * 100}%`);
+        }
+    }
+
+    onPlay() {
+        this.isPlaying = true;
+        const icon = this.playPauseBtn?.querySelector('i');
+        if (icon) icon.className = 'fas fa-pause';
+    }
+
+    onPause() {
+        this.isPlaying = false;
+        const icon = this.playPauseBtn?.querySelector('i');
+        if (icon) icon.className = 'fas fa-play';
+    }
+
+    onEnded() {
+        this.isPlaying = false;
+        const icon = this.playPauseBtn?.querySelector('i');
+        if (icon) icon.className = 'fas fa-play';
+        this.seekSlider.value = 0;
+        this.progressFill.style.width = '0%';
+    }
+
+    onError(e) {
+        console.error('Audio playback error:', e);
+        showToast('Playback error. Track may not be available.', 'error');
+    }
+
+    show() {
+        this.playerBar?.classList.remove('hidden');
+        document.querySelector('.main-content')?.classList.add('player-visible');
+    }
+
+    hide() {
+        this.playerBar?.classList.add('hidden');
+        document.querySelector('.main-content')?.classList.remove('player-visible');
+    }
+
+    formatTime(seconds) {
+        if (isNaN(seconds)) return '0:00';
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+}
+
+// Global audio player instance
+let audioPlayer = null;
+
+// Initialize audio player when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    audioPlayer = new AudioPlayer();
+});
+
+// Global function to play a track
+function playTrack(trackId, title, artist, coverUrl, quality) {
+    if (!audioPlayer) {
+        audioPlayer = new AudioPlayer();
+    }
+    // Get quality from settings if not specified
+    const selectedQuality = quality || document.getElementById('setting-quality')?.value || 'MP3_320';
+    audioPlayer.play(trackId, title, artist, coverUrl, selectedQuality);
+}
+
+// Play track from search result or detail page
+function playTrackFromItem(item) {
+    const coverUrl = item.album?.images?.[0]?.url || item.image || item.cover_url || '';
+    const artist = getArtistName(item);
+    playTrack(item.id, item.name, artist, coverUrl);
+}
+
+// Play track from detail page (uses stored currentDetailItem)
+function playTrackFromDetail() {
+    const item = window.currentDetailItem;
+    if (item) {
+        playTrackFromItem(item);
+    } else {
+        showToast('No track selected', 'error');
+    }
+}
