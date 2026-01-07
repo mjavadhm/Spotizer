@@ -167,27 +167,35 @@ class DeezerService:
             raise
     
     async def convert_to_deezer(self, url: str) -> Optional[str]:
-        """Convert Spotify URL to Deezer URL using SpotifyService (non-blocking)"""
+        """Convert Spotify URL to Deezer URL"""
         import asyncio
-        from .spotify_service import SpotifyService
         
-        print(f"[DEBUG] convert_to_deezer: ENTER - url={url}")
+        # print(f"[DEBUG] convert_to_deezer: ENTER - url={url}")
         
+        if not self.client:
+            logger.error("Deezer client is not initialized. Cannot convert.")
+            return None
+
         try:
-            # Use SpotifyService instead of deezloader's blocking librespot
-            spotify_service = SpotifyService()
-            
-            print(f"[DEBUG] convert_to_deezer: using SpotifyService.convert_to_deezer_url")
+            # Use deezloader's built-in conversion
+            # print(f"[DEBUG] convert_to_deezer: using self.client.convert_spoty_to_dee_link_track")
             
             loop = asyncio.get_event_loop()
-            # Run in executor since spotipy uses requests which is blocking
-            result = await loop.run_in_executor(
-                None,
-                spotify_service.convert_to_deezer_url,
-                url
-            )
             
-            print(f"[DEBUG] convert_to_deezer: result={result}")
+            # Helper function to call the appropriate blocking conversion method
+            def _convert():
+                if 'track' in url:
+                    return self.client.convert_spoty_to_dee_link_track(url)
+                elif 'album' in url:
+                    return self.client.convert_spoty_to_dee_link_album(url)
+                elif 'playlist' in url:
+                    return self.client.convert_spoty_to_dee_link_playlist(url)
+                else:
+                    return None
+
+            result = await loop.run_in_executor(None, _convert)
+            
+            # print(f"[DEBUG] convert_to_deezer: result={result}")
             
             if result:
                 logger.info(f"Converted {url} to {result}")
@@ -197,7 +205,7 @@ class DeezerService:
             return result
             
         except Exception as e:
-            print(f"[DEBUG] convert_to_deezer: EXCEPTION - {e}")
+            # print(f"[DEBUG] convert_to_deezer: EXCEPTION - {e}")
             logger.error(f"Error converting {url}: {str(e)}", exc_info=True)
             return None
 
