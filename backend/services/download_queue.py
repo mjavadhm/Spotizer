@@ -15,7 +15,7 @@ from datetime import datetime
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database import async_session_maker
+from ..database import AsyncSessionLocal as async_session_maker
 from ..models.download_queue import DownloadQueueItem
 from ..models.track import Track
 from .telegram_client import telegram_service
