@@ -2,6 +2,8 @@ import asyncio
 import logging
 import os
 from telethon import TelegramClient
+from aiogram import Bot
+from aiogram.types import InputFile, FSInputFile
 from ..config import settings
 
 logger = logging.getLogger(__name__)
@@ -9,6 +11,9 @@ logger = logging.getLogger(__name__)
 class TelegramService:
     def __init__(self):
         self.client = None
+        self.bot = None
+        
+        # Initialize Telethon client (for streaming)
         if settings.API_ID and settings.API_HASH:
             # Ensure the session directory exists
             session_path = os.path.dirname(settings.SESSION_NAME)
@@ -21,7 +26,13 @@ class TelegramService:
                 settings.API_HASH
             )
         else:
-            logger.warning("Telethon API_ID or API_HASH not set. TelegramService disabled.")
+            logger.warning("Telethon API_ID or API_HASH not set. Streaming disabled.")
+            
+        # Initialize Bot instance (for uploading)
+        if settings.BOT_TOKEN:
+            self.bot = Bot(token=settings.BOT_TOKEN)
+        else:
+            logger.warning("BOT_TOKEN not set. Uploading disabled.")
 
     async def start(self):
         """Start the Telethon client"""
@@ -35,7 +46,7 @@ class TelegramService:
                 # We don't raise here to allow the app to start even if Telethon fails (optional)
 
     async def stop(self):
-        """Stop the Telethon client"""
+        """Stop the clients"""
         if self.client:
             try:
                 logger.info("Disconnecting Telethon client...")
@@ -43,6 +54,14 @@ class TelegramService:
                 logger.info("Telethon client disconnected.")
             except Exception as e:
                 logger.error(f"Error disconnecting Telethon client: {e}")
+        
+        if self.bot:
+            try:
+                logger.info("Closing Bot session...")
+                await self.bot.session.close()
+                logger.info("Bot session closed.")
+            except Exception as e:
+                logger.error(f"Error closing Bot session: {e}")
 
     async def get_file_info(self, message_id: int, channel_id: int):
         """
@@ -138,10 +157,12 @@ class TelegramService:
         channel_id: int, 
         title: str = "", 
         artist: str = "",
-        caption: str = ""
+        caption: str = "",
+        duration: int = 0,
+        filename: str = None
     ) -> tuple[int, int, str]:
         """
-        Upload an audio file to a Telegram channel.
+        Upload an audio file to a Telegram channel using the Bot API.
         
         Args:
             file_path: Path to the audio file
@@ -149,44 +170,40 @@ class TelegramService:
             title: Audio title for metadata
             artist: Artist name for metadata
             caption: Message caption
+            duration: Duration in seconds
+            filename: Custom filename for the upload
             
         Returns:
             Tuple of (channel_id, message_id, file_id)
         """
-        if not self.client:
-            raise Exception("Telegram client is not initialized.")
-
-        if not self.client.is_connected():
-            logger.warning("Telethon client not connected. Attempting to connect...")
-            await self.client.connect()
+        if not self.bot:
+            raise Exception("Bot token not set. Cannot upload.")
 
         try:
             logger.info(f"Uploading audio to channel {channel_id}: {title} - {artist}")
             
-            # Send the file to the channel
-            message = await self.client.send_file(
-                channel_id,
-                file_path,
+            # Create input file with custom filename if provided
+            audio_file = FSInputFile(file_path, filename=filename)
+            
+            # Send the file using aiogram bot
+            message = await self.bot.send_audio(
+                chat_id=channel_id,
+                audio=audio_file,
                 caption=caption,
-                attributes=[
-                    # Add audio attributes for proper display
-                    # DocumentAttributeAudio is imported dynamically to avoid issues
-                ]
+                title=title,
+                performer=artist,
+                duration=duration
             )
             
             if not message:
                 raise Exception("Failed to send file to channel")
             
             # Get file_id from the sent message
-            file_id = ""
-            if message.audio:
-                file_id = str(message.audio.id)
-            elif message.document:
-                file_id = str(message.document.id)
+            file_id = message.audio.file_id
             
-            logger.info(f"Uploaded audio: msg_id={message.id}, file_id={file_id}")
+            logger.info(f"Uploaded audio: msg_id={message.message_id}, file_id={file_id}")
             
-            return channel_id, message.id, file_id
+            return channel_id, message.message_id, file_id
 
         except Exception as e:
             logger.error(f"Error uploading audio: {e}")

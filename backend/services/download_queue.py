@@ -391,30 +391,35 @@ class DownloadQueue:
             if not music_channel_id:
                 raise Exception("MUSIC_CHANNEL_ID not configured")
             
+            # Get audio duration
+            from ..utils.file_handler import get_audio_duration
+            duration = get_audio_duration(file_path)
+
+            # Format nicer filename
+            filename = f"{track_artist} - {track_title}.mp3"
+            
             channel_id, message_id, file_id = await telegram_service.upload_audio(
                 file_path=file_path,
                 channel_id=int(music_channel_id),
                 title=track_title,
                 artist=track_artist,
-                caption=f"@Spotizer_bot 🎧"
+                caption=f"@Spotizer_bot 🎧",
+                duration=duration,
+                filename=filename
             )
-            
-            # Get audio duration
-            from ..utils.file_handler import get_audio_duration
-            duration = get_audio_duration(file_path)
             
             # Save to database
             async with async_session_maker() as session:
                 track = Track(
-                    track_id=deezer_id,
+                    track_id=str(deezer_id),
                     spotify_id=spotify_id,
                     url=deezer_url,
                     file_id=file_id,
                     title=track_title,
                     artist=track_artist,
                     album=track_album,
-                    quality=quality,
                     duration=duration,
+                    quality=quality,
                     channel_id=channel_id,
                     message_id=message_id
                 )
