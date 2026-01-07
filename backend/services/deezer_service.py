@@ -121,6 +121,32 @@ class DeezerService:
             logger.error(f"Error getting Deezer info for {content_type} {deezer_id}: {str(e)}", exc_info=True)
             raise
 
+    async def search(self, query: str, limit: int = 1) -> List[Dict[str, Any]]:
+        """Search Deezer API"""
+        import asyncio
+        
+        def _search():
+            url = "https://api.deezer.com/search"
+            params = {
+                'q': query,
+                'limit': limit,
+                'order': 'RANKING'
+            }
+            response = requests.get(url, params=params)
+            
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('data', [])
+            else:
+                logger.error(f"Failed to search Deezer: HTTP {response.status_code}")
+                return []
+        
+        try:
+            return await asyncio.to_thread(_search)
+        except Exception as e:
+            logger.error(f"Error searching Deezer for '{query}': {str(e)}", exc_info=True)
+            return []
+    
     async def create_zip(self, file_path: str, title: str) -> Optional[str]:
         """Create ZIP archive for album/playlist"""
         try:

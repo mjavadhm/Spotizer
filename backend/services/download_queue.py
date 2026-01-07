@@ -321,12 +321,42 @@ class DownloadQueue:
         
         deezer_service = self._get_deezer_service()
         
-        # Step 1: Convert Spotify ID to Deezer URL
-        spotify_url = f"https://open.spotify.com/track/{item.spotify_id}"
-        deezer_url = await deezer_service.convert_to_deezer(spotify_url)
+        # Step 1: Resolve Spotify ID to Deezer URL (Manual Robust Method)
         
-        if not deezer_url:
-            raise Exception("Failed to convert Spotify ID to Deezer URL")
+        # 1a. Get metadata from Spotify
+        from .spotify_service import get_spotify_service
+        spotify_service = get_spotify_service()
+        track_info = await spotify_service.get_item_info('track', item.spotify_id)
+        
+        if not track_info:
+             raise Exception(f"Failed to get track info from Spotify for {item.spotify_id}")
+             
+        artist_name = track_info.get('main_artist') or (track_info['artists'][0]['name'] if track_info.get('artists') else "")
+        track_name = track_info.get('name')
+        isrc = track_info.get('external_ids', {}).get('isrc')
+        
+        deezer_link = None
+        
+        # 1b. Try ISRC search first (Best match)
+        if isrc:
+            results = await deezer_service.search(f"isrc:{isrc}", limit=1)
+            if results:
+                deezer_link = results[0]['link']
+                logger.info(f"Found match by ISRC {isrc}: {results[0]['title']}")
+        
+        # 1c. Fallback to Artist - Title search
+        if not deezer_link and artist_name and track_name:
+            query = f"{artist_name} - {track_name}"
+            # logger.info(f"Searching Deezer by query: {query}")
+            results = await deezer_service.search(query, limit=1)
+            if results:
+                deezer_link = results[0]['link']
+                logger.info(f"Found match by query '{query}': {results[0]['title']}")
+        
+        if not deezer_link:
+            raise Exception(f"Could not find track on Deezer: {artist_name} - {track_name} (ISRC: {isrc})")
+
+        deezer_url = deezer_link
         
         # Extract Deezer ID
         content_type, deezer_id = deezer_service.extract_info_from_url(deezer_url)
@@ -354,8 +384,8 @@ class DownloadQueue:
             item.spotify_id,
             deezer_url,
             str(deezer_id),
-            item.title,
-            item.artist,
+            track_name,  # Use fresh title from Spotify
+            artist_name, # Use fresh artist from Spotify
             item.db_id
         )
     

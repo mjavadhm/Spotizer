@@ -147,6 +147,7 @@ class SpotifyService:
                     },
                     'preview_url': track.get('preview_url'),
                     'popularity': track['popularity'],
+                    'external_ids': track.get('external_ids', {}),
                     'type': 'track'
                 }
 
