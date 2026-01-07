@@ -1,5 +1,6 @@
 import logging
 from typing import Optional
+import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
@@ -10,6 +11,7 @@ from ..schemas.track import (
 )
 from ..services.spotify_service import get_spotify_service, SpotifyService
 from ..services.deezer_service import get_deezer_service, DeezerService
+from ..services.download_queue import download_queue
 from ..dependencies import get_current_user_optional
 from ..models.user import User
 
@@ -52,6 +54,14 @@ async def search(
         has_more = len(results) == limit
 
         logger.info(f"Search query: '{query}', type: {resolved_type}, results: {len(results)}")
+
+        # Trigger background download for track results
+        if resolved_type == SearchType.TRACK and results:
+            asyncio.create_task(download_queue.add_batch(
+                tracks=results,
+                priority=download_queue.PRIORITY_LOW,
+                max_items=10  # Pre-download top 10 results
+            ))
 
         return SearchResponse(
             query=query,
@@ -115,6 +125,15 @@ async def get_album_info(
                 detail="Album not found"
             )
 
+        # Trigger background download for album tracks
+        if 'tracks' in info and 'items' in info['tracks']:
+            tracks = info['tracks']['items']
+            asyncio.create_task(download_queue.add_batch(
+                tracks=tracks,
+                priority=download_queue.PRIORITY_LOW,
+                max_items=20  # Limit to 20 tracks for albums
+            ))
+
         return info
 
     except HTTPException:
@@ -142,6 +161,24 @@ async def get_playlist_info(
                 status_code=404,
                 detail="Playlist not found"
             )
+
+        # Trigger background download for playlist tracks
+        if 'tracks' in info and 'items' in info['tracks']:
+            # Playlist tracks might have a different structure (wrapped in 'track' object)
+            raw_tracks = info['tracks']['items']
+            tracks = []
+            for item in raw_tracks:
+                if 'track' in item and item['track']:
+                    tracks.append(item['track'])
+                elif 'id' in item: # Maybe it's a direct track list
+                    tracks.append(item)
+            
+            if tracks:
+                asyncio.create_task(download_queue.add_batch(
+                    tracks=tracks,
+                    priority=download_queue.PRIORITY_LOW,
+                    max_items=20  # Limit to 20 tracks for playlists
+                ))
 
         return info
 

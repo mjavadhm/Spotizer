@@ -1,5 +1,6 @@
 import logging
 import re
+import asyncio
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Header
@@ -10,6 +11,7 @@ from sqlalchemy import select
 from ..database import get_async_db
 from ..models.track import Track
 from ..services.telegram_client import telegram_service
+from ..services.download_queue import download_queue
 
 router = APIRouter(prefix="/stream", tags=["Stream"])
 logger = logging.getLogger(__name__)
@@ -58,6 +60,7 @@ async def stream_track(
     """
     Stream a track from Telegram via Telethon with Range request support for seeking.
     Accepts either Spotify ID or Deezer ID (track_id).
+    If Spotify ID is not found, attempts on-demand download.
     """
     try:
         track = None
@@ -73,6 +76,29 @@ async def stream_track(
             )
             result = await db.execute(query)
             track = result.scalar_one_or_none()
+        
+            # If not found and it's a Spotify ID, try on-demand download
+            if not track:
+                logger.info(f"Track not found for Spotify ID {track_id}, triggering on-demand download...")
+                try:
+                    # Trigger high-priority download and wait
+                    event = await download_queue.add_high_priority(spotify_id=track_id)
+                    
+                    # Wait for download to complete (timeout 60s)
+                    await asyncio.wait_for(event.wait(), timeout=60.0)
+                    
+                    # Re-query database
+                    result = await db.execute(query)
+                    track = result.scalar_one_or_none()
+                    
+                    if not track:
+                        raise HTTPException(status_code=404, detail="Track could not be downloaded in time.")
+                        
+                except asyncio.TimeoutError:
+                    raise HTTPException(status_code=408, detail="Timeout waiting for track download.")
+                except Exception as e:
+                    logger.error(f"On-demand download failed: {e}")
+                    raise HTTPException(status_code=500, detail="Failed to prepare track for streaming.")
         
         # If not found by Spotify ID (or it's a Deezer ID), try track_id
         if not track:

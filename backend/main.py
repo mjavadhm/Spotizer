@@ -17,6 +17,7 @@ from .routers import (
     stream_router
 )
 from .services.telegram_client import telegram_service
+from .services.download_queue import download_queue
 
 # Configure logging
 logging.basicConfig(
@@ -34,9 +35,14 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Database initialized")
     await telegram_service.start()
+    logger.info("Telegram service started")
+    await download_queue.start()
+    logger.info("Download queue worker started")
     yield
     # Shutdown
     logger.info("Shutting down Spotizer API...")
+    await download_queue.stop()
+    logger.info("Download queue worker stopped")
     await telegram_service.stop()
     await close_db()
     logger.info("Database connections closed")

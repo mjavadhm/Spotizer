@@ -132,5 +132,65 @@ class TelegramService:
             logger.error(f"Error getting file stream: {e}")
             raise
 
+    async def upload_audio(
+        self, 
+        file_path: str, 
+        channel_id: int, 
+        title: str = "", 
+        artist: str = "",
+        caption: str = ""
+    ) -> tuple[int, int, str]:
+        """
+        Upload an audio file to a Telegram channel.
+        
+        Args:
+            file_path: Path to the audio file
+            channel_id: Telegram channel ID to upload to
+            title: Audio title for metadata
+            artist: Artist name for metadata
+            caption: Message caption
+            
+        Returns:
+            Tuple of (channel_id, message_id, file_id)
+        """
+        if not self.client:
+            raise Exception("Telegram client is not initialized.")
+
+        if not self.client.is_connected():
+            logger.warning("Telethon client not connected. Attempting to connect...")
+            await self.client.connect()
+
+        try:
+            logger.info(f"Uploading audio to channel {channel_id}: {title} - {artist}")
+            
+            # Send the file to the channel
+            message = await self.client.send_file(
+                channel_id,
+                file_path,
+                caption=caption,
+                attributes=[
+                    # Add audio attributes for proper display
+                    # DocumentAttributeAudio is imported dynamically to avoid issues
+                ]
+            )
+            
+            if not message:
+                raise Exception("Failed to send file to channel")
+            
+            # Get file_id from the sent message
+            file_id = ""
+            if message.audio:
+                file_id = str(message.audio.id)
+            elif message.document:
+                file_id = str(message.document.id)
+            
+            logger.info(f"Uploaded audio: msg_id={message.id}, file_id={file_id}")
+            
+            return channel_id, message.id, file_id
+
+        except Exception as e:
+            logger.error(f"Error uploading audio: {e}")
+            raise
+
 # Global instance
 telegram_service = TelegramService()
