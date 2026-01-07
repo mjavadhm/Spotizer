@@ -6,7 +6,7 @@ from ..database import Base
 class Track(Base):
     __tablename__ = "tracks"
 
-    track_id = Column(BigInteger, primary_key=True, index=True)
+    track_id = Column(String(255), primary_key=True, index=True)
     content_type = Column(String(20), default="track")
     url = Column(Text, nullable=False)
     file_id = Column(Text, nullable=True)
