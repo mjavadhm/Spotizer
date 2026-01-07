@@ -57,18 +57,34 @@ async def stream_track(
 ):
     """
     Stream a track from Telegram via Telethon with Range request support for seeking.
+    Accepts either Spotify ID or Deezer ID (track_id).
     """
     try:
-        # Lookup track in DB using async SQLAlchemy
-        query = select(Track).where(
-            Track.track_id == str(track_id),
-            Track.quality == quality
-        )
-        result = await db.execute(query)
-        track = result.scalar_one_or_none()
+        track = None
+        
+        # Determine if this looks like a Spotify ID (alphanumeric with letters) or Deezer ID (numeric)
+        is_spotify_id = not track_id.isdigit() and len(track_id) == 22
+        
+        if is_spotify_id:
+            # Try to find by Spotify ID first
+            query = select(Track).where(
+                Track.spotify_id == str(track_id),
+                Track.quality == quality
+            )
+            result = await db.execute(query)
+            track = result.scalar_one_or_none()
+        
+        # If not found by Spotify ID (or it's a Deezer ID), try track_id
+        if not track:
+            query = select(Track).where(
+                Track.track_id == str(track_id),
+                Track.quality == quality
+            )
+            result = await db.execute(query)
+            track = result.scalar_one_or_none()
 
         if not track:
-            raise HTTPException(status_code=404, detail="Track not found or quality not available")
+            raise HTTPException(status_code=404, detail="Track not found or quality not available. Download the track first via the bot.")
 
         message_id = track.message_id
         channel_id = track.channel_id
@@ -144,18 +160,34 @@ async def download_track(
 ):
     """
     Download a track from Telegram via Telethon.
+    Accepts either Spotify ID or Deezer ID (track_id).
     """
     try:
-        # Lookup track in DB using async SQLAlchemy
-        query = select(Track).where(
-            Track.track_id == str(track_id),
-            Track.quality == quality
-        )
-        result = await db.execute(query)
-        track = result.scalar_one_or_none()
+        track = None
+        
+        # Determine if this looks like a Spotify ID (alphanumeric with letters) or Deezer ID (numeric)
+        is_spotify_id = not track_id.isdigit() and len(track_id) == 22
+        
+        if is_spotify_id:
+            # Try to find by Spotify ID first
+            query = select(Track).where(
+                Track.spotify_id == str(track_id),
+                Track.quality == quality
+            )
+            result = await db.execute(query)
+            track = result.scalar_one_or_none()
+        
+        # If not found by Spotify ID (or it's a Deezer ID), try track_id
+        if not track:
+            query = select(Track).where(
+                Track.track_id == str(track_id),
+                Track.quality == quality
+            )
+            result = await db.execute(query)
+            track = result.scalar_one_or_none()
 
         if not track:
-            raise HTTPException(status_code=404, detail="Track not found or quality not available")
+            raise HTTPException(status_code=404, detail="Track not found or quality not available. Download the track first via the bot.")
 
         message_id = track.message_id
         channel_id = track.channel_id
