@@ -147,17 +147,20 @@ class DeezerService:
             logger.error(f"Error getting track list for {content_type} {deezer_id}: {str(e)}", exc_info=True)
             raise
     
-    def convert_to_deezer(self, url: str) -> Optional[str]:
+    async def convert_to_deezer(self, url: str) -> Optional[str]:
         """Convert Spotify URL to Deezer URL"""
+        import asyncio
+        
         if not self.client:
             logger.error("Deezer client is not initialized. Cannot convert URL.")
             return None
 
         try:
             if 'track' in url:
-                return self.client.convert_spoty_to_dee_link_track(url)
+                # Run blocking call in thread pool to avoid blocking event loop
+                return await asyncio.to_thread(self.client.convert_spoty_to_dee_link_track, url)
             elif 'album' in url:
-                return self.client.convert_spoty_to_dee_link_album(url)
+                return await asyncio.to_thread(self.client.convert_spoty_to_dee_link_album, url)
             return url
         except Exception as e:
             logger.error(f"Error converting {url}: {str(e)}", exc_info=True)

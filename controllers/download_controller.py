@@ -188,7 +188,7 @@ class DownloadController:
                     logger.error(f"Spotify playlist not supported: {url}")
                     return False, "Spotify playlists are not supported yet. Please use a Deezer link."
                 logger.info(f"Converting Spotify URL to Deezer URL: {url}")
-                url = self.deezer_service.convert_to_deezer(url)
+                url = await self.deezer_service.convert_to_deezer(url)
                 logger.info(f"Converted to Deezer URL: {url}")
 
             content_type, deezer_id = self.deezer_service.extract_info_from_url(url)
