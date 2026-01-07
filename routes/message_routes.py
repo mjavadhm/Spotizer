@@ -140,10 +140,13 @@ def setup_message_routes(dp: Router, download_controller: DownloadController):
         status_message = None
         try:
             user_id = message.from_user.id
+            print(f"[DEBUG] handle_music_link: START for user {user_id}, URL: {url}")
             logger.info(f"Processing music link for user {user_id}: {url}")
             
             # Send processing message
+            print(f"[DEBUG] Sending status message...")
             status_message = await message.reply("⏳")
+            print(f"[DEBUG] Status message sent")
             logger.info(f"Sent processing status message to user {user_id}")
             
             # Validate URL type
@@ -157,11 +160,13 @@ def setup_message_routes(dp: Router, download_controller: DownloadController):
                     return
                     
             # Process download request
+            print(f"[DEBUG] Calling process_download_request...")
             logger.info(f"Starting download process for user {user_id}")
             success, result = await download_controller.process_download_request(
                 user_id=user_id,
                 url=url
             )
+            print(f"[DEBUG] process_download_request returned: success={success}")
             
             if not success:
                 logger.error(f"Download failed for user {user_id}: {result}")
@@ -173,6 +178,7 @@ def setup_message_routes(dp: Router, download_controller: DownloadController):
                     await status_message.delete()
                 return
             
+            print(f"[DEBUG] Download completed successfully")
             logger.info(f"Download completed successfully for user {user_id}")
             # Delete processing message after successful download
             if status_message:

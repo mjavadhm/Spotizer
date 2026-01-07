@@ -165,6 +165,7 @@ class DownloadController:
     async def process_download_request(self, user_id, url):
         """Process download request from user"""
         try:
+            print(f"[DEBUG] process_download_request: START - user={user_id}, url={url}")
             logger.info(f"Processing download request for user {user_id} - URL: {url}")
             
             if not self.url_validator.is_valid_url(url):
@@ -172,7 +173,9 @@ class DownloadController:
                 return False, "Invalid URL format. Please provide a valid Deezer or Spotify link."
 
             # Get user settings
+            print(f"[DEBUG] Getting user settings...")
             success, user_settings = await UserController.get_user_settings(user_id)
+            print(f"[DEBUG] User settings retrieved: success={success}")
             if not success:
                 # Handle case where user settings are not found
                 quality = 'MP3_320'
@@ -181,20 +184,25 @@ class DownloadController:
                 quality = user_settings.get('download_quality', 'MP3_320')
                 make_zip = user_settings.get('make_zip', True)
             logger.info(f"User {user_id} settings - Quality: {quality}, Make ZIP: {make_zip}")
+            print(f"[DEBUG] Settings - Quality: {quality}, Make ZIP: {make_zip}")
 
             # Convert Spotify URL to Deezer if needed
             if "spotify" in url:
                 if 'playlist' in url:
                     logger.error(f"Spotify playlist not supported: {url}")
                     return False, "Spotify playlists are not supported yet. Please use a Deezer link."
+                print(f"[DEBUG] Converting Spotify URL to Deezer...")
                 logger.info(f"Converting Spotify URL to Deezer URL: {url}")
                 url = await self.deezer_service.convert_to_deezer(url)
+                print(f"[DEBUG] Conversion result: {url}")
                 if not url:
                     logger.error("Failed to convert Spotify URL to Deezer URL")
                     return False, "❌ Could not find this track on Deezer. Please try a different link."
                 logger.info(f"Converted to Deezer URL: {url}")
 
+            print(f"[DEBUG] Extracting info from URL...")
             content_type, deezer_id = self.deezer_service.extract_info_from_url(url)
+            print(f"[DEBUG] Extracted - Type: {content_type}, ID: {deezer_id}")
             logger.info(f"Extracted info - Type: {content_type}, ID: {deezer_id}")
             
             if not content_type or not deezer_id:
