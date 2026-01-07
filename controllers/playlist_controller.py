@@ -98,8 +98,14 @@ class PlayListController:
             else:
                 track_id = callback_query.data.split(":")[3]
                 spotify_url = f"https://open.spotify.com/track/{track_id}"
-                url = self.deezer_service.convert_to_deezer(spotify_url)
+                url = await self.deezer_service.convert_to_deezer(spotify_url)
+                if not url:
+                    await callback_query.answer("Could not find track on Deezer")
+                    return
                 content_type, deezer_id = self.deezer_service.extract_info_from_url(url)
+                if not deezer_id:
+                    await callback_query.answer("Could not process track")
+                    return
                 playlist_id = int(callback_query.data.split(":")[2])  # Convert to int
                 success, message = await self.add_to_playlist(
                     user_id, playlist_id, int(deezer_id)  # Ensure deezer_id is also int
@@ -154,7 +160,7 @@ class PlayListController:
             tracks_info = []
             for pt in playlist_tracks:
                 try:
-                    track_info = self.deezer_service.get_deezer_info('track', pt.track_deezer_id)
+                    track_info = await self.deezer_service.get_deezer_info('track', pt.track_deezer_id)
                     if track_info:
                         track_info['playlist_track_id'] = pt.playlist_track_id
                         track_info['added_at'] = pt.added_at

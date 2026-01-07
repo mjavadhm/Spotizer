@@ -78,8 +78,19 @@ def setup_message_routes(dp: Router, download_controller: DownloadController):
             from services.deezer_service import DeezerService
             deezer_service = DeezerService()
             spotify_url = f"https://open.spotify.com/track/{track_id}"
-            deezer_url = deezer_service.convert_to_deezer(spotify_url)
+            deezer_url = await deezer_service.convert_to_deezer(spotify_url)
+            
+            if not deezer_url:
+                await message.reply("❌ Could not find this track on Deezer.")
+                await state.clear()
+                return
+            
             content_type, deezer_id = deezer_service.extract_info_from_url(deezer_url)
+            
+            if not deezer_id:
+                await message.reply("❌ Could not process the track.")
+                await state.clear()
+                return
             
             # Create playlist and add track
             success, result = await playlist_controller.create_playlist_and_add_track(
@@ -154,7 +165,8 @@ def setup_message_routes(dp: Router, download_controller: DownloadController):
             
             if not success:
                 logger.error(f"Download failed for user {user_id}: {result}")
-                error_message = MessageView.get_error_message('download_failed')
+                # Show the actual error message if it's user-friendly, otherwise show generic
+                error_message = result if result and isinstance(result, str) else MessageView.get_error_message('download_failed')
                 sm = await message.reply(error_message)
                 await MessageModel.add_message(user_id, sm)
                 if status_message:

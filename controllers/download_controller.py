@@ -189,10 +189,17 @@ class DownloadController:
                     return False, "Spotify playlists are not supported yet. Please use a Deezer link."
                 logger.info(f"Converting Spotify URL to Deezer URL: {url}")
                 url = await self.deezer_service.convert_to_deezer(url)
+                if not url:
+                    logger.error("Failed to convert Spotify URL to Deezer URL")
+                    return False, "❌ Could not find this track on Deezer. Please try a different link."
                 logger.info(f"Converted to Deezer URL: {url}")
 
             content_type, deezer_id = self.deezer_service.extract_info_from_url(url)
             logger.info(f"Extracted info - Type: {content_type}, ID: {deezer_id}")
+            
+            if not content_type or not deezer_id:
+                logger.error(f"Could not extract content type or ID from URL: {url}")
+                return False, "❌ Invalid URL format. Please provide a valid Deezer or Spotify link."
 
             if make_zip and 'track' not in url:
                 existing_zip = await self.get_track_by_deezer_id_quality(user_id, deezer_id, quality)

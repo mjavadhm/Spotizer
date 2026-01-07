@@ -41,6 +41,8 @@ class DeezerService:
 
     async def download(self, url: str, output_folder="downloads", quality_download: str = 'MP3_320', make_zip: bool = False) -> Union[Smart, DownloadResult, bool]:
         """Download track/album/playlist from Deezer"""
+        import asyncio
+        
         if not self.client:
             logger.error("Deezer client is not initialized. Cannot download.")
             return DownloadResult(False, error="Deezer client not initialized")
@@ -54,7 +56,14 @@ class DeezerService:
                 return DownloadResult(False, error="Invalid Deezer URL")
 
             logger.info(f"Downloading {content_type} with ID: {deezer_id}")
-            smart = self.client.download_smart(url, output_folder, quality_download=quality_download, make_zip=make_zip)
+            # Run blocking deezloader call in thread pool to avoid blocking event loop
+            smart = await asyncio.to_thread(
+                self.client.download_smart, 
+                url, 
+                output_folder, 
+                quality_download=quality_download, 
+                make_zip=make_zip
+            )
             logger.info(f"Successfully downloaded {content_type} - ID: {deezer_id}")
             return smart
 
@@ -86,9 +95,11 @@ class DeezerService:
             logger.error(f"Error extracting info from URL {url}: {str(e)}", exc_info=True)
             return None, None
 
-    def get_deezer_info(self, content_type: str, deezer_id: int) -> Dict[str, Any]:
+    async def get_deezer_info(self, content_type: str, deezer_id: int) -> Dict[str, Any]:
         """Get information from Deezer API"""
-        try:
+        import asyncio
+        
+        def _fetch():
             url = f"https://api.deezer.com/{content_type}/{deezer_id}"
             response = requests.get(url)
             if response.status_code == 200:
@@ -97,7 +108,9 @@ class DeezerService:
                 error_msg = f"Failed to get Deezer info: HTTP {response.status_code}"
                 logger.error(error_msg)
                 raise Exception(error_msg)
-    
+        
+        try:
+            return await asyncio.to_thread(_fetch)
         except Exception as e:
             logger.error(f"Error getting Deezer info for {content_type} {deezer_id}: {str(e)}", exc_info=True)
             raise
@@ -129,7 +142,7 @@ class DeezerService:
                 return [deezer_id]
             
             elif content_type in ['album', 'playlist']:
-                info = self.get_deezer_info(content_type, deezer_id)
+                info = await self.get_deezer_info(content_type, deezer_id)
                 if "tracks" in info:
                     track_ids = [track['id'] for track in info['tracks']['data']]
                     logger.info(f"Retrieved {len(track_ids)} tracks from {content_type} {deezer_id}")
