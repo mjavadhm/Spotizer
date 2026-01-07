@@ -25,7 +25,7 @@ class DownloadController:
         logger.info("DownloadController initialized")
 
     @staticmethod
-    async def add_download(user_id, deezer_id, content_type, file_id, quality, url, title, artist, album, duration=None, file_name=None):
+    async def add_download(user_id, deezer_id, content_type, file_id, quality, url, title, artist, album, duration=None, file_name=None, channel_id=None, message_id=None):
         """Add a download to the database. Returns download_id for rating buttons.
         If the same track was already downloaded by this user, updates timestamp and returns existing download_id."""
         async with async_session_maker() as session:
