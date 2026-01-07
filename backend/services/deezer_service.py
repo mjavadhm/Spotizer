@@ -200,3 +200,12 @@ class DeezerService:
             print(f"[DEBUG] convert_to_deezer: EXCEPTION - {e}")
             logger.error(f"Error converting {url}: {str(e)}", exc_info=True)
             return None
+
+# Singleton instance
+_deezer_service: Optional[DeezerService] = None
+
+def get_deezer_service() -> DeezerService:
+    global _deezer_service
+    if _deezer_service is None:
+        _deezer_service = DeezerService()
+    return _deezer_service
