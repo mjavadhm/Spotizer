@@ -1,8 +1,9 @@
 import logging
+import re
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Header
+from fastapi.responses import StreamingResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -14,14 +15,48 @@ router = APIRouter(prefix="/stream", tags=["Stream"])
 logger = logging.getLogger(__name__)
 
 
+def parse_range_header(range_header: str, file_size: int) -> tuple[int, int]:
+    """
+    Parse Range header and return (start, end) byte positions.
+    Supports format: bytes=start-end, bytes=start-, bytes=-suffix
+    """
+    if not range_header or not range_header.startswith("bytes="):
+        return 0, file_size - 1
+
+    range_spec = range_header[6:]  # Remove "bytes="
+    
+    if range_spec.startswith("-"):
+        # Suffix range: bytes=-500 means last 500 bytes
+        suffix_length = int(range_spec[1:])
+        start = max(0, file_size - suffix_length)
+        end = file_size - 1
+    elif range_spec.endswith("-"):
+        # Open-ended range: bytes=500- means from 500 to end
+        start = int(range_spec[:-1])
+        end = file_size - 1
+    else:
+        # Full range: bytes=0-999
+        parts = range_spec.split("-")
+        start = int(parts[0])
+        end = int(parts[1]) if len(parts) > 1 and parts[1] else file_size - 1
+
+    # Clamp values
+    start = max(0, min(start, file_size - 1))
+    end = max(start, min(end, file_size - 1))
+
+    return start, end
+
+
 @router.get("/{track_id}")
 async def stream_track(
     track_id: str,
+    request: Request,
     quality: str = Query("MP3_320", description="Audio quality"),
-    db: AsyncSession = Depends(get_async_db)
+    db: AsyncSession = Depends(get_async_db),
+    range: Optional[str] = Header(None)
 ):
     """
-    Stream a track from Telegram via Telethon.
+    Stream a track from Telegram via Telethon with Range request support for seeking.
     """
     try:
         # Lookup track in DB using async SQLAlchemy
@@ -41,10 +76,10 @@ async def stream_track(
         if not message_id or not channel_id:
             raise HTTPException(status_code=404, detail="Track source not available (message_id/channel_id missing)")
 
-        # Get stream generator from Telethon
-        file_iterator = await telegram_service.get_file_stream(message_id, channel_id)
-
-        if not file_iterator:
+        # Get file info for Range requests
+        message, file_size = await telegram_service.get_file_info(message_id, channel_id)
+        
+        if not message:
             raise HTTPException(status_code=404, detail="File content not found in Telegram")
 
         # Determine media type based on quality
@@ -52,7 +87,47 @@ async def stream_track(
         if "flac" in quality.lower():
             media_type = "audio/flac"
 
-        return StreamingResponse(file_iterator, media_type=media_type)
+        # Handle Range header for seeking
+        if range and file_size > 0:
+            start, end = parse_range_header(range, file_size)
+            content_length = end - start + 1
+            
+            # Get stream with offset and limit
+            file_iterator = await telegram_service.get_file_stream(
+                message_id, channel_id, 
+                offset=start, 
+                limit=content_length
+            )
+
+            if not file_iterator:
+                raise HTTPException(status_code=404, detail="File content not found in Telegram")
+
+            headers = {
+                "Content-Range": f"bytes {start}-{end}/{file_size}",
+                "Accept-Ranges": "bytes",
+                "Content-Length": str(content_length),
+            }
+
+            return StreamingResponse(
+                file_iterator, 
+                status_code=206,  # Partial Content
+                media_type=media_type,
+                headers=headers
+            )
+        else:
+            # No range request - stream entire file
+            file_iterator = await telegram_service.get_file_stream(message_id, channel_id)
+
+            if not file_iterator:
+                raise HTTPException(status_code=404, detail="File content not found in Telegram")
+
+            headers = {
+                "Accept-Ranges": "bytes",
+            }
+            if file_size > 0:
+                headers["Content-Length"] = str(file_size)
+
+            return StreamingResponse(file_iterator, media_type=media_type, headers=headers)
 
     except HTTPException:
         raise
