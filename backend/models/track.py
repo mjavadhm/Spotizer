@@ -9,6 +9,7 @@ class Track(Base):
     # Match exact database schema
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     track_id = Column(String(64), index=True)  # Deezer track ID as string
+    spotify_id = Column(String(64), nullable=True, index=True)  # Spotify track ID for linking
     url = Column(Text, nullable=True)
     file_id = Column(Text, nullable=True)
     title = Column(String(255), nullable=True)

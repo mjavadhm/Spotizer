@@ -73,12 +73,13 @@ class DownloadController:
             return await session.get(Track, track_id)
 
     @staticmethod
-    async def add_track(track_id, url, file_id, title, artist, album, duration, quality, channel_id=None, message_id=None):
+    async def add_track(track_id, url, file_id, title, artist, album, duration, quality, channel_id=None, message_id=None, spotify_id=None):
         """Add a track to the database."""
         async with async_session_maker() as session:
             async with session.begin():
                 track = Track(
                     track_id=track_id,
+                    spotify_id=spotify_id,
                     url=url,
                     file_id=file_id,
                     title=title,
@@ -188,11 +189,19 @@ class DownloadController:
             logger.info(f"User {user_id} settings - Quality: {quality}, Make ZIP: {make_zip}")
             print(f"[DEBUG] Settings - Quality: {quality}, Make ZIP: {make_zip}")
 
-            # Convert Spotify URL to Deezer if needed
+            # Extract and store Spotify ID before conversion
+            spotify_id = None
             if "spotify" in url:
                 if 'playlist' in url:
                     logger.error(f"Spotify playlist not supported: {url}")
                     return False, "Spotify playlists are not supported yet. Please use a Deezer link."
+                # Extract Spotify ID from URL before conversion
+                import re
+                spotify_match = re.search(r'spotify\.com/(track|album)/([a-zA-Z0-9]+)', url)
+                if spotify_match:
+                    spotify_id = spotify_match.group(2)
+                    logger.info(f"Extracted Spotify ID: {spotify_id}")
+                
                 print(f"[DEBUG] Converting Spotify URL to Deezer...")
                 logger.info(f"Converting Spotify URL to Deezer URL: {url}")
                 url = await self.deezer_service.convert_to_deezer(url)
@@ -413,6 +422,7 @@ class DownloadController:
                                         quality=quality,
                                         channel_id=int(music_channel_id) if music_channel_id else None,
                                         message_id=channel_msg_id,
+                                        spotify_id=spotify_id,
                                     )
                                     
                                     download_id = await self.add_download(

@@ -68,6 +68,7 @@ class UserActivity(Base):
 class Track(Base):
     __tablename__ = "tracks"
     track_id = Column(String, primary_key=True)
+    spotify_id = Column(String(64), nullable=True, index=True)  # Spotify track ID for linking
     url = Column(Text, nullable=False)
     file_id = Column(Text, nullable=True)
     title = Column(String(255), nullable=True)
