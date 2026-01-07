@@ -78,6 +78,8 @@ class Track(Base):
     duration = Column(Integer, nullable=True)
     download_count = Column(Integer, default=1)
     last_downloaded = Column(TIMESTAMP, server_default=func.now())
+    channel_id = Column(BigInteger, nullable=True)  # Telegram channel ID for streaming
+    message_id = Column(BigInteger, nullable=True)  # Message ID in the channel
 
     __table_args__ = (Index("idx_tracks_downloads", download_count.desc()),)
 
