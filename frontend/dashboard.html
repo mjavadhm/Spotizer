@@ -189,7 +189,7 @@
     <!-- Audio Player Bar -->
     <div id="audio-player-bar" class="audio-player-bar hidden">
         <audio id="audio-element"></audio>
-        
+
         <div class="player-track-info">
             <div class="player-cover">
                 <img id="player-cover-img" src="" alt="">
@@ -224,11 +224,27 @@
         </div>
 
         <div class="player-volume">
+            <button id="player-queue-btn" class="player-btn" title="Queue">
+                <i class="fas fa-list"></i>
+            </button>
             <button id="player-mute" class="player-btn" title="Mute">
                 <i class="fas fa-volume-up"></i>
             </button>
             <div class="volume-slider">
                 <input type="range" id="player-volume" min="0" max="100" value="80">
+            </div>
+        </div>
+
+        <!-- Queue Panel (slides up) -->
+        <div id="queue-panel" class="queue-panel hidden">
+            <div class="queue-header">
+                <h3>Queue</h3>
+                <button id="queue-close-btn" class="player-btn" title="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="queue-list" class="queue-list">
+                <p class="placeholder-text">No tracks in queue</p>
             </div>
         </div>
     </div>

@@ -546,11 +546,17 @@ async function loadSimilarTracks(trackId) {
             return;
         }
 
+        // Store similar tracks globally for queue context
+        window.currentSimilarTracks = similarTracks;
+
         container.innerHTML = similarTracks.map((track, index) => `
             <div class="track-item clickable" onclick="navigateToTrack('${track.id}')">
                 <div class="track-number">${index + 1}</div>
-                <div class="track-cover-mini">
+                <div class="track-cover-mini" style="position: relative;">
                     ${track.image ? `<img src="${track.image}" alt="${track.name}">` : '<i class="fas fa-music"></i>'}
+                    <button class="cover-play-btn" onclick="event.stopPropagation(); playSimilarTrack(${index})" title="Play">
+                        <i class="fas fa-play"></i>
+                    </button>
                 </div>
                 <div class="track-info">
                     <div class="track-name">${track.name}</div>
@@ -567,6 +573,14 @@ async function loadSimilarTracks(trackId) {
     } catch (error) {
         console.error('Failed to load similar tracks:', error);
         container.innerHTML = '<p class="placeholder-text">Could not load similar tracks</p>';
+    }
+}
+
+// Play track from similar tracks with context
+function playSimilarTrack(index) {
+    const tracks = window.currentSimilarTracks;
+    if (tracks && tracks[index]) {
+        playTrackInContext(tracks[index], tracks, index);
     }
 }
 
@@ -772,11 +786,17 @@ function showArtistDetailPage(item) {
 }
 
 function renderArtistTopTracks(tracks) {
+    // Store artist tracks globally for queue context
+    window.currentArtistTracks = tracks;
+
     return tracks.slice(0, 10).map((track, index) => `
         <div class="track-item clickable" onclick="navigateToTrack('${track.id}')">
             <div class="track-number">${index + 1}</div>
-            <div class="track-cover-mini">
+            <div class="track-cover-mini" style="position: relative;">
                 ${track.image ? `<img src="${track.image}" alt="${track.name}">` : '<i class="fas fa-music"></i>'}
+                <button class="cover-play-btn" onclick="event.stopPropagation(); playArtistTrack(${index})" title="Play">
+                    <i class="fas fa-play"></i>
+                </button>
             </div>
             <div class="track-info">
                 <div class="track-name">${track.name}</div>
@@ -792,6 +812,14 @@ function renderArtistTopTracks(tracks) {
             </div>
         </div>
     `).join('');
+}
+
+// Play track from artist with context
+function playArtistTrack(index) {
+    const tracks = window.currentArtistTracks;
+    if (tracks && tracks[index]) {
+        playTrackInContext(tracks[index], tracks, index);
+    }
 }
 
 function renderArtistAlbums(albums) {
@@ -1132,6 +1160,12 @@ class AudioPlayer {
         this.artistEl = document.getElementById('player-track-artist');
         this.trackInfoEl = document.querySelector('.player-track-info');
 
+        // Queue panel elements
+        this.queueBtn = document.getElementById('player-queue-btn');
+        this.queuePanel = document.getElementById('queue-panel');
+        this.queueCloseBtn = document.getElementById('queue-close-btn');
+        this.queueList = document.getElementById('queue-list');
+
         this.currentTrack = null;
         this.isPlaying = false;
         this.previousVolume = 0.8;
@@ -1158,6 +1192,10 @@ class AudioPlayer {
 
         // Track info click - navigate to track detail
         this.trackInfoEl?.addEventListener('click', () => this.navigateToCurrentTrack());
+
+        // Queue panel toggle
+        this.queueBtn?.addEventListener('click', () => this.toggleQueue());
+        this.queueCloseBtn?.addEventListener('click', () => this.hideQueue());
 
         // Seek slider
         this.seekSlider?.addEventListener('input', (e) => {
@@ -1428,6 +1466,69 @@ class AudioPlayer {
         if (this.volumeSlider) {
             const percent = volume * 100;
             this.volumeSlider.style.setProperty('--volume-percent', `${percent}%`);
+        }
+    }
+
+    // ==================== Queue Panel Methods ====================
+
+    toggleQueue() {
+        if (this.queuePanel?.classList.contains('show')) {
+            this.hideQueue();
+        } else {
+            this.showQueue();
+        }
+    }
+
+    showQueue() {
+        if (this.queuePanel) {
+            this.renderQueue();
+            this.queuePanel.classList.remove('hidden');
+            // Trigger reflow for animation
+            this.queuePanel.offsetHeight;
+            this.queuePanel.classList.add('show');
+        }
+    }
+
+    hideQueue() {
+        if (this.queuePanel) {
+            this.queuePanel.classList.remove('show');
+            setTimeout(() => {
+                this.queuePanel.classList.add('hidden');
+            }, 300);
+        }
+    }
+
+    renderQueue() {
+        if (!this.queueList) return;
+
+        if (this.queue.length === 0) {
+            this.queueList.innerHTML = '<p class="placeholder-text">No tracks in queue</p>';
+            return;
+        }
+
+        this.queueList.innerHTML = this.queue.map((track, index) => {
+            const artist = track.main_artist || track.artists?.[0]?.name || track.artist || '';
+            const isActive = index === this.queueIndex;
+            return `
+                <div class="queue-item ${isActive ? 'active' : ''}" onclick="audioPlayer.playFromQueue(${index})">
+                    <div class="queue-item-number">${isActive ? '<i class="fas fa-volume-up"></i>' : index + 1}</div>
+                    <div class="queue-item-info">
+                        <div class="queue-item-title">${track.name}</div>
+                        <div class="queue-item-artist">${artist}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    playFromQueue(index) {
+        if (this.queue[index]) {
+            this.queueIndex = index;
+            const track = this.queue[index];
+            const coverUrl = track.album?.images?.[0]?.url || track.image || track.cover_url || '';
+            const artist = track.main_artist || track.artists?.[0]?.name || '';
+            this.play(track.id, track.name, artist, coverUrl);
+            this.renderQueue(); // Re-render to update active state
         }
     }
 }
