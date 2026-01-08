@@ -1,7 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request, status, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -18,6 +18,7 @@ from .routers import (
 )
 from .services.telegram_client import telegram_service
 from .services.download_queue import download_queue
+from .services.websocket_manager import ws_manager
 
 # Configure logging
 logging.basicConfig(
@@ -131,6 +132,21 @@ async def root():
         "docs": "/docs",
         "version": "1.0.0"
     }
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket endpoint for real-time notifications."""
+    await ws_manager.connect(websocket)
+    try:
+        while True:
+            # Keep connection alive, ignore incoming messages
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
+    except Exception as e:
+        logger.warning(f"WebSocket error: {e}")
+        ws_manager.disconnect(websocket)
 
 
 # Convenience routes for frontend compatibility

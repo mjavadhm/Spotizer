@@ -111,6 +111,88 @@ function initializeApp() {
 
     // Load page from URL (for routing)
     loadPageFromUrl();
+
+    // Connect to WebSocket for real-time notifications
+    connectWebSocket();
+}
+
+// ==================== WebSocket Connection ====================
+
+let ws = null;
+
+function connectWebSocket() {
+    // Determine WebSocket URL (ws:// for http, wss:// for https)
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${API_BASE_URL.replace(/^https?:\/\//, '').replace(/\/api\/v1$/, '')}/ws`;
+
+    try {
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+            console.log('WebSocket connected');
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                handleWebSocketMessage(data);
+            } catch (e) {
+                console.error('Failed to parse WebSocket message:', e);
+            }
+        };
+
+        ws.onclose = () => {
+            console.log('WebSocket disconnected, reconnecting in 5s...');
+            setTimeout(connectWebSocket, 5000);
+        };
+
+        ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+    } catch (e) {
+        console.error('Failed to connect WebSocket:', e);
+    }
+}
+
+function handleWebSocketMessage(data) {
+    if (data.type === 'download_started') {
+        const title = data.title || 'Track';
+        const artist = data.artist || '';
+        showToast(`⏳ Downloading: ${artist ? artist + ' - ' : ''}${title}`, 'info');
+    } else if (data.type === 'download_completed') {
+        if (data.success) {
+            showToast('✅ Download completed!', 'success');
+        } else {
+            showToast(`❌ Download failed: ${data.error || 'Unknown error'}`, 'error');
+        }
+    }
+}
+
+// ==================== Toast Notifications ====================
+
+function showToast(message, type = 'info') {
+    // Remove existing toast if any
+    const existingToast = document.querySelector('.toast-notification');
+    if (existingToast) {
+        existingToast.remove();
+    }
+
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.className = `toast-notification toast-${type}`;
+    toast.textContent = message;
+
+    // Add to body
+    document.body.appendChild(toast);
+
+    // Trigger animation
+    setTimeout(() => toast.classList.add('show'), 10);
+
+    // Auto-remove after 4 seconds
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 4000);
 }
 
 // Load and display user info
@@ -207,15 +289,19 @@ function displaySearchResults(results, type) {
         return;
     }
 
+    // Store results globally for queue context
+    window.currentSearchResults = results;
+    window.currentSearchType = type;
+
     resultsContainer.innerHTML = '';
 
-    results.forEach(item => {
-        const card = createResultCard(item, type);
+    results.forEach((item, index) => {
+        const card = createResultCard(item, type, results, index);
         resultsContainer.appendChild(card);
     });
 }
 
-function createResultCard(item, type) {
+function createResultCard(item, type, trackList = null, index = 0) {
     const card = document.createElement('div');
     card.className = 'result-card';
 
@@ -255,7 +341,12 @@ function createResultCard(item, type) {
         // If clicked on play button, stream the track
         if (e.target.closest('.track-play-btn')) {
             e.stopPropagation();
-            playTrackFromItem(item);
+            // Use context-aware play if we have a track list
+            if (trackList && trackList.length > 0) {
+                playTrackInContext(item, trackList, index);
+            } else {
+                playTrackFromItem(item);
+            }
             return;
         }
         // If clicked on a link, handle that instead
@@ -539,7 +630,11 @@ function showAlbumDetailPage(item) {
     }
 }
 
-function renderAlbumTracks(tracks) {
+function renderAlbumTracks(tracks, albumInfo = null) {
+    // Store album tracks globally for queue context
+    window.currentAlbumTracks = tracks;
+    window.currentAlbumInfo = albumInfo;
+
     return tracks.map((track, index) => `
         <div class="track-item clickable" onclick="navigateToTrack('${track.id}')">
             <div class="track-number">${track.track_number || index + 1}</div>
@@ -551,12 +646,23 @@ function renderAlbumTracks(tracks) {
             </div>
             <div class="track-duration">${track.duration || formatDuration(track.duration_ms)}</div>
             <div class="track-actions">
+                <button onclick="event.stopPropagation(); playAlbumTrack(${index})" title="Play" class="play-btn">
+                    <i class="fas fa-play"></i>
+                </button>
                 <button onclick="event.stopPropagation(); downloadItem('${track.id}', 'track')" title="Download">
                     <i class="fas fa-download"></i>
                 </button>
             </div>
         </div>
     `).join('');
+}
+
+// Play track from album with context
+function playAlbumTrack(index) {
+    const tracks = window.currentAlbumTracks;
+    if (tracks && tracks[index]) {
+        playTrackInContext(tracks[index], tracks, index);
+    }
 }
 
 async function showAlbumDetail(albumId) {
@@ -1013,6 +1119,8 @@ class AudioPlayer {
         this.audio = document.getElementById('audio-element');
         this.playerBar = document.getElementById('audio-player-bar');
         this.playPauseBtn = document.getElementById('player-play-pause');
+        this.prevBtn = document.getElementById('player-prev');
+        this.nextBtn = document.getElementById('player-next');
         this.seekSlider = document.getElementById('player-seek');
         this.progressFill = document.getElementById('player-progress-fill');
         this.currentTimeEl = document.getElementById('player-current-time');
@@ -1022,10 +1130,15 @@ class AudioPlayer {
         this.coverImg = document.getElementById('player-cover-img');
         this.titleEl = document.getElementById('player-track-title');
         this.artistEl = document.getElementById('player-track-artist');
+        this.trackInfoEl = document.querySelector('.player-track-info');
 
         this.currentTrack = null;
         this.isPlaying = false;
         this.previousVolume = 0.8;
+
+        // Playback queue system
+        this.queue = [];
+        this.queueIndex = -1;
 
         this.init();
     }
@@ -1038,6 +1151,13 @@ class AudioPlayer {
 
         // Play/Pause button
         this.playPauseBtn?.addEventListener('click', () => this.togglePlayPause());
+
+        // Prev/Next buttons
+        this.prevBtn?.addEventListener('click', () => this.playPrevious());
+        this.nextBtn?.addEventListener('click', () => this.playNext());
+
+        // Track info click - navigate to track detail
+        this.trackInfoEl?.addEventListener('click', () => this.navigateToCurrentTrack());
 
         // Seek slider
         this.seekSlider?.addEventListener('input', (e) => {
@@ -1078,9 +1198,12 @@ class AudioPlayer {
 
             this.currentTrack = { trackId, title, artist, coverUrl, quality };
 
-            // Update UI
+            // Update UI with loading state
             this.titleEl.textContent = title || 'Unknown Title';
-            this.artistEl.textContent = artist || 'Unknown Artist';
+            this.artistEl.textContent = 'Loading...';
+
+            // Add loading class for visual feedback
+            this.playerBar.classList.add('loading');
 
             if (coverUrl) {
                 this.coverImg.src = coverUrl;
@@ -1093,13 +1216,43 @@ class AudioPlayer {
             // Show player bar
             this.show();
 
-            // Load and play
+            // Reset seek slider
+            if (this.seekSlider) {
+                this.seekSlider.value = 0;
+            }
+
+            // Load the audio source
             this.audio.src = streamUrl;
+
+            // Wait for audio to be ready (handles on-demand download wait)
+            await new Promise((resolve, reject) => {
+                const onCanPlay = () => {
+                    this.audio.removeEventListener('canplay', onCanPlay);
+                    this.audio.removeEventListener('error', onError);
+                    resolve();
+                };
+                const onError = (e) => {
+                    this.audio.removeEventListener('canplay', onCanPlay);
+                    this.audio.removeEventListener('error', onError);
+                    reject(e);
+                };
+                this.audio.addEventListener('canplay', onCanPlay);
+                this.audio.addEventListener('error', onError);
+                this.audio.load();
+            });
+
+            // Remove loading state
+            this.playerBar.classList.remove('loading');
+            this.artistEl.textContent = artist || 'Unknown Artist';
+
+            // Play
             await this.audio.play();
 
             showToast(`Now playing: ${title}`, 'success');
         } catch (error) {
             console.error('Failed to play track:', error);
+            this.playerBar.classList.remove('loading');
+            this.artistEl.textContent = artist || 'Unknown Artist';
             showToast('Failed to play track. It may not be available for streaming.', 'error');
         }
     }
@@ -1177,6 +1330,11 @@ class AudioPlayer {
         if (icon) icon.className = 'fas fa-play';
         this.seekSlider.value = 0;
         this.progressFill.style.width = '0%';
+
+        // Auto-play next track if queue has more
+        if (this.queueIndex < this.queue.length - 1) {
+            this.playNext();
+        }
     }
 
     onError(e) {
@@ -1200,6 +1358,78 @@ class AudioPlayer {
         const secs = Math.floor(seconds % 60);
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
+
+    // ==================== Queue Methods ====================
+
+    setQueue(tracks, startIndex = 0) {
+        // Set playback queue with array of track objects
+        // Each track should have: id, name, artists/main_artist, album/image
+        this.queue = tracks;
+        this.queueIndex = startIndex;
+    }
+
+    playInContext(track, trackList, index) {
+        // Play a track within a context (album, playlist, search results)
+        this.setQueue(trackList, index);
+        const coverUrl = track.album?.images?.[0]?.url || track.image || track.cover_url || '';
+        const artist = track.main_artist || track.artists?.[0]?.name || '';
+        this.play(track.id, track.name, artist, coverUrl);
+    }
+
+    playNext() {
+        if (this.queue.length === 0) {
+            showToast('No queue available', 'info');
+            return;
+        }
+
+        if (this.queueIndex < this.queue.length - 1) {
+            this.queueIndex++;
+            const track = this.queue[this.queueIndex];
+            const coverUrl = track.album?.images?.[0]?.url || track.image || track.cover_url || '';
+            const artist = track.main_artist || track.artists?.[0]?.name || '';
+            this.play(track.id, track.name, artist, coverUrl);
+        } else {
+            showToast('End of queue', 'info');
+        }
+    }
+
+    playPrevious() {
+        if (this.queue.length === 0) {
+            // If no queue, just restart current track
+            if (this.audio.currentTime > 3) {
+                this.audio.currentTime = 0;
+            }
+            return;
+        }
+
+        // If more than 3 seconds in, restart current track
+        if (this.audio.currentTime > 3) {
+            this.audio.currentTime = 0;
+            return;
+        }
+
+        if (this.queueIndex > 0) {
+            this.queueIndex--;
+            const track = this.queue[this.queueIndex];
+            const coverUrl = track.album?.images?.[0]?.url || track.image || track.cover_url || '';
+            const artist = track.main_artist || track.artists?.[0]?.name || '';
+            this.play(track.id, track.name, artist, coverUrl);
+        }
+    }
+
+    navigateToCurrentTrack() {
+        if (this.currentTrack?.trackId) {
+            navigateToTrack(this.currentTrack.trackId);
+        }
+    }
+
+    updateVolumeSliderTrack(volume) {
+        // Update volume slider visual fill
+        if (this.volumeSlider) {
+            const percent = volume * 100;
+            this.volumeSlider.style.setProperty('--volume-percent', `${percent}%`);
+        }
+    }
 }
 
 // Global audio player instance
@@ -1220,11 +1450,26 @@ function playTrack(trackId, title, artist, coverUrl, quality) {
     audioPlayer.play(trackId, title, artist, coverUrl, selectedQuality);
 }
 
-// Play track from search result or detail page
+// Play track from search result or detail page (single track, no queue)
 function playTrackFromItem(item) {
+    if (!audioPlayer) {
+        audioPlayer = new AudioPlayer();
+    }
+    // Clear queue for single play
+    audioPlayer.queue = [];
+    audioPlayer.queueIndex = -1;
+
     const coverUrl = item.album?.images?.[0]?.url || item.image || item.cover_url || '';
     const artist = getArtistName(item);
     playTrack(item.id, item.name, artist, coverUrl);
+}
+
+// Play track with context (album, playlist, search results)
+function playTrackInContext(track, trackList, index) {
+    if (!audioPlayer) {
+        audioPlayer = new AudioPlayer();
+    }
+    audioPlayer.playInContext(track, trackList, index);
 }
 
 // Play track from detail page (uses stored currentDetailItem)

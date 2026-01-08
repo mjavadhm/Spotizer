@@ -19,6 +19,7 @@ from ..database import AsyncSessionLocal as async_session_maker
 from ..models.download_queue import DownloadQueueItem
 from ..models.track import Track
 from .telegram_client import telegram_service
+from .websocket_manager import ws_manager
 
 logger = logging.getLogger(__name__)
 
@@ -292,9 +293,22 @@ class DownloadQueue:
                 
                 try:
                     await self._process_item(item)
+                    # Notify frontend of successful completion
+                    await ws_manager.broadcast({
+                        "type": "download_completed",
+                        "spotify_id": item.spotify_id,
+                        "success": True
+                    })
                 except Exception as e:
                     logger.error(f"Error processing {item.spotify_id}: {e}", exc_info=True)
                     await self._update_status(item.db_id, 'failed', str(e))
+                    # Notify frontend of failure
+                    await ws_manager.broadcast({
+                        "type": "download_completed",
+                        "spotify_id": item.spotify_id,
+                        "success": False,
+                        "error": str(e)
+                    })
                 finally:
                     self.processing.discard(item.spotify_id)
                     
@@ -318,6 +332,14 @@ class DownloadQueue:
         logger.info(f"Processing: {item.title} - {item.artist} (spotify_id={item.spotify_id})")
         
         await self._update_status(item.db_id, 'processing')
+        
+        # Notify frontend that download has started
+        await ws_manager.broadcast({
+            "type": "download_started",
+            "spotify_id": item.spotify_id,
+            "title": item.title,
+            "artist": item.artist
+        })
         
         deezer_service = self._get_deezer_service()
         
@@ -366,10 +388,15 @@ class DownloadQueue:
         
         # Step 2: Check if we already have this track by Deezer ID
         async with async_session_maker() as session:
+            # Check for existing MP3_320 track
             result = await session.execute(
-                select(Track).where(Track.track_id == str(deezer_id))
+                select(Track).where(
+                    Track.track_id == str(deezer_id),
+                    Track.quality == 'MP3_320'
+                )
             )
-            existing_track = result.scalar_one_or_none()
+            # Use first() instead of scalar_one_or_none() to handle potential duplicates gracefully
+            existing_track = result.scalars().first()
             
             if existing_track:
                 # Track exists! Just update spotify_id
@@ -401,8 +428,9 @@ class DownloadQueue:
         """Download track from Deezer and upload to Telegram channel."""
         deezer_service = self._get_deezer_service()
         
-        # Download from Deezer
-        quality = os.getenv('DEFAULT_QUALITY', 'MP3_320')
+        # Download from Deezer (Hardcoded to MP3_320 per request)
+        quality = 'MP3_320'
+        # quality = os.getenv('DEFAULT_QUALITY', 'MP3_320')
         smart = await deezer_service.download(deezer_url, quality_download=quality)
         
         if not smart or not hasattr(smart, 'track') or not smart.track:

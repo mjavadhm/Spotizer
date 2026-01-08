@@ -61,7 +61,9 @@ async def stream_track(
     Stream a track from Telegram via Telethon with Range request support for seeking.
     Accepts either Spotify ID or Deezer ID (track_id).
     If Spotify ID is not found, attempts on-demand download.
+    Quality is strictly forced to MP3_320.
     """
+    quality = "MP3_320"
     try:
         track = None
         
@@ -187,7 +189,9 @@ async def download_track(
     """
     Download a track from Telegram via Telethon.
     Accepts either Spotify ID or Deezer ID (track_id).
+    Quality is strictly forced to MP3_320.
     """
+    quality = "MP3_320"
     try:
         track = None
         
