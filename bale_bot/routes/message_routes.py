@@ -1,5 +1,5 @@
 from bale_bot.controllers.download_controller import BaleDownloadController
-from controllers.playlist_controller import PlayListController
+from bale_bot.controllers.playlist_controller import BalePlaylistController
 from utils.url_validator import URLValidator
 from bale_bot.views.message_view import MessageView
 from bale_bot.views.music_view import MusicView
@@ -13,7 +13,7 @@ logger = get_logger(__name__)
 def setup_message_routes(download_controller: BaleDownloadController):
     """Set up message route handlers for Bale bot"""
     url_validator = URLValidator()
-    playlist_controller = PlayListController()
+    playlist_controller = BalePlaylistController()
     logger.info("Setting up message routes for Bale")
 
     @bot.on_message(filters=lambda m: m.text and not m.text.startswith("/"))

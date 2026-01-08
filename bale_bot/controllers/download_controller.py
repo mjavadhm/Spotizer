@@ -3,9 +3,9 @@ import re
 from sqlalchemy.future import select
 from sqlalchemy.sql import func
 
-from database.session import async_session_maker
-from controllers.user_controller import UserController
-from models.base import User, UserSettings, UserDownload
+from bale_bot.database import bale_async_session_maker
+from bale_bot.database.models import BaleUserDownload
+from bale_bot.controllers.user_controller import BaleUserController
 from services.deezer_service import DeezerService
 from services.spotify_service import SpotifyService
 from utils.file_handler import FileHandler
@@ -34,14 +34,14 @@ class BaleDownloadController:
     async def add_download(user_id, deezer_id, content_type, quality, url, title, artist, album, duration=None, file_name=None):
         """Add a download to the database. Returns download_id for rating buttons.
         Note: For Bale, we don't store file_id since it's Telegram-specific."""
-        async with async_session_maker() as session:
+        async with bale_async_session_maker() as session:
             # Check if this download already exists
             result = await session.execute(
-                select(UserDownload).where(
-                    UserDownload.user_id == user_id,
-                    UserDownload.deezer_id == deezer_id,
-                    UserDownload.content_type == content_type,
-                    UserDownload.quality == quality
+                select(BaleUserDownload).where(
+                    BaleUserDownload.user_id == user_id,
+                    BaleUserDownload.deezer_id == deezer_id,
+                    BaleUserDownload.content_type == content_type,
+                    BaleUserDownload.quality == quality
                 )
             )
             existing = result.scalars().first()
@@ -53,7 +53,7 @@ class BaleDownloadController:
                 return existing.download_id
             
             # Insert new download (file_id is None for Bale)
-            download = UserDownload(
+            download = BaleUserDownload(
                 user_id=user_id,
                 deezer_id=deezer_id,
                 content_type=content_type,
@@ -143,7 +143,7 @@ class BaleDownloadController:
                 return False, "Invalid URL format. Please provide a valid Deezer or Spotify link."
 
             # Get user settings
-            success, user_settings = await UserController.get_user_settings(user_id)
+            success, user_settings = await BaleUserController.get_user_settings(user_id)
             if not success:
                 quality = 'MP3_320'
                 make_zip = True
@@ -329,11 +329,11 @@ class BaleDownloadController:
     @staticmethod
     async def get_user_downloads(user_id, limit=5, offset=0):
         """Get user's download history."""
-        async with async_session_maker() as session:
+        async with bale_async_session_maker() as session:
             result = await session.execute(
-                select(UserDownload)
-                .where(UserDownload.user_id == user_id)
-                .order_by(UserDownload.downloaded_at.desc())
+                select(BaleUserDownload)
+                .where(BaleUserDownload.user_id == user_id)
+                .order_by(BaleUserDownload.downloaded_at.desc())
                 .offset(offset)
                 .limit(limit)
             )
@@ -351,12 +351,12 @@ class BaleDownloadController:
         Returns:
             tuple[bool, str]: Success status and message
         """
-        async with async_session_maker() as session:
+        async with bale_async_session_maker() as session:
             async with session.begin():
                 result = await session.execute(
-                    select(UserDownload).where(
-                        UserDownload.download_id == download_id,
-                        UserDownload.user_id == user_id
+                    select(BaleUserDownload).where(
+                        BaleUserDownload.download_id == download_id,
+                        BaleUserDownload.user_id == user_id
                     )
                 )
                 download = result.scalars().first()

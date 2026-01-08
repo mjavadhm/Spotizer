@@ -1,6 +1,6 @@
-from controllers.user_controller import UserController
+from bale_bot.controllers.user_controller import BaleUserController
 from bale_bot.controllers.download_controller import BaleDownloadController
-from controllers.playlist_controller import PlayListController
+from bale_bot.controllers.playlist_controller import BalePlaylistController
 from bale_bot.views.message_view import MessageView
 from bale_bot.views.music_view import MusicView
 from bale_bot.views.playlist_view import PlaylistView
@@ -10,7 +10,7 @@ from logger import get_logger
 logger = get_logger(__name__)
 
 
-def setup_callback_routes(user_controller: UserController, download_controller: BaleDownloadController, playlist_controller: PlayListController):
+def setup_callback_routes(user_controller: BaleUserController, download_controller: BaleDownloadController, playlist_controller: BalePlaylistController):
     """Set up callback query handlers for Bale bot"""
     logger.info("Setting up callback routes for Bale")
 

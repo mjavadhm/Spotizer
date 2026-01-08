@@ -1,5 +1,5 @@
-from controllers.user_controller import UserController
-from controllers.playlist_controller import PlayListController
+from bale_bot.controllers.user_controller import BaleUserController
+from bale_bot.controllers.playlist_controller import BalePlaylistController
 from bale_bot.views.message_view import MessageView
 from bale_bot.views.playlist_view import PlaylistView
 from bale_bot.bot import bot
@@ -8,7 +8,7 @@ from logger import get_logger
 logger = get_logger(__name__)
 
 
-def setup_command_routes(user_controller: UserController, playlist_controller: PlayListController):
+def setup_command_routes(user_controller: BaleUserController, playlist_controller: BalePlaylistController):
     """Set up command route handlers for Bale bot"""
     logger.info("Setting up command routes for Bale")
 
@@ -27,7 +27,6 @@ def setup_command_routes(user_controller: UserController, playlist_controller: P
                 'first_name': getattr(user, 'first_name', None),
                 'last_name': getattr(user, 'last_name', None),
                 'language_code': getattr(user, 'language_code', None),
-                'is_premium': False,
                 'is_bot': getattr(user, 'is_bot', False)
             }
             logger.info(f"User data collected for user {user_id}: {user_data}")

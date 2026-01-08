@@ -2,10 +2,10 @@ import os
 import asyncio
 from dotenv import load_dotenv
 
-from controllers.user_controller import UserController
+from bale_bot.controllers.user_controller import BaleUserController
 from bale_bot.controllers.download_controller import BaleDownloadController
-from controllers.playlist_controller import PlayListController
-from database.session import init_models
+from bale_bot.controllers.playlist_controller import BalePlaylistController
+from bale_bot.database import init_bale_models
 from bale_bot.routes.command_routes import setup_command_routes
 from bale_bot.routes.message_routes import setup_message_routes
 from bale_bot.routes.callback_routes import setup_callback_routes
@@ -32,11 +32,11 @@ class BaleMusicDownloaderBot:
         try:
             logger.info("Initializing BaleMusicDownloaderBot")
             
-            # Initialize controllers
-            self.user_controller = UserController()
+            # Initialize Bale-specific controllers
+            self.user_controller = BaleUserController()
             self.download_controller = BaleDownloadController()
-            self.playlist_controller = PlayListController()
-            logger.info("Controllers initialized")
+            self.playlist_controller = BalePlaylistController()
+            logger.info("Bale controllers initialized")
             
             # Set up routes
             self._setup_routes()
@@ -75,9 +75,9 @@ class BaleMusicDownloaderBot:
         try:
             logger.info("Starting bot initialization")
 
-            # Initialize database
-            await init_models()
-            logger.info("Database initialized successfully")
+            # Initialize Bale-specific database
+            await init_bale_models()
+            logger.info("Bale database initialized successfully")
             
             # Start the bot (balethon uses run() method)
             logger.info("Starting Bale bot...")
@@ -97,9 +97,9 @@ def main():
         bot_instance = BaleMusicDownloaderBot()
         logger.info("Bot instance created")
         
-        # Initialize database synchronously first
-        asyncio.run(init_models())
-        logger.info("Database initialized")
+        # Initialize Bale-specific database synchronously first
+        asyncio.run(init_bale_models())
+        logger.info("Bale database initialized")
         
         # Start bot (balethon's run() handles the event loop)
         logger.info("Starting Bale bot polling...")
