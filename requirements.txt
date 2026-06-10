@@ -34,7 +34,8 @@ alembic>=1.13.0
 # Music APIs and Downloaders
 spotipy>=2.23.0
 deezloader
-# Alternative: deezer-python>=5.0.0 (if deezloader doesn't work)
+ytmusicapi>=1.5.4
+yt-dlp>=2023.12.30
 
 # Audio/Video Processing
 ffmpeg-python>=0.2.0

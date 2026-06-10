@@ -3,7 +3,7 @@ import os
 from sqlalchemy.future import select
 from database.session import async_session_maker
 from models.base import Playlist, PlaylistTrack
-from services.deezer_service import DeezerService
+from services.ytmusic_service import YTMusicService
 import aiogram.types
 from bot import bot
 from logger import get_logger
@@ -13,7 +13,7 @@ logger = get_logger(__name__)
 
 class PlayListController:
     def __init__(self):
-        self.deezer_service = DeezerService()
+        self.ytmusic_service = YTMusicService()
 
     @staticmethod
     async def get_user_playlists(user_id: int) -> tuple[bool, list]:
@@ -65,7 +65,7 @@ class PlayListController:
 
     @staticmethod
     async def add_to_playlist(
-        user_id: int, playlist_id: int, track_id: int
+        user_id: int, playlist_id: int, track_id: str
     ) -> tuple[bool, str]:
         """Add a track to a playlist for a specific user."""
         async with async_session_maker() as session:
@@ -73,7 +73,7 @@ class PlayListController:
                 playlist = await session.get(Playlist, playlist_id)
                 if playlist and playlist.user_id == user_id:
                     playlist_track = PlaylistTrack(
-                        playlist_id=playlist_id, track_deezer_id=track_id
+                        playlist_id=playlist_id, yt_id=track_id
                     )
                     session.add(playlist_track)
                     await session.commit()
@@ -97,18 +97,9 @@ class PlayListController:
 
             else:
                 track_id = callback_query.data.split(":")[3]
-                spotify_url = f"https://open.spotify.com/track/{track_id}"
-                url = await self.deezer_service.convert_to_deezer(spotify_url)
-                if not url:
-                    await callback_query.answer("Could not find track on Deezer")
-                    return
-                content_type, deezer_id = self.deezer_service.extract_info_from_url(url)
-                if not deezer_id:
-                    await callback_query.answer("Could not process track")
-                    return
-                playlist_id = int(callback_query.data.split(":")[2])  # Convert to int
+                playlist_id = int(callback_query.data.split(":")[2])
                 success, message = await self.add_to_playlist(
-                    user_id, playlist_id, int(deezer_id)  # Ensure deezer_id is also int
+                    user_id, playlist_id, track_id
                 )
                 await callback_query.answer(message)
 
@@ -156,23 +147,25 @@ class PlayListController:
             )
             playlist_tracks = result.scalars().all()
             
-            # Get track info from Deezer
+            # Get track info from YTMusic
             tracks_info = []
             for pt in playlist_tracks:
                 try:
-                    track_info = await self.deezer_service.get_deezer_info('track', pt.track_deezer_id)
-                    if track_info:
-                        track_info['playlist_track_id'] = pt.playlist_track_id
-                        track_info['added_at'] = pt.added_at
-                        tracks_info.append(track_info)
+                    # check if yt_id is there (for new tracks), fallback to deezer_id if possible (but we don't have deezer service now)
+                    if pt.yt_id:
+                        track_info = await self.ytmusic_service.get_item_info('track', pt.yt_id)
+                        if track_info:
+                            track_info['playlist_track_id'] = pt.playlist_track_id
+                            track_info['added_at'] = pt.added_at
+                            tracks_info.append(track_info)
                 except Exception as e:
-                    logger.error(f"Error getting track info for {pt.track_deezer_id}: {str(e)}")
+                    logger.error(f"Error getting track info for {pt.yt_id}: {str(e)}")
                     continue
             
             return True, tracks_info
 
     async def create_playlist_and_add_track(
-        self, user_id: int, playlist_name: str, track_id: int
+        self, user_id: int, playlist_name: str, track_id: str
     ) -> tuple[bool, str]:
         """Create a new playlist and add a track to it."""
         async with async_session_maker() as session:
@@ -180,12 +173,12 @@ class PlayListController:
                 # Create playlist
                 playlist = Playlist(user_id=user_id, name=playlist_name)
                 session.add(playlist)
-                await session.flush()  # Get the playlist_id
+                await session.flush()
                 
                 # Add track to playlist
                 playlist_track = PlaylistTrack(
                     playlist_id=playlist.playlist_id,
-                    track_deezer_id=track_id
+                    yt_id=track_id
                 )
                 session.add(playlist_track)
                 await session.commit()

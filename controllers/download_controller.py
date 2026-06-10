@@ -5,8 +5,8 @@ from sqlalchemy.sql import func
 from database.session import async_session_maker
 from controllers.user_controller import UserController
 from models.base import User, UserSettings, UserDownload, Track
-from services.deezer_service import DeezerService
-from services.spotify_service import SpotifyService
+from services.yt_dlp_service import YTDlpService
+from services.ytmusic_service import YTMusicService
 from utils.file_handler import FileHandler
 from utils.url_validator import URLValidator
 from views.music_view import MusicView
@@ -18,22 +18,20 @@ logger = get_logger(__name__)
 
 class DownloadController:
     def __init__(self):
-        self.deezer_service = DeezerService()
-        self.spotify_service = SpotifyService()
+        self.yt_dlp_service = YTDlpService()
+        self.ytmusic_service = YTMusicService()
         self.file_handler = FileHandler()
         self.url_validator = URLValidator()
         logger.info("DownloadController initialized")
 
     @staticmethod
-    async def add_download(user_id, deezer_id, content_type, file_id, quality, url, title, artist, album, duration=None, file_name=None, channel_id=None, message_id=None):
-        """Add a download to the database. Returns download_id for rating buttons.
-        If the same track was already downloaded by this user, updates timestamp and returns existing download_id."""
+    async def add_download(user_id, yt_id, content_type, file_id, quality, url, title, artist, album, duration=None, file_name=None, channel_id=None, message_id=None):
+        """Add a download to the database."""
         async with async_session_maker() as session:
-            # Check if this download already exists
             result = await session.execute(
                 select(UserDownload).where(
                     UserDownload.user_id == user_id,
-                    UserDownload.deezer_id == deezer_id,
+                    UserDownload.yt_id == yt_id,
                     UserDownload.content_type == content_type,
                     UserDownload.quality == quality
                 )
@@ -41,16 +39,14 @@ class DownloadController:
             existing = result.scalars().first()
             
             if existing:
-                # Update timestamp for existing download
                 existing.downloaded_at = func.now()
-                existing.file_id = file_id  # Update file_id in case it changed
+                existing.file_id = file_id
                 await session.commit()
                 return existing.download_id
             
-            # Insert new download
             download = UserDownload(
                 user_id=user_id,
-                deezer_id=deezer_id,
+                yt_id=yt_id,
                 content_type=content_type,
                 file_id=file_id,
                 quality=quality,
@@ -68,13 +64,11 @@ class DownloadController:
 
     @staticmethod
     async def get_track(track_id):
-        """Get a track from the database."""
         async with async_session_maker() as session:
             return await session.get(Track, track_id)
 
     @staticmethod
     async def add_track(track_id, url, file_id, title, artist, album, duration, quality, channel_id=None, message_id=None, spotify_id=None):
-        """Add a track to the database."""
         async with async_session_maker() as session:
             async with session.begin():
                 track = Track(
@@ -92,138 +86,70 @@ class DownloadController:
                 )
                 session.add(track)
             await session.commit()
+
     async def search(self, query: str, search_type: str, page: int = 1) -> tuple[bool, list]:
-        """
-        Search for music content on Spotify
-        
-        Args:
-            query (str): Search query
-            search_type (str): Type of content to search for ('track', 'album', 'playlist')
-            page (int): Page number for pagination (default: 1)
-            
-        Returns:
-            tuple[bool, list]: Success status and list of search results
-        """
         try:
             logger.info(f"Searching for {search_type}s with query: {query} (Page: {page})")
-            
-            # Calculate offset for pagination (5 items per page)
             offset = (page - 1) * 5
-            
-            # Perform search using spotify service
-            results = await self.spotify_service.search(query, search_type, limit=5, offset=offset)
-            
+            results = await self.ytmusic_service.search(query, search_type, limit=5, offset=offset)
             if results:
-                logger.info(f"Found {len(results)} {search_type}s for query: {query}")
                 return True, results
             else:
-                logger.warning(f"No {search_type}s found for query: {query}")
                 return False, []
-                
         except Exception as e:
             logger.error(f"Search error for {search_type}s - Query: {query}: {str(e)}", exc_info=True)
             return False, []
 
     async def get_item_info(self, content_type: str, item_id: str) -> tuple[bool, dict]:
-        """
-        Get detailed information about a music item
-        
-        Args:
-            content_type (str): Type of content ('track', 'album', 'playlist')
-            item_id (str): Spotify ID of the item
-            
-        Returns:
-            tuple[bool, dict]: Success status and item information
-        """
         try:
             logger.info(f"Getting info for {content_type} with ID: {item_id}")
-            
-            item_info = await self.spotify_service.get_item_info(content_type, item_id)
-            
+            item_info = await self.ytmusic_service.get_item_info(content_type, item_id)
             if item_info:
-                logger.info(f"Successfully retrieved info for {content_type} {item_id}")
                 return True, item_info
             else:
-                logger.warning(f"No info found for {content_type} {item_id}")
                 return False, {}
-                
         except Exception as e:
             logger.error(f"Error getting item info for {content_type} {item_id}: {str(e)}", exc_info=True)
             return False, {}
 
     @staticmethod
-    async def get_track_by_deezer_id_quality(user_id, deezer_id, quality):
-        """Get a track by deezer_id and quality."""
+    async def get_track_by_yt_id_quality(user_id, yt_id, quality):
         async with async_session_maker() as session:
             result = await session.execute(
                 select(UserDownload)
                 .where(
                     UserDownload.user_id == user_id,
-                    UserDownload.deezer_id == deezer_id,
+                    UserDownload.yt_id == yt_id,
                     UserDownload.quality == quality,
                 )
             )
             return result.scalars().first()
 
     async def process_download_request(self, user_id, url):
-        """Process download request from user"""
         try:
-            print(f"[DEBUG] process_download_request: START - user={user_id}, url={url}")
             logger.info(f"Processing download request for user {user_id} - URL: {url}")
             
-            if not self.url_validator.is_valid_url(url):
+            if not self.url_validator.is_ytmusic_url(url):
                 logger.error(f"Invalid URL format provided by user {user_id}: {url}")
-                return False, "Invalid URL format. Please provide a valid Deezer or Spotify link."
+                return False, "Invalid URL format. Please provide a valid YouTube Music link."
 
-            # Get user settings
-            print(f"[DEBUG] Getting user settings...")
             success, user_settings = await UserController.get_user_settings(user_id)
-            print(f"[DEBUG] User settings retrieved: success={success}")
             if not success:
-                # Handle case where user settings are not found
                 quality = 'MP3_320'
                 make_zip = True
             else:
                 quality = user_settings.get('download_quality', 'MP3_320')
                 make_zip = user_settings.get('make_zip', True)
-            logger.info(f"User {user_id} settings - Quality: {quality}, Make ZIP: {make_zip}")
-            print(f"[DEBUG] Settings - Quality: {quality}, Make ZIP: {make_zip}")
-
-            # Extract and store Spotify ID before conversion
-            spotify_id = None
-            if "spotify" in url:
-                if 'playlist' in url:
-                    logger.error(f"Spotify playlist not supported: {url}")
-                    return False, "Spotify playlists are not supported yet. Please use a Deezer link."
-                # Extract Spotify ID from URL before conversion
-                import re
-                spotify_match = re.search(r'spotify\.com/(track|album)/([a-zA-Z0-9]+)', url)
-                if spotify_match:
-                    spotify_id = spotify_match.group(2)
-                    logger.info(f"Extracted Spotify ID: {spotify_id}")
                 
-                print(f"[DEBUG] Converting Spotify URL to Deezer...")
-                logger.info(f"Converting Spotify URL to Deezer URL: {url}")
-                url = await self.deezer_service.convert_to_deezer(url)
-                print(f"[DEBUG] Conversion result: {url}")
-                if not url:
-                    logger.error("Failed to convert Spotify URL to Deezer URL")
-                    return False, "❌ Could not find this track on Deezer. Please try a different link."
-                logger.info(f"Converted to Deezer URL: {url}")
-
-            print(f"[DEBUG] Extracting info from URL...")
-            content_type, deezer_id = self.deezer_service.extract_info_from_url(url)
-            print(f"[DEBUG] Extracted - Type: {content_type}, ID: {deezer_id}")
-            logger.info(f"Extracted info - Type: {content_type}, ID: {deezer_id}")
+            content_type, yt_id = self.url_validator.extract_ytmusic_info(url)
             
-            if not content_type or not deezer_id:
+            if not content_type or not yt_id:
                 logger.error(f"Could not extract content type or ID from URL: {url}")
-                return False, "❌ Invalid URL format. Please provide a valid Deezer or Spotify link."
+                return False, "❌ Invalid URL format. Please provide a valid YouTube Music link."
 
-            if make_zip and 'track' not in url:
-                existing_zip = await self.get_track_by_deezer_id_quality(user_id, deezer_id, quality)
+            if make_zip and content_type != 'track':
+                existing_zip = await self.get_track_by_yt_id_quality(user_id, yt_id, quality)
                 if existing_zip:
-                    logger.info(f"Found existing ZIP for {content_type} {deezer_id}")
                     await bot.send_document(
                         chat_id=user_id,
                         document=existing_zip.file_id,
@@ -231,15 +157,13 @@ class DownloadController:
                     )
                     return True, "Sent existing ZIP file"
 
-                logger.info(f"Downloading {content_type} as ZIP: {deezer_id}")
-                smart = await self.deezer_service.download(url, quality_download=quality, make_zip=True)
+                smart = await self.yt_dlp_service.download(url, quality_download=quality, make_zip=True)
                 
-                if smart.album:
-                    logger.info(f"Processing album download: {smart.album.title}")
-                    file_path = smart.album.zip_path
+                collection = smart.album if smart.album else smart.playlist
+                if collection:
+                    file_path = collection.zip_path
                     document = FSInputFile(file_path)
                     
-                    # Send to music channel first if configured
                     music_channel_id = os.getenv('MUSIC_CHANNEL_ID')
                     channel_msg_id = None
                     file_id_to_send = document
@@ -249,15 +173,13 @@ class DownloadController:
                             channel_msg = await bot.send_document(
                                 chat_id=music_channel_id,
                                 document=document,
-                                caption=f"@Spotizer_bot 🎧\n📀 {smart.album.title} - {smart.album.artist}"
+                                caption=f"@Spotizer_bot 🎧\n📋 {collection.title} - {collection.artist}"
                             )
                             channel_msg_id = channel_msg.message_id
                             file_id_to_send = channel_msg.document.file_id
-                            logger.info(f"Sent album to channel {music_channel_id}, msg_id: {channel_msg_id}")
                         except Exception as e:
-                            logger.error(f"Failed to send album to music channel: {e}")
+                            logger.error(f"Failed to send to music channel: {e}")
 
-                    # Send to user
                     sent_message = await bot.send_document(
                         chat_id=user_id, 
                         document=file_id_to_send, 
@@ -266,84 +188,31 @@ class DownloadController:
                     
                     await self.add_download(
                         user_id=user_id,
-                        deezer_id=deezer_id,
-                        content_type='album',
+                        yt_id=yt_id,
+                        content_type=content_type,
                         file_id=sent_message.document.file_id,
                         quality=quality,
                         url=url,
-                        title=smart.album.title,
-                        artist=smart.album.artist,
-                        album=smart.album.title,
+                        title=collection.title,
+                        artist=collection.artist,
+                        album=collection.title if smart.album else None,
                         channel_id=int(music_channel_id) if music_channel_id else None,
                         message_id=channel_msg_id
                     )
                     
                     if os.path.exists(file_path):
                         os.remove(file_path)
-                        logger.info(f"Deleted album ZIP file: {file_path}")
-                    
-                elif smart.playlist:
-                    logger.info(f"Processing playlist download: {smart.playlist.title}")
-                    file_path = smart.playlist.zip_path
-                    document = FSInputFile(file_path)
-                    
-                    # Send to music channel first if configured
-                    music_channel_id = os.getenv('MUSIC_CHANNEL_ID')
-                    channel_msg_id = None
-                    file_id_to_send = document
-
-                    if music_channel_id:
-                        try:
-                            channel_msg = await bot.send_document(
-                                chat_id=music_channel_id,
-                                document=document,
-                                caption=f"@Spotizer_bot 🎧\n📋 {smart.playlist.title}"
-                            )
-                            channel_msg_id = channel_msg.message_id
-                            file_id_to_send = channel_msg.document.file_id
-                            logger.info(f"Sent playlist to channel {music_channel_id}, msg_id: {channel_msg_id}")
-                        except Exception as e:
-                            logger.error(f"Failed to send playlist to music channel: {e}")
-
-                    # Send to user
-                    sent_message = await bot.send_document(
-                        chat_id=user_id, 
-                        document=file_id_to_send, 
-                        caption=f"@Spotizer_bot 🎧"
-                    )
-                    
-                    await self.add_download(
-                        user_id=user_id,
-                        deezer_id=deezer_id,
-                        content_type='playlist',
-                        file_id=sent_message.document.file_id,
-                        quality=quality,
-                        url=url,
-                        title=smart.playlist.title,
-                        artist=smart.playlist.artist,
-                        album=None,
-                        channel_id=int(music_channel_id) if music_channel_id else None,
-                        message_id=channel_msg_id
-                    )
-                    
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
-                        logger.info(f"Deleted playlist ZIP file: {file_path}")
             else:
-                logger.info(f"Processing individual tracks for {content_type} {deezer_id}")
-                track_ids = await self.deezer_service.get_track_list(content_type, deezer_id)
+                track_ids = await self.yt_dlp_service.get_track_list(content_type, yt_id)
                 musics_playlist = []
                 
-                for track_id in track_ids:
+                for t_id in track_ids:
                     try:
-                        logger.info(f"Processing track: {track_id}")
-                        track = await self.get_track(str(track_id))
+                        track = await self.get_track(str(t_id))
                         if track:
-                            logger.info(f"Found cached track: {track.title}")
-                            # Add download first to get download_id for rating keyboard
                             download_id = await self.add_download(
                                 user_id=user_id,
-                                deezer_id=track_id,
+                                yt_id=t_id,
                                 content_type="track",
                                 file_id=track.file_id,
                                 quality=quality,
@@ -354,7 +223,6 @@ class DownloadController:
                                 file_name=None,
                                 album=track.album,
                             )
-                            # Send audio with rating buttons attached
                             await bot.send_audio(
                                 chat_id=user_id,
                                 audio=track.file_id,
@@ -363,12 +231,10 @@ class DownloadController:
                                 performer=track.artist,
                                 reply_markup=MusicView.get_rating_keyboard(download_id)
                             )
-                            musics = (track.title, track.duration, None)
-                            musics_playlist.append(musics)
+                            musics_playlist.append((track.title, track.duration, None))
                         else:
-                            track_link = f"https://www.deezer.com/track/{track_id}"
-                            logger.info(f"Downloading new track: {track_link}")
-                            smart = await self.deezer_service.download(track_link, quality_download=quality, make_zip=False)
+                            track_link = f"https://music.youtube.com/watch?v={t_id}"
+                            smart = await self.yt_dlp_service.download(track_link, quality_download=quality, make_zip=False)
                             
                             if smart.track:
                                 file_path = smart.track.song_path
@@ -376,11 +242,10 @@ class DownloadController:
                                     audio_file = FSInputFile(file_path)
                                     duration = self.file_handler.get_audio_duration(file_path)
                                     
-                                    title = smart.track.music if hasattr(smart.track, "music") else f"Track {track_id}"
-                                    artist = smart.track.artist if hasattr(smart.track, "artist") else "Unknown Artist"
-                                    album = smart.track.album if hasattr(smart.track, "album") else "Unknown Album"
+                                    title = smart.track.music
+                                    artist = smart.track.artist
+                                    album = smart.track.album
 
-                                    # Send to music channel first if configured
                                     music_channel_id = os.getenv('MUSIC_CHANNEL_ID')
                                     channel_msg_id = None
                                     file_id_to_send = audio_file
@@ -396,12 +261,10 @@ class DownloadController:
                                                 performer=artist
                                             )
                                             channel_msg_id = channel_msg.message_id
-                                            file_id_to_send = channel_msg.audio.file_id # Use the file_id from channel
-                                            logger.info(f"Sent track to channel {music_channel_id}, msg_id: {channel_msg_id}")
+                                            file_id_to_send = channel_msg.audio.file_id
                                         except Exception as e:
                                             logger.error(f"Failed to send to music channel: {e}")
 
-                                    # Send to user
                                     sent_message = await bot.send_audio(
                                         chat_id=user_id,
                                         audio=file_id_to_send,
@@ -412,7 +275,7 @@ class DownloadController:
                                     )
 
                                     await self.add_track(
-                                        track_id=str(track_id),
+                                        track_id=str(t_id),
                                         url=track_link,
                                         file_id=sent_message.audio.file_id,
                                         title=title,
@@ -422,12 +285,11 @@ class DownloadController:
                                         quality=quality,
                                         channel_id=int(music_channel_id) if music_channel_id else None,
                                         message_id=channel_msg_id,
-                                        spotify_id=spotify_id,
                                     )
                                     
                                     download_id = await self.add_download(
                                         user_id=user_id,
-                                        deezer_id=track_id,
+                                        yt_id=t_id,
                                         content_type='track',
                                         file_id=sent_message.audio.file_id,
                                         quality=quality,
@@ -441,33 +303,21 @@ class DownloadController:
                                         message_id=channel_msg_id
                                     )
                                     
-                                    # Add rating buttons to the audio message
                                     await sent_message.edit_reply_markup(
                                         reply_markup=MusicView.get_rating_keyboard(download_id)
                                     )
                                     
-                                    musics = (title, duration, sent_message.audio.file_name)
-                                    musics_playlist.append(musics)
+                                    musics_playlist.append((title, duration, sent_message.audio.file_name))
                                 except Exception as e:
                                     logger.error(f"Download processing error: {str(e)}", exc_info=True)
-                                    await bot.send_message(
-                                        chat_id=user_id,
-                                        text="An error occurred while processing your download request."
-                                    )
                                 finally:
                                     if os.path.exists(file_path):
                                         os.remove(file_path)
-                                        logger.info(f"Deleted track file: {file_path}")
                     except Exception as e:
-                        await bot.send_message(
-                            chat_id=user_id,
-                            text=f"❌ Track 'https://www.deezer.com/us/track/{track_id}' isn't in Deezer or not available for download.",
-                        )
-                        logger.error(f"Error processing track {track_id}: {str(e)}", exc_info=True)
+                        logger.error(f"Error processing track {t_id}: {str(e)}", exc_info=True)
 
                 if len(musics_playlist) > 1:
-                    filename = f'deezer_{deezer_id}.m3u'
-                    logger.info(f"Creating playlist file: {filename}")
+                    filename = f'ytmusic_{yt_id}.m3u'
                     await self.file_handler.playlist_creator(musics_playlist, filename)
                     
                     await bot.send_document(
@@ -479,7 +329,6 @@ class DownloadController:
                     
                     if os.path.exists(filename):
                         os.remove(filename)
-                        logger.info(f"Deleted playlist file: {filename}")
 
             return True, "Download completed successfully"
 
@@ -493,7 +342,6 @@ class DownloadController:
 
     @staticmethod
     async def get_user_downloads(user_id, limit=5, offset=0):
-        """Get user's download history."""
         async with async_session_maker() as session:
             result = await session.execute(
                 select(UserDownload)
@@ -507,15 +355,6 @@ class DownloadController:
 
     @staticmethod
     async def update_download_rating(user_id: int, download_id: int, rating: int) -> tuple[bool, str]:
-        """
-        Update rating for a download.
-        Args:
-            user_id: User's telegram ID
-            download_id: ID of the download record
-            rating: 1=like, -1=dislike, 0=remove rating
-        Returns:
-            tuple[bool, str]: Success status and message
-        """
         async with async_session_maker() as session:
             async with session.begin():
                 result = await session.execute(
@@ -531,35 +370,23 @@ class DownloadController:
                 return False, "Download not found"
 
     async def get_artist_top_tracks(self, artist_id: str) -> list:
-        """Get artist's top tracks"""
         try:
             logger.info(f"Getting top tracks for artist {artist_id}")
-            top_tracks = self.spotify_service.sp.artist_top_tracks(artist_id)['tracks']
-            processed_tracks = []
-            for track in top_tracks:
-                processed_tracks.append({
-                    'id': track['id'],
-                    'name': track['name'],
-                    'duration': self.spotify_service._format_duration(track['duration_ms'])
-                })
-            return processed_tracks
+            artist_info = await self.ytmusic_service.get_item_info('artist', artist_id)
+            if artist_info and 'more_artist_info' in artist_info:
+                return artist_info['more_artist_info'].get('top_tracks', [])
+            return []
         except Exception as e:
             logger.error(f"Error getting artist top tracks: {str(e)}", exc_info=True)
             return []
 
     async def get_artist_albums(self, artist_id: str) -> list:
-        """Get artist's albums"""
         try:
             logger.info(f"Getting albums for artist {artist_id}")
-            albums = self.spotify_service.sp.artist_albums(artist_id, album_type='album')['items']
-            processed_albums = []
-            for album in albums:
-                processed_albums.append({
-                    'id': album['id'],
-                    'name': album['name'],
-                    'release_date': album['release_date']
-                })
-            return processed_albums
+            artist_info = await self.ytmusic_service.get_item_info('artist', artist_id)
+            if artist_info and 'more_artist_info' in artist_info:
+                return artist_info['more_artist_info'].get('albums', [])
+            return []
         except Exception as e:
             logger.error(f"Error getting artist albums: {str(e)}", exc_info=True)
             return []

@@ -89,7 +89,8 @@ class UserDownload(Base):
     __tablename__ = "user_downloads"
     download_id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(BigInteger, ForeignKey("users.user_id", ondelete="CASCADE"))
-    deezer_id = Column(BigInteger, nullable=False)
+    deezer_id = Column(BigInteger, nullable=True)
+    yt_id = Column(Text, nullable=True)
     content_type = Column(String(20), nullable=False)
     file_id = Column(Text, nullable=False)
     quality = Column(String(50), nullable=False)
@@ -105,7 +106,6 @@ class UserDownload(Base):
     user = relationship("User", back_populates="downloads")
 
     __table_args__ = (
-        UniqueConstraint("user_id", "deezer_id", "content_type", "quality", name="user_content_unique"),
         Index("idx_downloads_user_id", "user_id"),
         Index("idx_downloads_timestamp", "downloaded_at"),
     )
@@ -130,7 +130,8 @@ class PlaylistTrack(Base):
     __tablename__ = "playlist_tracks"
     playlist_track_id = Column(Integer, primary_key=True, autoincrement=True)
     playlist_id = Column(Integer, ForeignKey("playlists.playlist_id", ondelete="CASCADE"))
-    track_deezer_id = Column(BigInteger, nullable=False)
+    track_deezer_id = Column(BigInteger, nullable=True)
+    yt_id = Column(Text, nullable=True)
     added_at = Column(TIMESTAMP, server_default=func.now())
 
     playlist = relationship("Playlist", back_populates="tracks")

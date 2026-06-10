@@ -117,11 +117,52 @@ class URLValidator:
             logger.error(f"Error extracting Spotify info from URL {url}: {str(e)}", exc_info=True)
             return None, None
 
+    @staticmethod
+    def is_ytmusic_url(url: str) -> bool:
+        """Check if URL is a valid YouTube or YouTube Music URL"""
+        try:
+            if re.search(r'(music\.youtube\.com|youtube\.com|youtu\.be)', url):
+                logger.info(f"Valid YouTube/YTMusic URL: {url}")
+                return True
+            logger.warning(f"Invalid YouTube URL format: {url}")
+            return False
+        except Exception as e:
+            logger.error(f"Error validating YouTube URL {url}: {str(e)}", exc_info=True)
+            return False
+
+    @staticmethod
+    def extract_ytmusic_info(url: str) -> Tuple[str, str]:
+        """Extract content type and ID from YouTube Music URL"""
+        try:
+            if 'list=' in url:
+                match = re.search(r'list=([a-zA-Z0-9_-]+)', url)
+                if match:
+                    return 'playlist', match.group(1)
+            elif 'v=' in url:
+                match = re.search(r'v=([a-zA-Z0-9_-]+)', url)
+                if match:
+                    return 'track', match.group(1)
+            elif 'youtu.be/' in url:
+                match = re.search(r'youtu\.be/([a-zA-Z0-9_-]+)', url)
+                if match:
+                    return 'track', match.group(1)
+            elif '/channel/' in url or '/c/' in url or '/@' in url:
+                match = re.search(r'/(channel/|c/|@)([a-zA-Z0-9_-]+)', url)
+                if match:
+                    return 'artist', match.group(2)
+            
+            logger.warning(f"Could not extract YouTube info from URL: {url}")
+            return None, None
+            
+        except Exception as e:
+            logger.error(f"Error extracting YouTube info from URL {url}: {str(e)}", exc_info=True)
+            return None, None
+
 def validate_settings(settings: Dict[str, Any]) -> Tuple[bool, str]:
     """Validate user settings"""
     try:
         logger.info(f"Validating settings: {settings}")
-        valid_qualities = ['MP3_128', 'MP3_320', 'FLAC']
+        valid_qualities = ['MP3_128', 'MP3_320']
         valid_languages = ['en', 'fa']  # Add more supported languages as needed
         
         if 'download_quality' in settings:
@@ -156,7 +197,7 @@ def validate_download_request(content_type: str, quality: str) -> Tuple[bool, st
     try:
         logger.info(f"Validating download request - Content Type: {content_type}, Quality: {quality}")
         valid_content_types = ['track', 'album', 'playlist']
-        valid_qualities = ['MP3_128', 'MP3_320', 'FLAC']
+        valid_qualities = ['MP3_128', 'MP3_320']
         
         if content_type not in valid_content_types:
             error_msg = f"Invalid content type. Must be one of: {', '.join(valid_content_types)}"
