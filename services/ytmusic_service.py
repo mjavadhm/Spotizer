@@ -118,6 +118,9 @@ class YTMusicService:
                 details = track.get('videoDetails', {})
                 microformat = track.get('microformat', {}).get('microformatDataRenderer', {})
                 
+                thumbnails = details.get('thumbnail', {}).get('thumbnails', [])
+                image_url = thumbnails[-1].get('url') if thumbnails else None
+                
                 info = {
                     'id': details.get('videoId', item_id),
                     'name': details.get('title', 'Unknown'),
@@ -131,7 +134,8 @@ class YTMusicService:
                         'release_date': 'Unknown'
                     },
                     'popularity': 0,
-                    'type': 'track'
+                    'type': 'track',
+                    'image': image_url
                 }
                 
                 return info
@@ -139,6 +143,9 @@ class YTMusicService:
             elif item_type == 'album':
                 album = self.yt.get_album(item_id)
                 tracks = album.get('tracks', [])
+                
+                thumbnails = album.get('thumbnails', [])
+                image_url = thumbnails[-1].get('url') if thumbnails else None
                 
                 info = {
                     'id': item_id,
@@ -159,6 +166,7 @@ class YTMusicService:
                     ],
                     'type': 'album',
                     'url': f"https://music.youtube.com/browse/{item_id}",
+                    'image': image_url
                 }
                 
                 return info
@@ -166,6 +174,9 @@ class YTMusicService:
             elif item_type == 'playlist':
                 playlist = self.yt.get_playlist(item_id)
                 tracks = playlist.get('tracks', [])
+                
+                thumbnails = playlist.get('thumbnails', [])
+                image_url = thumbnails[-1].get('url') if thumbnails else None
                 
                 info = {
                     'id': item_id,
@@ -185,7 +196,8 @@ class YTMusicService:
                         for t in tracks if t.get('videoId')
                     ],
                     'url': f"https://music.youtube.com/playlist?list={item_id}",
-                    'type': 'playlist'
+                    'type': 'playlist',
+                    'image': image_url
                 }
                 
                 return info
@@ -196,6 +208,9 @@ class YTMusicService:
                 albums = artist.get('albums', {}).get('results', [])
                 related = artist.get('related', {}).get('results', [])
                 
+                thumbnails = artist.get('thumbnails', [])
+                image_url = thumbnails[-1].get('url') if thumbnails else None
+                
                 artist_info = {
                     'id': item_id,
                     'name': artist.get('name', 'Unknown'),
@@ -204,6 +219,7 @@ class YTMusicService:
                     'popularity': 0,
                     'url': f"https://music.youtube.com/channel/{item_id}",
                     'type': 'artist',
+                    'image': image_url,
                     'more_artist_info': {
                         'top_tracks': [
                             {
