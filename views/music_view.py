@@ -121,15 +121,24 @@ class MusicView:
             [InlineKeyboardButton(
                 text="⬇️ Download",
                 callback_data=f"download:track:{track['id']}"
-            )],
-            [InlineKeyboardButton(
+            )]
+        ]
+        
+        artist_id = track['artists'][0].get('id')
+        if artist_id:
+            buttons.append([InlineKeyboardButton(
                 text=f"🎨 Artist:{track['main_artist']}",
-                callback_data=f"select:artist:{track['artists'][0]['id']}"
-            )],
-            [InlineKeyboardButton(
+                callback_data=f"select:artist:{artist_id}"
+            )])
+            
+        album_id = track['album'].get('id')
+        if album_id:
+            buttons.append([InlineKeyboardButton(
                 text=f"📀 Album:{track['album']['name']}",
-                callback_data=f"select:album:{track['album']['id']}"
-            )],
+                callback_data=f"select:album:{album_id}"
+            )])
+            
+        buttons.extend([
             [InlineKeyboardButton(
                 text="➕ Add to Playlist",
                 callback_data=f"playlist:add:get_playlist:{track['id']}"
@@ -166,12 +175,17 @@ class MusicView:
             [InlineKeyboardButton(
                 text="📋 View Tracks",
                 callback_data=f"view:album:track:{album['id']}:1"
-            )],
-            [InlineKeyboardButton(
+            )]
+        ]
+        
+        artist_id = album['artists'][0].get('id')
+        if artist_id:
+            buttons.append([InlineKeyboardButton(
                 text=f"🎨 Artist:{album['main_artist']}",
-                callback_data=f"select:artist:{album['artists'][0]['id']}"
-            )],
-            [InlineKeyboardButton(
+                callback_data=f"select:artist:{artist_id}"
+            )])
+            
+        buttons.append([InlineKeyboardButton(
                 text="❌",
                 callback_data="delete"
             )]

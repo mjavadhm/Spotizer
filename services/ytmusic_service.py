@@ -121,7 +121,7 @@ class YTMusicService:
                 info = {
                     'id': details.get('videoId', item_id),
                     'name': details.get('title', 'Unknown'),
-                    'artists': [{'name': details.get('author', 'Unknown')}],
+                    'artists': [{'name': details.get('author', 'Unknown'), 'id': details.get('channelId')}],
                     'main_artist': details.get('author', 'Unknown'),
                     'url': f"https://music.youtube.com/watch?v={item_id}",
                     'duration': str(details.get('lengthSeconds', 0)) + "s",

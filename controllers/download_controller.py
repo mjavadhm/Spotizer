@@ -91,9 +91,12 @@ class DownloadController:
         try:
             logger.info(f"Searching for {search_type}s with query: {query} (Page: {page})")
             offset = (page - 1) * 5
-            results = await self.ytmusic_service.search(query, search_type, limit=5, offset=offset)
-            if results:
-                return True, results
+            limit = offset + 5
+            results = await self.ytmusic_service.search(query, search_type, limit=limit, offset=0)
+            
+            page_results = results[offset:offset+5]
+            if page_results:
+                return True, page_results
             else:
                 return False, []
         except Exception as e:
