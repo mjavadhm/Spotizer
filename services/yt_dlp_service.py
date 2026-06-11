@@ -42,7 +42,8 @@ class YTDlpService:
             
             ydl_opts = {
                 'cookiefile': 'cookies.txt',
-                'format': 'bestaudio/best',
+                'format': 'bestaudio/bestvideo+bestaudio/best',
+                'extractor_args': {'youtube': {'client': ['android', 'web']}},
                 'outtmpl': f'{output_folder}/%(title)s.%(ext)s',
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
