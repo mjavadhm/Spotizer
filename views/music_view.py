@@ -230,9 +230,15 @@ class MusicView:
         """Format artist information"""
         genres_text = ", ".join(artist['genres']) if hasattr(artist, 'genres') else "N/A"
         
+        followers = artist.get('followers', 'Unknown')
+        if isinstance(followers, (int, float)):
+            followers_text = f"{followers:,}"
+        else:
+            followers_text = str(followers)
+            
         info = [
             f"🎨 *Artist:* [{artist['name']}]({artist['url']})\n",
-            f"👥 *Followers:* {artist['followers']:,}\n",
+            f"👥 *Followers:* {followers_text}\n",
             f"🔥 *Popularity:* {artist['popularity']}/100\n",
             f"🎭 *Genres:* {genres_text}"
         ]

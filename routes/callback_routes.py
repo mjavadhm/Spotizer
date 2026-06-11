@@ -366,12 +366,20 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                 await callback_query.answer("Invalid content type")
                 return
 
-            await callback_query.message.answer_photo(
-                photo=item_info['image'],
-                caption=text,
-                reply_markup=keyboard,
-                parse_mode="Markdown"
-            )
+            image_url = item_info.get('image')
+            if image_url:
+                await callback_query.message.answer_photo(
+                    photo=image_url,
+                    caption=text,
+                    reply_markup=keyboard,
+                    parse_mode="Markdown"
+                )
+            else:
+                await callback_query.message.answer(
+                    text=text,
+                    reply_markup=keyboard,
+                    parse_mode="Markdown"
+                )
             await callback_query.answer()
             
         except Exception as e:
