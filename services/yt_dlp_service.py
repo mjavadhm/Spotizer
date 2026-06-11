@@ -41,6 +41,7 @@ class YTDlpService:
             audio_bitrate = '320' if quality_download == 'MP3_320' else '128'
             
             ydl_opts = {
+                'cookiefile': 'cookies.txt',
                 'format': 'bestaudio/best',
                 'outtmpl': f'{output_folder}/%(title)s.%(ext)s',
                 'postprocessors': [{
