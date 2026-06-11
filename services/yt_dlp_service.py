@@ -38,6 +38,10 @@ class YTDlpService:
             os.makedirs(output_folder)
             
         def _download():
+            nonlocal url
+            if 'music.youtube.com/watch' in url:
+                url = url.replace('music.youtube.com/watch', 'www.youtube.com/watch')
+                
             audio_bitrate = '320' if quality_download == 'MP3_320' else '128'
             
             ydl_opts = {
