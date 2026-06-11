@@ -43,10 +43,12 @@ class YTDlpService:
             # Use absolute path for cookies.txt in the root directory
             root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             cookie_path = os.path.join(root_dir, 'cookies.txt')
+            cookie_exists = os.path.exists(cookie_path)
+            logger.info(f"Checking for cookies at {cookie_path}: {cookie_exists}")
             
             ydl_opts = {
-                'cookiefile': cookie_path if os.path.exists(cookie_path) else None,
-                'extractor_args': {'youtube': {'client': ['android_music', 'android', 'ios'], 'player_client': ['android_music', 'android', 'ios']}},
+                'cookiefile': cookie_path if cookie_exists else None,
+                'extractor_args': {'youtube': {'client': ['tv', 'android_music', 'android', 'ios'], 'player_client': ['tv', 'android_music', 'android', 'ios']}},
                 'outtmpl': f'{output_folder}/%(title)s.%(ext)s',
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
