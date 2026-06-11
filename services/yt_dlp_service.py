@@ -38,15 +38,15 @@ class YTDlpService:
             os.makedirs(output_folder)
             
         def _download():
-            nonlocal url
-            if 'music.youtube.com/watch' in url:
-                url = url.replace('music.youtube.com/watch', 'www.youtube.com/watch')
-                
             audio_bitrate = '320' if quality_download == 'MP3_320' else '128'
             
+            # Use absolute path for cookies.txt in the root directory
+            root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            cookie_path = os.path.join(root_dir, 'cookies.txt')
+            
             ydl_opts = {
-                'cookiefile': 'cookies.txt',
-                'extractor_args': {'youtube': {'client': ['android', 'ios'], 'player_client': ['android', 'ios']}},
+                'cookiefile': cookie_path if os.path.exists(cookie_path) else None,
+                'extractor_args': {'youtube': {'client': ['android_music', 'android', 'ios'], 'player_client': ['android_music', 'android', 'ios']}},
                 'outtmpl': f'{output_folder}/%(title)s.%(ext)s',
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
