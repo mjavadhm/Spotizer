@@ -42,8 +42,7 @@ class YTDlpService:
             
             ydl_opts = {
                 'cookiefile': 'cookies.txt',
-                'format': 'bestaudio/bestvideo+bestaudio/best',
-                'extractor_args': {'youtube': {'client': ['android', 'web']}},
+                'extractor_args': {'youtube': {'client': ['android', 'web'], 'player_client': ['android', 'web']}},
                 'outtmpl': f'{output_folder}/%(title)s.%(ext)s',
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
@@ -69,7 +68,39 @@ class YTDlpService:
                 try:
                     info = ydl.extract_info(url, download=True)
                 except Exception as e:
-                    logger.error(f"yt-dlp extract_info error: {e}")
+                    error_msg = str(e)
+                    logger.error(f"yt-dlp extract_info error: {error_msg}")
+                    
+                    try:
+                        ydl_opts_info = ydl_opts.copy()
+                        ydl_opts_info['listformats'] = True
+                        ydl_opts_info['quiet'] = True
+                        with yt_dlp.YoutubeDL(ydl_opts_info) as ydl_info:
+                            info_dict = ydl_info.extract_info(url, download=False)
+                            formats = info_dict.get('formats', [])
+                            if formats:
+                                format_list = "\n".join([f"{f.get('format_id')}: {f.get('ext')} - {f.get('resolution')} - {f.get('format_note')}" for f in formats[-20:]]) # last 20 formats to avoid huge messages
+                                error_msg += f"\n\n**Available Formats:**\n{format_list}"
+                            else:
+                                error_msg += "\n\nNo formats found in dict."
+                    except Exception as e2:
+                        error_msg += f"\n\nCould not fetch formats: {str(e2)}"
+                    
+                    # Send to Telegram channel
+                    music_channel_id = os.getenv('MUSIC_CHANNEL_ID')
+                    if music_channel_id:
+                        from bot import bot
+                        loop = asyncio.get_event_loop()
+                        safe_msg = f"❌ *YT-DLP Error*\nURL: {url}\nError: `{error_msg[:3000]}`"
+                        asyncio.run_coroutine_threadsafe(
+                            bot.send_message(
+                                chat_id=music_channel_id,
+                                text=safe_msg,
+                                parse_mode="Markdown"
+                            ),
+                            loop
+                        )
+                        
                     return SmartResult()
                 
                 if 'entries' in info:
