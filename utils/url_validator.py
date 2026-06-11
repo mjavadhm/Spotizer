@@ -146,6 +146,10 @@ class URLValidator:
                 match = re.search(r'youtu\.be/([a-zA-Z0-9_-]+)', url)
                 if match:
                     return 'track', match.group(1)
+            elif '/browse/' in url:
+                match = re.search(r'/browse/([a-zA-Z0-9_-]+)', url)
+                if match:
+                    return 'album', match.group(1)
             elif '/channel/' in url or '/c/' in url or '/@' in url:
                 match = re.search(r'/(channel/|c/|@)([a-zA-Z0-9_-]+)', url)
                 if match:
