@@ -46,7 +46,7 @@ class YTDlpService:
             
             ydl_opts = {
                 'cookiefile': 'cookies.txt',
-                'extractor_args': {'youtube': {'client': ['android', 'web'], 'player_client': ['android', 'web']}},
+                'extractor_args': {'youtube': {'client': ['android', 'ios'], 'player_client': ['android', 'ios']}},
                 'outtmpl': f'{output_folder}/%(title)s.%(ext)s',
                 'postprocessors': [{
                     'key': 'FFmpegExtractAudio',
