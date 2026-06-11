@@ -147,7 +147,7 @@ class MusicView:
                 text="❌",
                 callback_data="delete"
             )]
-        ]
+        ])
         return InlineKeyboardMarkup(inline_keyboard=buttons)
 
     @staticmethod
