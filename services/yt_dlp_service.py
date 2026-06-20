@@ -141,6 +141,20 @@ class YTDlpService:
                         # Gather all mp3s in the subfolder
                         files_to_zip = [os.path.join(subfolder, f) for f in os.listdir(subfolder) if f.endswith('.mp3')]
                         
+                        # Apply custom metadata to all files in playlist before zipping
+                        for f in files_to_zip:
+                            # Try to extract ID from entry or rely on yt-dlp's default ID in filename if possible
+                            # yt-dlp extract_info 'entries' might map to the files, but it's tricky to map.
+                            # We can just extract the ID from info['entries'] if we can match the title
+                            try:
+                                title_from_file = os.path.basename(f).replace('.mp3', '')
+                                matched_entry = next((e for e in info['entries'] if e and e.get('title') == title_from_file), None)
+                                yt_id = matched_entry.get('id') if matched_entry else None
+                                if yt_id:
+                                    self.apply_custom_metadata_sync(f, yt_id, title_from_file, artist, title)
+                            except Exception as meta_e:
+                                logger.error(f"Error mapping file to metadata in playlist: {meta_e}")
+                                
                         zip_name = f"{title}.zip"
                         success, zip_path = self.file_handler.create_zip_archive(files_to_zip, zip_name)
                         
@@ -188,6 +202,11 @@ class YTDlpService:
                                 file_path = os.path.join(output_folder, f)
                                 break
                     
+                    if file_path and os.path.exists(file_path):
+                        # Apply custom metadata
+                        yt_id = info.get('id') or (url.split('v=')[-1][:11] if 'v=' in url else None)
+                        title, artist, album = self.apply_custom_metadata_sync(file_path, yt_id, title, artist, album)
+
                     track = DownloadResultTrack(
                         song_path=file_path,
                         music=title,
@@ -215,3 +234,79 @@ class YTDlpService:
             return [track['id'] for track in info['tracks'] if track.get('id')]
             
         return []
+
+    @staticmethod
+    def apply_custom_metadata_sync(file_path, yt_id, default_title, default_artist, default_album):
+        if not yt_id or not os.path.exists(file_path):
+            return default_title, default_artist, default_album
+            
+        try:
+            import requests
+            from mutagen.id3 import ID3, TIT2, TPE1, TALB, TYER, TCON, APIC, USLT
+            from ytmusicapi import YTMusic
+            yt = YTMusic()
+            
+            # Get track details
+            track_info = yt.get_song(yt_id)
+            details = track_info.get('videoDetails', {})
+            
+            m_title = details.get('title', default_title)
+            m_artist = details.get('author', default_artist)
+            m_album = default_album
+            m_year = None
+            m_genre = 'Pop'
+            m_lyrics = ''
+            
+            # Lyrics
+            try:
+                watch = yt.get_watch_playlist(videoId=yt_id)
+                lyrics_id = watch.get('lyrics')
+                if lyrics_id:
+                    m_lyrics = yt.get_lyrics(lyrics_id).get('lyrics', '')
+            except Exception: pass
+            
+            # Album & Year
+            try:
+                search_res = yt.search(f"{m_title} {m_artist}", filter="songs", limit=1)
+                if search_res:
+                    res = search_res[0]
+                    if res.get('videoId') == yt_id or res.get('title') == m_title:
+                        m_album = res.get('album', {}).get('name', default_album)
+                        m_year = res.get('year')
+            except Exception: pass
+            
+            # Image
+            thumbnails = details.get('thumbnail', {}).get('thumbnails', [])
+            image_url = thumbnails[-1].get('url') if thumbnails else None
+            if image_url and 'w120' in image_url:
+                image_url = image_url.replace('w120', 'w1080').replace('h120', 'h1080')
+            elif image_url and '=' in image_url:
+                image_url = f"{image_url.split('=')[0]}=w1080-h1080-l90-rj"
+                
+            try:
+                audio = ID3(file_path)
+                audio.delete()
+            except Exception:
+                audio = ID3()
+                
+            audio.add(TIT2(encoding=3, text=m_title))
+            audio.add(TPE1(encoding=3, text=m_artist))
+            if m_album and m_album != 'Unknown Album':
+                audio.add(TALB(encoding=3, text=m_album))
+            if m_year:
+                audio.add(TYER(encoding=3, text=str(m_year)))
+            if m_genre:
+                audio.add(TCON(encoding=3, text=m_genre))
+            if m_lyrics:
+                audio.add(USLT(encoding=3, lang='eng', desc='desc', text=m_lyrics))
+                
+            if image_url:
+                img_res = requests.get(image_url)
+                if img_res.status_code == 200:
+                    audio.add(APIC(encoding=3, mime='image/jpeg', type=3, desc='Cover', data=img_res.content))
+                    
+            audio.save(file_path)
+            return m_title, m_artist, m_album
+        except Exception as e:
+            logger.error(f"Failed to apply custom metadata: {e}", exc_info=True)
+            return default_title, default_artist, default_album
