@@ -40,25 +40,38 @@ class YTDlpService:
         def _download():
             audio_bitrate = '320' if quality_download == 'MP3_320' else '128'
             
-            # Use absolute path for cookies.txt in the root directory
-            root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            cookie_path = os.path.join(root_dir, 'cookies.txt')
-            cookie_exists = os.path.exists(cookie_path)
-            logger.info(f"Checking for cookies at {cookie_path}: {cookie_exists}")
-            
             ydl_opts = {
-                'cookiefile': cookie_path if cookie_exists else None,
-                'extractor_args': {'youtube': {'client': ['tv', 'android_music', 'android', 'ios'], 'player_client': ['tv', 'android_music', 'android', 'ios']}},
+                'format': 'bestaudio',
+                'js_runtimes': {'node': {}},
                 'outtmpl': f'{output_folder}/%(title)s.%(ext)s',
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': audio_bitrate,
-                }],
+                'writethumbnail': True,
+                'noplaylist': not make_zip,
+                'ignoreerrors': True,
+                'postprocessors': [
+                    {
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'mp3',
+                        'preferredquality': audio_bitrate,
+                    },
+                    {
+                        'key': 'FFmpegThumbnailsConvertor',
+                        'format': 'jpg',
+                    },
+                    {
+                        'key': 'FFmpegMetadata',
+                    },
+                    {
+                        'key': 'EmbedThumbnail',
+                    }
+                ],
                 'quiet': True,
                 'no_warnings': True,
                 'extract_flat': 'in_playlist' if not make_zip else False,
             }
+            
+            ytdlp_proxy = os.getenv('YTDLP_PROXY')
+            if ytdlp_proxy:
+                ydl_opts['proxy'] = ytdlp_proxy
             
             if make_zip:
                 import uuid
