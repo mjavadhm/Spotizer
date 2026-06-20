@@ -116,23 +116,62 @@ class YTMusicService:
             if item_type == 'track':
                 track = self.yt.get_song(item_id)
                 details = track.get('videoDetails', {})
-                microformat = track.get('microformat', {}).get('microformatDataRenderer', {})
                 
+                # Default values
+                title = details.get('title', 'Unknown')
+                artist = details.get('author', 'Unknown')
+                album_name = 'Unknown'
+                release_year = 'Unknown'
+                genre = 'Pop' # Default genre
+                lyrics_text = ''
+                
+                # Fetch lyrics
+                try:
+                    watch = self.yt.get_watch_playlist(videoId=item_id)
+                    lyrics_id = watch.get('lyrics')
+                    if lyrics_id:
+                        lyrics_dict = self.yt.get_lyrics(lyrics_id)
+                        lyrics_text = lyrics_dict.get('lyrics', '')
+                except Exception as e:
+                    logger.error(f"Could not fetch lyrics for {item_id}: {e}")
+                
+                # Search to get album and year since get_song doesn't provide them easily
+                try:
+                    search_results = self.yt.search(f"{title} {artist}", filter="songs", limit=1)
+                    if search_results:
+                        res = search_results[0]
+                        if res.get('videoId') == item_id or res.get('title') == title:
+                            album_name = res.get('album', {}).get('name', 'Unknown')
+                            release_year = res.get('year', 'Unknown')
+                except Exception as e:
+                    logger.error(f"Could not fetch extended metadata for {item_id}: {e}")
+
+                # Find highest quality image
                 thumbnails = details.get('thumbnail', {}).get('thumbnails', [])
                 image_url = thumbnails[-1].get('url') if thumbnails else None
+                # Replace url parameter to get highest res without crop
+                if image_url and 'w120' in image_url:
+                    image_url = image_url.replace('w120', 'w1080').replace('h120', 'h1080')
+                elif image_url and '=' in image_url:
+                    # e.g. ...=w120-h120-l90-rj
+                    base_url = image_url.split('=')[0]
+                    image_url = f"{base_url}=w1080-h1080-l90-rj"
                 
                 info = {
                     'id': details.get('videoId', item_id),
-                    'name': details.get('title', 'Unknown'),
-                    'artists': [{'name': details.get('author', 'Unknown'), 'id': details.get('channelId')}],
-                    'main_artist': details.get('author', 'Unknown'),
+                    'name': title,
+                    'artists': [{'name': artist, 'id': details.get('channelId')}],
+                    'main_artist': artist,
                     'url': f"https://music.youtube.com/watch?v={item_id}",
                     'duration': str(details.get('lengthSeconds', 0)) + "s",
                     'explicit': False,
                     'album': {
-                        'name': 'Unknown',
-                        'release_date': 'Unknown'
+                        'name': album_name,
+                        'release_date': release_year
                     },
+                    'release_year': release_year,
+                    'genre': genre,
+                    'lyrics': lyrics_text,
                     'popularity': 0,
                     'type': 'track',
                     'image': image_url

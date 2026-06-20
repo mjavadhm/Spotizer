@@ -242,11 +242,11 @@ class YTDlpService:
             
         try:
             import requests
-            from mutagen.id3 import ID3, TIT2, TPE1, TALB, TYER, TCON, APIC, USLT
+            from mutagen.id3 import ID3, TIT2, TPE1, TALB, TYER, TCON, APIC, USLT, TRCK
             from ytmusicapi import YTMusic
             yt = YTMusic()
             
-            # Get track details
+            # 1. Base Info from YT Music
             track_info = yt.get_song(yt_id)
             details = track_info.get('videoDetails', {})
             
@@ -256,8 +256,10 @@ class YTDlpService:
             m_year = None
             m_genre = 'Pop'
             m_lyrics = ''
+            m_track_number = None
+            image_url = None
             
-            # Lyrics
+            # Lyrics from YT Music (Spotify doesn't provide lyrics easily)
             try:
                 watch = yt.get_watch_playlist(videoId=yt_id)
                 lyrics_id = watch.get('lyrics')
@@ -265,24 +267,66 @@ class YTDlpService:
                     m_lyrics = yt.get_lyrics(lyrics_id).get('lyrics', '')
             except Exception: pass
             
-            # Album & Year
+            # 2. Try iTunes API for richer free metadata
+            itunes_matched = False
             try:
-                search_res = yt.search(f"{m_title} {m_artist}", filter="songs", limit=1)
-                if search_res:
-                    res = search_res[0]
-                    if res.get('videoId') == yt_id or res.get('title') == m_title:
-                        m_album = res.get('album', {}).get('name', default_album)
-                        m_year = res.get('year')
-            except Exception: pass
-            
-            # Image
-            thumbnails = details.get('thumbnail', {}).get('thumbnails', [])
-            image_url = thumbnails[-1].get('url') if thumbnails else None
-            if image_url and 'w120' in image_url:
-                image_url = image_url.replace('w120', 'w1080').replace('h120', 'h1080')
-            elif image_url and '=' in image_url:
-                image_url = f"{image_url.split('=')[0]}=w1080-h1080-l90-rj"
+                import urllib.parse
                 
+                query = urllib.parse.quote(f"{m_title} {m_artist}")
+                url = f"https://itunes.apple.com/search?term={query}&entity=song&limit=3"
+                response = requests.get(url, timeout=5)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    results = data.get('results', [])
+                    
+                    if results:
+                        itunes_track = results[0]
+                        itunes_title = itunes_track.get('trackName', '')
+                        
+                        # Accept if titles are roughly matching
+                        if m_title.lower() in itunes_title.lower() or itunes_title.lower() in m_title.lower():
+                            m_title = itunes_track['trackName']
+                            m_artist = itunes_track.get('artistName', m_artist)
+                            m_album = itunes_track.get('collectionName', m_album)
+                            release_date = itunes_track.get('releaseDate')
+                            m_year = release_date[:4] if release_date else None
+                            m_track_number = str(itunes_track.get('trackNumber', '1'))
+                            m_genre = itunes_track.get('primaryGenreName', m_genre)
+                            
+                            # High-res iTunes image (replace 100x100 with 1000x1000)
+                            artwork = itunes_track.get('artworkUrl100')
+                            if artwork:
+                                image_url = artwork.replace('100x100bb', '1000x1000bb')
+                                
+                            itunes_matched = True
+                            from logger import get_logger
+                            logger = get_logger(__name__)
+                            logger.info(f"Successfully enriched metadata using iTunes for: {m_title}")
+            except Exception as e:
+                from logger import get_logger
+                logger = get_logger(__name__)
+                logger.warning(f"iTunes metadata enrichment failed (fallback to YT): {e}")
+
+            # 3. Fallback to YT Music metadata if iTunes didn't match
+            if not itunes_matched:
+                try:
+                    search_res = yt.search(f"{m_title} {m_artist}", filter="songs", limit=1)
+                    if search_res:
+                        res = search_res[0]
+                        if res.get('videoId') == yt_id or res.get('title') == m_title:
+                            m_album = res.get('album', {}).get('name', default_album)
+                            m_year = res.get('year')
+                except Exception: pass
+                
+                thumbnails = details.get('thumbnail', {}).get('thumbnails', [])
+                image_url = thumbnails[-1].get('url') if thumbnails else None
+                if image_url and 'w120' in image_url:
+                    image_url = image_url.replace('w120', 'w1080').replace('h120', 'h1080')
+                elif image_url and '=' in image_url:
+                    image_url = f"{image_url.split('=')[0]}=w1080-h1080-l90-rj"
+                    
+            # 4. Save metadata to MP3
             try:
                 audio = ID3(file_path)
                 audio.delete()
@@ -299,6 +343,8 @@ class YTDlpService:
                 audio.add(TCON(encoding=3, text=m_genre))
             if m_lyrics:
                 audio.add(USLT(encoding=3, lang='eng', desc='desc', text=m_lyrics))
+            if m_track_number:
+                audio.add(TRCK(encoding=3, text=m_track_number))
                 
             if image_url:
                 img_res = requests.get(image_url)
@@ -308,5 +354,7 @@ class YTDlpService:
             audio.save(file_path)
             return m_title, m_artist, m_album
         except Exception as e:
+            from logger import get_logger
+            logger = get_logger(__name__)
             logger.error(f"Failed to apply custom metadata: {e}", exc_info=True)
             return default_title, default_artist, default_album
