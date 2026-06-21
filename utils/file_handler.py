@@ -58,15 +58,16 @@ class FileHandler:
             archive_path = os.path.join(self.temp_dir, safe_archive_name)
             logger.info(f"Creating ZIP archive: {safe_archive_name} with {len(files)} files")
             
-            # Create ZIP archive
-            shutil.make_archive(
-                archive_path.rsplit('.', 1)[0],  # Remove extension for make_archive
-                'zip',
-                self.temp_dir,
-                files
-            )
+            import zipfile
             
+            # Create ZIP archive manually to support specific files
             zip_path = archive_path + '.zip'
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for file_path in files:
+                    if os.path.exists(file_path):
+                        # Use os.path.basename so it doesn't store the full absolute path inside the zip
+                        zipf.write(file_path, arcname=os.path.basename(file_path))
+            
             zip_size = os.path.getsize(zip_path)
             logger.info(f"ZIP archive created successfully: {zip_path} (Size: {zip_size} bytes)")
             return True, zip_path
