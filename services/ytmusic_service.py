@@ -125,26 +125,52 @@ class YTMusicService:
                 genre = 'Pop' # Default genre
                 lyrics_text = ''
                 
-                # Fetch lyrics
+                # Fetch lyrics and robust fallback data
+                duration_secs = details.get('lengthSeconds', 0)
+                
                 try:
                     watch = self.yt.get_watch_playlist(videoId=item_id)
+                    
+                    if watch.get('tracks') and len(watch['tracks']) > 0:
+                        watch_track = watch['tracks'][0]
+                        if title == 'Unknown':
+                            title = watch_track.get('title', 'Unknown')
+                        if artist == 'Unknown' and watch_track.get('artists'):
+                            artist = watch_track['artists'][0].get('name', 'Unknown')
+                        
+                        album_name = watch_track.get('album', {}).get('name', album_name)
+                        release_year = watch_track.get('year', release_year)
+                            
+                        if not duration_secs and watch_track.get('length'):
+                            parts = watch_track['length'].split(':')
+                            if len(parts) == 2:
+                                duration_secs = int(parts[0]) * 60 + int(parts[1])
+                            elif len(parts) == 3:
+                                duration_secs = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+                                
+                        if not details.get('thumbnail') and watch_track.get('thumbnail'):
+                            details['thumbnail'] = {'thumbnails': watch_track['thumbnail']}
+
                     lyrics_id = watch.get('lyrics')
                     if lyrics_id:
                         lyrics_dict = self.yt.get_lyrics(lyrics_id)
                         lyrics_text = lyrics_dict.get('lyrics', '')
                 except Exception as e:
-                    logger.error(f"Could not fetch lyrics for {item_id}: {e}")
+                    logger.error(f"Could not fetch watch fallback or lyrics for {item_id}: {e}")
                 
-                # Search to get album and year since get_song doesn't provide them easily
-                try:
-                    search_results = self.yt.search(f"{title} {artist}", filter="songs", limit=1)
-                    if search_results:
-                        res = search_results[0]
-                        if res.get('videoId') == item_id or res.get('title') == title:
-                            album_name = res.get('album', {}).get('name', 'Unknown')
-                            release_year = res.get('year', 'Unknown')
-                except Exception as e:
-                    logger.error(f"Could not fetch extended metadata for {item_id}: {e}")
+                # Search to get album and year if still missing
+                if album_name == 'Unknown' or release_year == 'Unknown':
+                    try:
+                        search_results = self.yt.search(f"{title} {artist}", filter="songs", limit=1)
+                        if search_results:
+                            res = search_results[0]
+                            if res.get('videoId') == item_id or res.get('title') == title:
+                                if album_name == 'Unknown':
+                                    album_name = res.get('album', {}).get('name', 'Unknown')
+                                if release_year == 'Unknown':
+                                    release_year = res.get('year', 'Unknown')
+                    except Exception as e:
+                        logger.error(f"Could not fetch extended metadata for {item_id}: {e}")
 
                 # Find highest quality image
                 thumbnails = details.get('thumbnail', {}).get('thumbnails', [])
@@ -163,7 +189,7 @@ class YTMusicService:
                     'artists': [{'name': artist, 'id': details.get('channelId')}],
                     'main_artist': artist,
                     'url': f"https://music.youtube.com/watch?v={item_id}",
-                    'duration': str(details.get('lengthSeconds', 0)) + "s",
+                    'duration': str(duration_secs) + "s",
                     'explicit': False,
                     'album': {
                         'name': album_name,

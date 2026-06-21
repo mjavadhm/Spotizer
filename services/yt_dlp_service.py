@@ -187,12 +187,17 @@ class YTDlpService:
                     # Better to let YTDL return the exact filename if we can, or just grab the file that was downloaded.
                     # As a workaround, we'll get the info's requested_downloads
                     file_path = None
-                    if 'requested_downloads' in info:
-                        filepath_pre = info['requested_downloads'][0]['filepath']
-                        # change extension to mp3
-                        file_path = os.path.splitext(filepath_pre)[0] + '.mp3'
-                    else:
-                        file_path = os.path.join(output_folder, f"{title}.mp3")
+                    if 'requested_downloads' in info and info['requested_downloads']:
+                        filepath_pre = info['requested_downloads'][0].get('filepath') or info['requested_downloads'][0].get('_filename')
+                        if filepath_pre:
+                            file_path = os.path.splitext(filepath_pre)[0] + '.mp3'
+                    
+                    if not file_path:
+                        filepath_pre = info.get('filepath') or info.get('_filename')
+                        if filepath_pre:
+                            file_path = os.path.splitext(filepath_pre)[0] + '.mp3'
+                        else:
+                            file_path = os.path.join(output_folder, f"{title}.mp3")
                     
                     if not os.path.exists(file_path):
                         logger.error(f"Could not find downloaded file at {file_path}")
