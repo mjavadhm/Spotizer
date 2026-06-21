@@ -255,22 +255,37 @@ class YTDlpService:
             track_info = yt.get_song(yt_id)
             details = track_info.get('videoDetails', {})
             
-            m_title = details.get('title', default_title)
-            m_artist = details.get('author', default_artist)
-            m_album = default_album
+            m_title = details.get('title') or default_title or "Unknown Title"
+            m_artist = details.get('author') or default_artist or "Unknown Artist"
+            m_album = default_album or "Unknown Album"
             m_year = None
             m_genre = 'Pop'
             m_lyrics = ''
             m_track_number = None
             image_url = None
             
-            # Lyrics from YT Music (Spotify doesn't provide lyrics easily)
+            # Lyrics and fallback from YT Music
             try:
                 watch = yt.get_watch_playlist(videoId=yt_id)
+                
+                if watch.get('tracks') and len(watch['tracks']) > 0:
+                    watch_track = watch['tracks'][0]
+                    if m_title == default_title or m_title == "Unknown Title":
+                        m_title = watch_track.get('title') or m_title
+                    if m_artist == default_artist or m_artist == "Unknown Artist":
+                        if watch_track.get('artists'):
+                            m_artist = watch_track['artists'][0].get('name') or m_artist
+                    m_album = watch_track.get('album', {}).get('name') or m_album
+                    m_year = watch_track.get('year') or m_year
+                
                 lyrics_id = watch.get('lyrics')
                 if lyrics_id:
                     m_lyrics = yt.get_lyrics(lyrics_id).get('lyrics', '')
             except Exception: pass
+            
+            m_title = m_title or "Unknown Title"
+            m_artist = m_artist or "Unknown Artist"
+            m_album = m_album or "Unknown Album"
             
             # 2. Try iTunes API for richer free metadata
             itunes_matched = False
