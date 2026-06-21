@@ -283,9 +283,13 @@ class YTDlpService:
                     if results:
                         itunes_track = results[0]
                         itunes_title = itunes_track.get('trackName', '')
+                        itunes_artist = itunes_track.get('artistName', '')
                         
-                        # Accept if titles are roughly matching
-                        if m_title.lower() in itunes_title.lower() or itunes_title.lower() in m_title.lower():
+                        # Accept if BOTH titles and artists are roughly matching
+                        title_match = m_title.lower() in itunes_title.lower() or itunes_title.lower() in m_title.lower()
+                        artist_match = m_artist.lower() in itunes_artist.lower() or itunes_artist.lower() in m_artist.lower()
+                        
+                        if title_match and artist_match:
                             m_title = itunes_track['trackName']
                             m_artist = itunes_track.get('artistName', m_artist)
                             m_album = itunes_track.get('collectionName', m_album)

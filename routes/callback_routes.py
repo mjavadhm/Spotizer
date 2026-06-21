@@ -378,7 +378,8 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                 await callback_query.message.answer(
                     text=text,
                     reply_markup=keyboard,
-                    parse_mode="Markdown"
+                    parse_mode="Markdown",
+                    disable_web_page_preview=True
                 )
             await callback_query.answer()
             
