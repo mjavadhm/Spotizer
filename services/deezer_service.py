@@ -108,6 +108,17 @@ class DeezerAPIClient:
                 'image': album_info.get('cover_xl') or album_info.get('cover_medium') or album_info.get('cover') or "https://e7.pngegg.com/pngimages/708/311/png-clipart-icon-logo-twitter-logo-twitter-logo-blue-social-media-thumbnail.png"
             }
         elif content_type == "album":
+            tracks_data = await cls._request(f"album/{item_id}/tracks")
+            tracks = []
+            if tracks_data and 'data' in tracks_data:
+                for t in tracks_data['data']:
+                    tracks.append({
+                        'id': str(t['id']),
+                        'name': t['title'],
+                        'duration': cls._format_duration(t.get('duration', 0)),
+                        'artists': [{'id': str(t['artist']['id']), 'name': t['artist']['name']}]
+                    })
+                    
             return {
                 'id': str(item['id']),
                 'name': item['title'],
@@ -116,16 +127,29 @@ class DeezerAPIClient:
                 'main_artist': item['artist']['name'],
                 'release_date': item.get('release_date', 'Unknown'),
                 'total_tracks': item.get('nb_tracks', 0),
-                'image': item.get('cover_xl') or item.get('cover_medium') or item.get('cover') or "https://e7.pngegg.com/pngimages/708/311/png-clipart-icon-logo-twitter-logo-twitter-logo-blue-social-media-thumbnail.png"
+                'image': item.get('cover_xl') or item.get('cover_medium') or item.get('cover') or "https://e7.pngegg.com/pngimages/708/311/png-clipart-icon-logo-twitter-logo-twitter-logo-blue-social-media-thumbnail.png",
+                'tracks': tracks
             }
         elif content_type == "playlist":
+            tracks_data = await cls._request(f"playlist/{item_id}/tracks")
+            tracks = []
+            if tracks_data and 'data' in tracks_data:
+                for t in tracks_data['data']:
+                    tracks.append({
+                        'id': str(t['id']),
+                        'name': t['title'],
+                        'duration': cls._format_duration(t.get('duration', 0)),
+                        'artists': [{'id': str(t['artist']['id']), 'name': t['artist']['name']}]
+                    })
+                    
             return {
                 'id': str(item['id']),
                 'name': item['title'],
                 'url': item.get('link', f"https://www.deezer.com/playlist/{item['id']}"),
                 'description': item.get('description', ''),
                 'total_tracks': item.get('nb_tracks', 0),
-                'image': item.get('picture_xl') or item.get('picture_medium') or item.get('picture') or "https://e7.pngegg.com/pngimages/708/311/png-clipart-icon-logo-twitter-logo-twitter-logo-blue-social-media-thumbnail.png"
+                'image': item.get('picture_xl') or item.get('picture_medium') or item.get('picture') or "https://e7.pngegg.com/pngimages/708/311/png-clipart-icon-logo-twitter-logo-twitter-logo-blue-social-media-thumbnail.png",
+                'tracks': tracks
             }
         elif content_type == "artist":
             return {
