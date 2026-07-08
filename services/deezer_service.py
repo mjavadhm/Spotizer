@@ -104,7 +104,8 @@ class DeezerAPIClient:
                 },
                 'duration': cls._format_duration(item.get('duration', 0)),
                 'popularity': 0, # Deezer doesn't provide popularity directly
-                'explicit': item.get('explicit_lyrics', False)
+                'explicit': item.get('explicit_lyrics', False),
+                'image': album_info.get('cover_xl') or album_info.get('cover_medium') or album_info.get('cover') or "https://e7.pngegg.com/pngimages/708/311/png-clipart-icon-logo-twitter-logo-twitter-logo-blue-social-media-thumbnail.png"
             }
         elif content_type == "album":
             return {
@@ -114,7 +115,8 @@ class DeezerAPIClient:
                 'artists': [{'id': str(item['artist']['id']), 'name': item['artist']['name']}],
                 'main_artist': item['artist']['name'],
                 'release_date': item.get('release_date', 'Unknown'),
-                'total_tracks': item.get('nb_tracks', 0)
+                'total_tracks': item.get('nb_tracks', 0),
+                'image': item.get('cover_xl') or item.get('cover_medium') or item.get('cover') or "https://e7.pngegg.com/pngimages/708/311/png-clipart-icon-logo-twitter-logo-twitter-logo-blue-social-media-thumbnail.png"
             }
         elif content_type == "playlist":
             return {
@@ -122,7 +124,8 @@ class DeezerAPIClient:
                 'name': item['title'],
                 'url': item.get('link', f"https://www.deezer.com/playlist/{item['id']}"),
                 'description': item.get('description', ''),
-                'total_tracks': item.get('nb_tracks', 0)
+                'total_tracks': item.get('nb_tracks', 0),
+                'image': item.get('picture_xl') or item.get('picture_medium') or item.get('picture') or "https://e7.pngegg.com/pngimages/708/311/png-clipart-icon-logo-twitter-logo-twitter-logo-blue-social-media-thumbnail.png"
             }
         elif content_type == "artist":
             return {
@@ -132,6 +135,7 @@ class DeezerAPIClient:
                 'followers': item.get('nb_fan', 0),
                 'popularity': 0,
                 'genres': [],
+                'image': item.get('picture_xl') or item.get('picture_medium') or item.get('picture') or "https://e7.pngegg.com/pngimages/708/311/png-clipart-icon-logo-twitter-logo-twitter-logo-blue-social-media-thumbnail.png",
                 'more_artist_info': {
                     'top_tracks': True,
                     'albums': True,
