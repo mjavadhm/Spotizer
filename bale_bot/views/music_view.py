@@ -229,6 +229,10 @@ class MusicView:
                 callback_data=f"view:artist:related:{artist['id']}:1"
             )])
         buttons.append([InlineKeyboardButton(
+            text="⬇️ Download Discography (Slow)",
+            callback_data=f"download:artist:{artist['id']}"
+        )])
+        buttons.append([InlineKeyboardButton(
             text="❌",
             callback_data="delete"
         )])

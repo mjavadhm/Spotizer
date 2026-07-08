@@ -251,6 +251,12 @@ class MusicView:
             )
         buttons.append(
             InlineKeyboardButton(
+                text="⬇️ Download Discography (Slow)",
+                callback_data=f"download:artist:{artist['id']}"
+            )
+        )
+        buttons.append(
+            InlineKeyboardButton(
                 text="❌",
                 callback_data="delete"
             )

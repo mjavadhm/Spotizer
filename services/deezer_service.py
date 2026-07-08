@@ -252,7 +252,8 @@ class DeezerService:
             patterns = {
                 'track': r'deezer\.com(?:\/[a-z]{2})?\/track\/(\d+)',
                 'album': r'deezer\.com(?:\/[a-z]{2})?\/album\/(\d+)',
-                'playlist': r'deezer\.com(?:\/[a-z]{2})?\/playlist\/(\d+)'
+                'playlist': r'deezer\.com(?:\/[a-z]{2})?\/playlist\/(\d+)',
+                'artist': r'deezer\.com(?:\/[a-z]{2})?\/artist\/(\d+)'
             }
             
             for content_type, pattern in patterns.items():
