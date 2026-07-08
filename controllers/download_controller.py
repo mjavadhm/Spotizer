@@ -6,7 +6,7 @@ from sqlalchemy.sql import func
 from database.session import async_session_maker
 from controllers.user_controller import UserController
 from models.base import User, UserSettings, UserDownload, Track
-from services.deezer_service import DeezerService
+from services.deezer_service import DeezerService, DeezerAPIClient
 from utils.file_handler import FileHandler
 from utils.url_validator import URLValidator
 from views.music_view import MusicView
@@ -61,6 +61,60 @@ class DownloadController:
             await session.commit()
             await session.refresh(download)
             return download.download_id
+
+    async def search(self, query: str, search_type: str, page: int = 1) -> tuple[bool, list]:
+        """Search for music content using Deezer"""
+        try:
+            logger.info(f"Searching for {search_type}s with query: {query} (Page: {page})")
+            
+            offset = (page - 1) * 5
+            results = await DeezerAPIClient.search(query, search_type, limit=5, offset=offset)
+            
+            if results:
+                logger.info(f"Found {len(results)} {search_type}s for query: {query}")
+                return True, results
+            else:
+                logger.warning(f"No {search_type}s found for query: {query}")
+                return False, []
+                
+        except Exception as e:
+            logger.error(f"Search error for {search_type}s - Query: {query}: {str(e)}", exc_info=True)
+            return False, []
+
+    async def get_item_info(self, content_type: str, item_id: str) -> tuple[bool, dict]:
+        """Get detailed information about a music item"""
+        try:
+            logger.info(f"Getting info for {content_type} with ID: {item_id}")
+            item_info = await DeezerAPIClient.get_item_info(content_type, item_id)
+            
+            if item_info:
+                logger.info(f"Successfully retrieved info for {content_type} {item_id}")
+                return True, item_info
+            else:
+                logger.warning(f"No info found for {content_type} {item_id}")
+                return False, {}
+                
+        except Exception as e:
+            logger.error(f"Error getting item info for {content_type} {item_id}: {str(e)}", exc_info=True)
+            return False, {}
+
+    async def get_artist_top_tracks(self, artist_id: str) -> list:
+        """Get artist's top tracks"""
+        try:
+            logger.info(f"Getting top tracks for artist {artist_id}")
+            return await DeezerAPIClient.get_artist_top_tracks(artist_id)
+        except Exception as e:
+            logger.error(f"Error getting artist top tracks: {str(e)}", exc_info=True)
+            return []
+
+    async def get_artist_albums(self, artist_id: str) -> list:
+        """Get artist's albums"""
+        try:
+            logger.info(f"Getting albums for artist {artist_id}")
+            return await DeezerAPIClient.get_artist_albums(artist_id)
+        except Exception as e:
+            logger.error(f"Error getting artist albums: {str(e)}", exc_info=True)
+            return []
 
     @staticmethod
     async def get_track(track_id):

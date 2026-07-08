@@ -6,8 +6,7 @@ from sqlalchemy.sql import func
 from bale_bot.database import bale_async_session_maker
 from bale_bot.database.models import BaleUserDownload
 from bale_bot.controllers.user_controller import BaleUserController
-from services.deezer_service import DeezerService
-from services.spotify_service import SpotifyService
+from services.deezer_service import DeezerService, DeezerAPIClient
 from utils.file_handler import FileHandler
 from utils.url_validator import URLValidator
 from bale_bot.views.music_view import MusicView
@@ -25,7 +24,6 @@ class BaleDownloadController:
     
     def __init__(self):
         self.deezer_service = DeezerService()
-        self.spotify_service = SpotifyService()
         self.file_handler = FileHandler()
         self.url_validator = URLValidator()
         logger.info("BaleDownloadController initialized")
@@ -72,25 +70,11 @@ class BaleDownloadController:
             return download.download_id
 
     async def search(self, query: str, search_type: str, page: int = 1) -> tuple[bool, list]:
-        """
-        Search for music content on Spotify
-        
-        Args:
-            query (str): Search query
-            search_type (str): Type of content to search for ('track', 'album', 'playlist')
-            page (int): Page number for pagination (default: 1)
-            
-        Returns:
-            tuple[bool, list]: Success status and list of search results
-        """
+        """Search for music content using Deezer"""
         try:
             logger.info(f"Searching for {search_type}s with query: {query} (Page: {page})")
-            
-            # Calculate offset for pagination (5 items per page)
             offset = (page - 1) * 5
-            
-            # Perform search using spotify service
-            results = await self.spotify_service.search(query, search_type, limit=5, offset=offset)
+            results = await DeezerAPIClient.search(query, search_type, limit=5, offset=offset)
             
             if results:
                 logger.info(f"Found {len(results)} {search_type}s for query: {query}")
@@ -104,20 +88,10 @@ class BaleDownloadController:
             return False, []
 
     async def get_item_info(self, content_type: str, item_id: str) -> tuple[bool, dict]:
-        """
-        Get detailed information about a music item
-        
-        Args:
-            content_type (str): Type of content ('track', 'album', 'playlist')
-            item_id (str): Spotify ID of the item
-            
-        Returns:
-            tuple[bool, dict]: Success status and item information
-        """
+        """Get detailed information about a music item"""
         try:
             logger.info(f"Getting info for {content_type} with ID: {item_id}")
-            
-            item_info = await self.spotify_service.get_item_info(content_type, item_id)
+            item_info = await DeezerAPIClient.get_item_info(content_type, item_id)
             
             if item_info:
                 logger.info(f"Successfully retrieved info for {content_type} {item_id}")
@@ -152,24 +126,9 @@ class BaleDownloadController:
                 make_zip = user_settings.get('make_zip', True)
             logger.info(f"User {user_id} settings - Quality: {quality}, Make ZIP: {make_zip}")
 
-            # Extract and store Spotify ID before conversion
-            spotify_id = None
-            if "spotify" in url:
-                if 'playlist' in url:
-                    logger.error(f"Spotify playlist not supported: {url}")
-                    return False, "Spotify playlists are not supported yet. Please use a Deezer link."
-                # Extract Spotify ID from URL before conversion
-                spotify_match = re.search(r'spotify\.com/(track|album)/([a-zA-Z0-9]+)', url)
-                if spotify_match:
-                    spotify_id = spotify_match.group(2)
-                    logger.info(f"Extracted Spotify ID: {spotify_id}")
-                
-                logger.info(f"Converting Spotify URL to Deezer URL: {url}")
-                url = await self.deezer_service.convert_to_deezer(url)
-                if not url:
-                    logger.error("Failed to convert Spotify URL to Deezer URL")
-                    return False, "❌ Could not find this track on Deezer. Please try a different link."
-                logger.info(f"Converted to Deezer URL: {url}")
+            if "spotify" in url.lower():
+                logger.error(f"Spotify link rejected: {url}")
+                return False, "❌ Spotify links are no longer supported. Please use a Deezer link."
 
             content_type, deezer_id = self.deezer_service.extract_info_from_url(url)
             logger.info(f"Extracted info - Type: {content_type}, ID: {deezer_id}")
@@ -369,15 +328,7 @@ class BaleDownloadController:
         """Get artist's top tracks"""
         try:
             logger.info(f"Getting top tracks for artist {artist_id}")
-            top_tracks = self.spotify_service.sp.artist_top_tracks(artist_id)['tracks']
-            processed_tracks = []
-            for track in top_tracks:
-                processed_tracks.append({
-                    'id': track['id'],
-                    'name': track['name'],
-                    'duration': self.spotify_service._format_duration(track['duration_ms'])
-                })
-            return processed_tracks
+            return await DeezerAPIClient.get_artist_top_tracks(artist_id)
         except Exception as e:
             logger.error(f"Error getting artist top tracks: {str(e)}", exc_info=True)
             return []
@@ -386,15 +337,7 @@ class BaleDownloadController:
         """Get artist's albums"""
         try:
             logger.info(f"Getting albums for artist {artist_id}")
-            albums = self.spotify_service.sp.artist_albums(artist_id, album_type='album')['items']
-            processed_albums = []
-            for album in albums:
-                processed_albums.append({
-                    'id': album['id'],
-                    'name': album['name'],
-                    'release_date': album['release_date']
-                })
-            return processed_albums
+            return await DeezerAPIClient.get_artist_albums(artist_id)
         except Exception as e:
             logger.error(f"Error getting artist albums: {str(e)}", exc_info=True)
             return []

@@ -3,6 +3,7 @@ import re
 import asyncio
 import subprocess
 import glob
+import aiohttp
 from dataclasses import dataclass, field
 from typing import Optional, Tuple, Dict, Any, List
 
@@ -18,6 +19,160 @@ class DeemixTrackResult:
     artist: str = "Unknown Artist"
     album: str = "Unknown Album"
     duration: Optional[int] = None
+
+class DeezerAPIClient:
+    BASE_URL = "https://api.deezer.com"
+
+    @classmethod
+    async def _request(cls, endpoint: str, params: dict = None):
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"{cls.BASE_URL}/{endpoint}", params=params) as resp:
+                    if resp.status == 200:
+                        return await resp.json()
+                    return None
+        except Exception as e:
+            logger.error(f"Deezer API request failed: {str(e)}")
+            return None
+
+    @classmethod
+    def _format_duration(cls, seconds: int) -> str:
+        if not seconds:
+            return "0:00"
+        m, s = divmod(seconds, 60)
+        return f"{m}:{s:02d}"
+
+    @classmethod
+    async def search(cls, query: str, search_type: str, limit: int = 5, offset: int = 0) -> List[Dict]:
+        """Search Deezer API and map to expected view format"""
+        # Map search_type for deezer API
+        endpoint = f"search/{search_type}"
+        data = await cls._request(endpoint, {"q": query, "limit": limit, "index": offset})
+        if not data or 'data' not in data:
+            return []
+            
+        results = []
+        for item in data['data']:
+            if search_type == "track":
+                results.append({
+                    'id': str(item['id']),
+                    'name': item['title'],
+                    'artists': [{'id': str(item['artist']['id']), 'name': item['artist']['name']}],
+                    'main_artist': item['artist']['name'],
+                    'album': {'id': str(item['album']['id']), 'name': item['album']['title']},
+                    'duration': cls._format_duration(item.get('duration', 0))
+                })
+            elif search_type == "album":
+                results.append({
+                    'id': str(item['id']),
+                    'name': item['title'],
+                    'main_artist': item['artist']['name']
+                })
+            elif search_type == "artist":
+                results.append({
+                    'id': str(item['id']),
+                    'name': item['name']
+                })
+            elif search_type == "playlist":
+                results.append({
+                    'id': str(item['id']),
+                    'name': item['title'],
+                    'total_tracks': item.get('nb_tracks', 0)
+                })
+        return results
+
+    @classmethod
+    async def get_item_info(cls, content_type: str, item_id: str) -> Optional[Dict]:
+        """Get full details of a specific item"""
+        item = await cls._request(f"{content_type}/{item_id}")
+        if not item or 'error' in item:
+            return None
+            
+        if content_type == "track":
+            # Attempt to get album info if present
+            album_info = item.get('album', {})
+            return {
+                'id': str(item['id']),
+                'name': item['title'],
+                'url': item.get('link', f"https://www.deezer.com/track/{item['id']}"),
+                'artists': [{'id': str(item['artist']['id']), 'name': item['artist']['name']}],
+                'main_artist': item['artist']['name'],
+                'album': {
+                    'id': str(album_info.get('id', '')), 
+                    'name': album_info.get('title', 'Unknown'),
+                    'release_date': album_info.get('release_date', 'Unknown')
+                },
+                'duration': cls._format_duration(item.get('duration', 0)),
+                'popularity': 0, # Deezer doesn't provide popularity directly
+                'explicit': item.get('explicit_lyrics', False)
+            }
+        elif content_type == "album":
+            return {
+                'id': str(item['id']),
+                'name': item['title'],
+                'url': item.get('link', f"https://www.deezer.com/album/{item['id']}"),
+                'artists': [{'id': str(item['artist']['id']), 'name': item['artist']['name']}],
+                'main_artist': item['artist']['name'],
+                'release_date': item.get('release_date', 'Unknown'),
+                'total_tracks': item.get('nb_tracks', 0)
+            }
+        elif content_type == "playlist":
+            return {
+                'id': str(item['id']),
+                'name': item['title'],
+                'url': item.get('link', f"https://www.deezer.com/playlist/{item['id']}"),
+                'description': item.get('description', ''),
+                'total_tracks': item.get('nb_tracks', 0)
+            }
+        elif content_type == "artist":
+            return {
+                'id': str(item['id']),
+                'name': item['name'],
+                'url': item.get('link', f"https://www.deezer.com/artist/{item['id']}"),
+                'followers': item.get('nb_fan', 0),
+                'popularity': 0,
+                'genres': [],
+                'more_artist_info': {
+                    'top_tracks': True,
+                    'albums': True,
+                    'related_artists': True
+                }
+            }
+        return None
+
+    @classmethod
+    async def get_artist_top_tracks(cls, artist_id: str) -> List[Dict]:
+        data = await cls._request(f"artist/{artist_id}/top")
+        if not data or 'data' not in data:
+            return []
+        
+        results = []
+        for track in data['data']:
+            results.append({
+                'id': str(track['id']),
+                'name': track['title'],
+                'duration': cls._format_duration(track.get('duration', 0)),
+                'artist': track['artist']['name'],
+                'main_artist': track['artist']['name']
+            })
+        return results
+
+    @classmethod
+    async def get_artist_albums(cls, artist_id: str) -> List[Dict]:
+        data = await cls._request(f"artist/{artist_id}/albums")
+        if not data or 'data' not in data:
+            return []
+            
+        results = []
+        for album in data['data']:
+            results.append({
+                'id': str(album['id']),
+                'name': album['title'],
+                'release_date': album.get('release_date', 'Unknown'),
+                'artist': album.get('artist', {}).get('name', 'Unknown'),
+                'main_artist': album.get('artist', {}).get('name', 'Unknown')
+            })
+        return results
 
 @dataclass
 class DeemixResult:

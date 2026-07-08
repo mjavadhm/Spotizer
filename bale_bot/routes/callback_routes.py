@@ -425,13 +425,8 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
             # Send processing message
             status_message = await callback_query.message.reply("⏳")
             
-            # Check if item_id is numeric (Deezer ID) or string (Spotify ID)
-            if item_id.isdigit():
-                target_url = f"https://www.deezer.com/{content_type}/{item_id}"
-                logger.info(f"Detected Deezer ID {item_id}, using URL: {target_url}")
-            else:
-                target_url = f"https://open.spotify.com/{content_type}/{item_id}"
-                logger.info(f"Detected Spotify ID {item_id}, using URL: {target_url}")
+            target_url = f"https://www.deezer.com/{content_type}/{item_id}"
+            logger.info(f"Using Deezer URL for download: {target_url}")
 
             success, result = await download_controller.process_download_request(
                 user_id=user_id,
