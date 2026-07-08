@@ -116,7 +116,9 @@ class DeezerAPIClient:
                         'id': str(t['id']),
                         'name': t['title'],
                         'duration': cls._format_duration(t.get('duration', 0)),
-                        'artists': [{'id': str(t['artist']['id']), 'name': t['artist']['name']}]
+                        'artists': [{'id': str(t['artist']['id']), 'name': t['artist']['name']}],
+                        'artist': t['artist']['name'],
+                        'main_artist': t['artist']['name']
                     })
                     
             return {
@@ -139,7 +141,9 @@ class DeezerAPIClient:
                         'id': str(t['id']),
                         'name': t['title'],
                         'duration': cls._format_duration(t.get('duration', 0)),
-                        'artists': [{'id': str(t['artist']['id']), 'name': t['artist']['name']}]
+                        'artists': [{'id': str(t['artist']['id']), 'name': t['artist']['name']}],
+                        'artist': t['artist']['name'],
+                        'main_artist': t['artist']['name']
                     })
                     
             return {
