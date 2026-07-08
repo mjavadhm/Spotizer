@@ -32,12 +32,11 @@ asyncpg>=0.29.0
 alembic>=1.13.0
 
 # Music APIs and Downloaders
-spotipy>=2.23.0
-deezloader
-# Alternative: deezer-python>=5.0.0 (if deezloader doesn't work)
+# Spotify support has been removed
 
 # Audio/Video Processing
 ffmpeg-python>=0.2.0
+tinytag>=1.9.2
 
 # URL Validation
 validators>=0.22.0
@@ -73,8 +72,11 @@ pathlib>=1.0.1
 #    - Linux: sudo apt-get install ffmpeg
 #    - macOS: brew install ffmpeg
 #
-# 2. For deezloader, you'll need a valid Deezer ARL token
-#    Add it to your .env file as: DEEZER_ARL=your_arl_token
+# 2. For deemix, you'll need a valid Deezer ARL token and deemix-cli path
+#    Add to your .env file as: 
+#    DEEZER_ARL=your_arl_token
+#    DEEMIX_PATH=tools/deemix/deemix
+#    DEEMIX_CONFIG_DIR=tools/deemix/config
 #
 # 3. PostgreSQL database must be installed and running
 #    Update database connection settings in .env
@@ -85,7 +87,4 @@ pathlib>=1.0.1
 # 5. Bale Bot Token from @BotFather on Bale (ble.ir/botfather)
 #    Add to .env as: BALE_BOT_TOKEN=your_bale_bot_token
 #
-# 6. Spotify API Credentials from Spotify Developer Dashboard
-#    Add to .env as:
-#    SPOTIFY_CLIENT_ID=your_client_id
-#    SPOTIFY_CLIENT_SECRET=your_client_secret
+

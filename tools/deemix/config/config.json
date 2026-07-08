@@ -1,0 +1,29 @@
+{
+  "downloadLocation": "./downloads",
+  "tracknameTemplate": "%artist% - %title%",
+  "albumTracknameTemplate": "%tracknumber% - %title%",
+  "playlistTracknameTemplate": "%artist% - %title%",
+  "createPlaylistFolder": true,
+  "createAlbumFolder": true,
+  "createArtistFolder": false,
+  "maxBitrate": 3,
+  "queueConcurrency": 3,
+  "fallbackBitrate": true,
+  "fallbackSearch": true,
+  "overwriteFile": "n",
+  "createM3U8File": false,
+  "embeddedArtworkSize": 800,
+  "saveArtwork": false,
+  "tags": {
+    "title": true,
+    "artist": true,
+    "album": true,
+    "cover": true,
+    "trackNumber": true,
+    "discNumber": true,
+    "date": true,
+    "year": true,
+    "genre": true,
+    "lyrics": true
+  }
+}

@@ -1,86 +1,67 @@
 import os
 import re
-import requests
-from dataclasses import dataclass
-from typing import Optional, Tuple, Dict, Any, List, Union
+import asyncio
+import subprocess
+import glob
+from dataclasses import dataclass, field
+from typing import Optional, Tuple, Dict, Any, List
 
-from deezloader.deezloader import DeeLogin
-from deezloader.models.smart import Smart
-
-from utils.file_handler import FileHandler
+from tinytag import TinyTag
 from logger import get_logger
 
 logger = get_logger(__name__)
 
 @dataclass
-class DownloadResult:
+class DeemixTrackResult:
+    file_path: str
+    title: str = "Unknown Title"
+    artist: str = "Unknown Artist"
+    album: str = "Unknown Album"
+    duration: Optional[int] = None
+
+@dataclass
+class DeemixResult:
     success: bool
-    track_info: Optional[Dict[str, Any]] = None
-    file_path: Optional[str] = None
+    tracks: List[DeemixTrackResult] = field(default_factory=list)
     error: Optional[str] = None
+    is_album_or_playlist: bool = False
 
 class DeezerService:
     def __init__(self):
-        self.file_handler = FileHandler()
-        self.client: Optional[DeeLogin] = None
-        self._initialize_client()
-        logger.info("DeezerService initialized")
+        self.deemix_path = os.getenv('DEEMIX_PATH', 'tools/deemix/deemix')
+        self.config_dir = os.path.abspath(os.getenv('DEEMIX_CONFIG_DIR', 'tools/deemix/config'))
+        self.download_dir = os.path.abspath('downloads')
+        self._setup_arl()
+        logger.info("DeezerService initialized with CLI approach")
 
-    def _initialize_client(self):
-        """Initialize the Deezer client with ARL from environment."""
+    def _setup_arl(self):
+        """Write ARL token to deemix config"""
         arl = os.getenv('DEEZER_ARL')
         if not arl:
             logger.error("DEEZER_ARL environment variable is not set.")
             return
 
+        os.makedirs(self.config_dir, exist_ok=True)
+        arl_path = os.path.join(self.config_dir, '.arl')
         try:
-            self.client = DeeLogin(arl=arl)
-            logger.info("Deezer client initialized successfully")
+            with open(arl_path, 'w') as f:
+                f.write(arl)
+            logger.info("ARL token configured for deemix")
         except Exception as e:
-            logger.error(f"Failed to initialize Deezer client: {str(e)}", exc_info=True)
+            logger.error(f"Failed to write ARL token: {str(e)}")
 
-    async def download(self, url: str, output_folder="downloads", quality_download: str = 'MP3_320', make_zip: bool = False) -> Union[Smart, DownloadResult, bool]:
-        """Download track/album/playlist from Deezer"""
-        import asyncio
-        
-        if not self.client:
-            logger.error("Deezer client is not initialized. Cannot download.")
-            return DownloadResult(False, error="Deezer client not initialized")
-
-        try:
-            logger.info(f"Starting download - URL: {url}, Quality: {quality_download}, Make ZIP: {make_zip}")
-            content_type, deezer_id = self.extract_info_from_url(url)
-            
-            if not content_type or not deezer_id:
-                logger.error(f"Invalid Deezer URL provided: {url}")
-                return DownloadResult(False, error="Invalid Deezer URL")
-
-            logger.info(f"Downloading {content_type} with ID: {deezer_id}")
-            loop = asyncio.get_event_loop()
-            
-            # Run blocking deezloader call in thread pool with timeout
-            try:
-                smart = await asyncio.wait_for(
-                    loop.run_in_executor(
-                        None,
-                        lambda: self.client.download_smart(url, output_folder, quality_download=quality_download, make_zip=make_zip)
-                    ),
-                    timeout=300.0  # 5 minute timeout for downloads
-                )
-                logger.info(f"Successfully downloaded {content_type} - ID: {deezer_id}")
-                return smart
-            except asyncio.TimeoutError:
-                logger.error(f"Timeout downloading {content_type} {deezer_id}")
-                return DownloadResult(False, error="Download timed out")
-
-        except Exception as e:
-            logger.error(f"Download error for URL {url}: {str(e)}", exc_info=True)
-            return False
+    def _map_quality(self, quality: str) -> str:
+        """Map Spotizer quality to deemix bitrate flag"""
+        mapping = {
+            'MP3_128': '128',
+            'MP3_320': '320',
+            'FLAC': 'flac'
+        }
+        return mapping.get(quality, '320')
 
     def extract_info_from_url(self, url: str) -> Tuple[Optional[str], Optional[int]]:
         """Extract content type and ID from Deezer URL"""
         try:
-            # logger.info(f"Extracting info from URL: {url}")
             patterns = {
                 'track': r'deezer\.com(?:\/[a-z]{2})?\/track\/(\d+)',
                 'album': r'deezer\.com(?:\/[a-z]{2})?\/album\/(\d+)',
@@ -91,112 +72,78 @@ class DeezerService:
                 match = re.search(pattern, url)
                 if match:
                     deezer_id = int(match.group(1))
-                    logger.info(f"Extracted {content_type} with ID: {deezer_id}")
                     return content_type, deezer_id
-                    
-            logger.error(f"No matching pattern found for URL: {url}")
             return None, None
-            
         except Exception as e:
-            logger.error(f"Error extracting info from URL {url}: {str(e)}", exc_info=True)
+            logger.error(f"Error extracting info from URL {url}: {str(e)}")
             return None, None
 
-    async def get_deezer_info(self, content_type: str, deezer_id: int) -> Dict[str, Any]:
-        """Get information from Deezer API"""
-        import asyncio
+    async def download(self, url: str, output_folder="downloads", quality_download: str = 'MP3_320', make_zip: bool = False) -> DeemixResult:
+        """Download track/album/playlist from Deezer using deemix-cli"""
         
-        def _fetch():
-            url = f"https://api.deezer.com/{content_type}/{deezer_id}"
-            response = requests.get(url)
-            if response.status_code == 200:
-                return response.json()
-            else:
-                error_msg = f"Failed to get Deezer info: HTTP {response.status_code}"
-                logger.error(error_msg)
-                raise Exception(error_msg)
-        
-        try:
-            return await asyncio.to_thread(_fetch)
-        except Exception as e:
-            logger.error(f"Error getting Deezer info for {content_type} {deezer_id}: {str(e)}", exc_info=True)
-            raise
+        content_type, deezer_id = self.extract_info_from_url(url)
+        if not content_type:
+            return DeemixResult(False, error="Invalid Deezer URL")
 
-    async def create_zip(self, file_path: str, title: str) -> Optional[str]:
-        """Create ZIP archive for album/playlist"""
-        try:
-            logger.info(f"Creating ZIP archive for: {title}")
-            success, zip_path = self.file_handler.create_zip_archive([file_path], f"{title}.zip")
-            
-            if success:
-                logger.info(f"Successfully created ZIP archive: {zip_path}")
-                return zip_path
-            else:
-                logger.error(f"Failed to create ZIP archive for: {title}")
-                return None
-                
-        except Exception as e:
-            logger.error(f"Error creating ZIP archive for {title}: {str(e)}", exc_info=True)
-            return None
-    
-    async def get_track_list(self, content_type: str, deezer_id: int) -> List[int]:
-        """Get list of track IDs from album or playlist"""
-        try:
-            logger.info(f"Getting track list for {content_type} {deezer_id}")
-            
-            if content_type == 'track':
-                logger.info(f"Single track requested: {deezer_id}")
-                return [deezer_id]
-            
-            elif content_type in ['album', 'playlist']:
-                info = await self.get_deezer_info(content_type, deezer_id)
-                if "tracks" in info:
-                    track_ids = [track['id'] for track in info['tracks']['data']]
-                    logger.info(f"Retrieved {len(track_ids)} tracks from {content_type} {deezer_id}")
-                    return track_ids
-                else:
-                    error_msg = f"Error in getting track list: {content_type} {deezer_id}"
-                    logger.error(error_msg)
-                    raise ValueError(error_msg)
-            else:
-                error_msg = f"Invalid content type: {content_type}"
-                logger.error(error_msg)
-                raise ValueError(error_msg)
-                
-        except Exception as e:
-            logger.error(f"Error getting track list for {content_type} {deezer_id}: {str(e)}", exc_info=True)
-            raise
-    
-    async def convert_to_deezer(self, url: str) -> Optional[str]:
-        """Convert Spotify URL to Deezer URL using SpotifyService (non-blocking)"""
-        import asyncio
-        from services.spotify_service import SpotifyService
+        bitrate = self._map_quality(quality_download)
         
-        print(f"[DEBUG] convert_to_deezer: ENTER - url={url}")
+        # Determine specific download directory to isolate files for this download
+        download_path = os.path.abspath(os.path.join(output_folder, f"deemix_{deezer_id}"))
+        os.makedirs(download_path, exist_ok=True)
         
+        # Run CLI in thread to avoid blocking asyncio loop
+        def run_cli():
+            cmd = [
+                self.deemix_path, 
+                url, 
+                "-b", bitrate, 
+                "-p", download_path
+            ]
+            env = os.environ.copy()
+            env["DEEMIX_CONFIG_DIR"] = self.config_dir
+            
+            logger.info(f"Running deemix CLI: {' '.join(cmd)}")
+            return subprocess.run(cmd, capture_output=True, text=True, env=env)
+
         try:
-            # Use SpotifyService instead of deezloader's blocking librespot
-            spotify_service = SpotifyService()
+            logger.info(f"Starting download of {content_type} {deezer_id} (Quality: {bitrate})")
+            process = await asyncio.to_thread(run_cli)
             
-            print(f"[DEBUG] convert_to_deezer: using SpotifyService.convert_to_deezer_url")
+            logger.debug(f"deemix stdout: {process.stdout}")
+            if process.stderr:
+                logger.warning(f"deemix stderr: {process.stderr}")
+
+            # Scan the download_path for audio files
+            audio_files = []
+            for ext in ('*.mp3', '*.flac', '*.m4a'):
+                audio_files.extend(glob.glob(os.path.join(download_path, '**', ext), recursive=True))
             
-            loop = asyncio.get_event_loop()
-            # Run in executor since spotipy uses requests which is blocking
-            result = await loop.run_in_executor(
-                None,
-                spotify_service.convert_to_deezer_url,
-                url
+            if not audio_files:
+                return DeemixResult(False, error="No files were downloaded. Deemix failed.")
+            
+            tracks = []
+            for file_path in audio_files:
+                try:
+                    tag = TinyTag.get(file_path)
+                    tracks.append(DeemixTrackResult(
+                        file_path=file_path,
+                        title=tag.title or "Unknown Title",
+                        artist=tag.artist or "Unknown Artist",
+                        album=tag.album or "Unknown Album",
+                        duration=int(tag.duration) if tag.duration else None
+                    ))
+                except Exception as e:
+                    logger.error(f"Error parsing metadata for {file_path}: {str(e)}")
+                    tracks.append(DeemixTrackResult(file_path=file_path))
+            
+            is_album_or_playlist = content_type in ['album', 'playlist']
+            
+            return DeemixResult(
+                success=True, 
+                tracks=tracks, 
+                is_album_or_playlist=is_album_or_playlist
             )
             
-            print(f"[DEBUG] convert_to_deezer: result={result}")
-            
-            if result:
-                logger.info(f"Converted {url} to {result}")
-            else:
-                logger.warning(f"Could not convert {url} to Deezer URL")
-            
-            return result
-            
         except Exception as e:
-            print(f"[DEBUG] convert_to_deezer: EXCEPTION - {e}")
-            logger.error(f"Error converting {url}: {str(e)}", exc_info=True)
-            return None
+            logger.error(f"Download error for URL {url}: {str(e)}", exc_info=True)
+            return DeemixResult(False, error=str(e))

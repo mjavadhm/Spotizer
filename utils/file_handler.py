@@ -3,6 +3,7 @@ import shutil
 import asyncio
 import ffmpeg
 from typing import List, Tuple, Optional
+from tinytag import TinyTag
 from .url_validator import sanitize_filename
 from logger import get_logger
 
@@ -76,17 +77,39 @@ class FileHandler:
             return False, str(e)
 
     def get_audio_duration(self, file_path: str) -> Optional[int]:
-        """Get audio file duration using ffmpeg"""
+        """Get audio file duration using tinytag"""
         try:
             logger.info(f"Getting duration for audio file: {file_path}")
-            probe = ffmpeg.probe(file_path)
-            duration = float(probe['format']['duration'])
-            logger.info(f"Audio duration: {duration} seconds")
-            return int(duration)
-            
+            tag = TinyTag.get(file_path)
+            duration = tag.duration
+            if duration:
+                logger.info(f"Audio duration: {duration} seconds")
+                return int(duration)
+            return None
         except Exception as e:
             logger.error(f"Failed to get audio duration for {file_path}: {str(e)}", exc_info=True)
             return None
+
+    def zip_folder(self, folder_path: str, archive_name: str) -> Tuple[bool, str]:
+        """Create ZIP archive from an entire folder"""
+        try:
+            safe_archive_name = sanitize_filename(archive_name)
+            archive_path = os.path.join(self.temp_dir, safe_archive_name)
+            logger.info(f"Creating ZIP archive from folder: {folder_path} -> {safe_archive_name}")
+            
+            shutil.make_archive(
+                archive_path,  # Output path (without .zip)
+                'zip',
+                folder_path    # Directory to zip
+            )
+            
+            zip_path = archive_path + '.zip'
+            zip_size = os.path.getsize(zip_path)
+            logger.info(f"Folder ZIP archive created successfully: {zip_path} (Size: {zip_size} bytes)")
+            return True, zip_path
+        except Exception as e:
+            logger.error(f"Failed to zip folder {folder_path}: {str(e)}", exc_info=True)
+            return False, str(e)
 
     def create_m3u_playlist(self, tracks: List[Tuple[str, int, str]], playlist_name: str) -> Tuple[bool, str]:
         """Create M3U playlist file"""

@@ -45,77 +45,7 @@ class URLValidator:
             logger.error(f"Error validating Deezer URL {url}: {str(e)}", exc_info=True)
             return False
 
-    @staticmethod
-    def is_spotify_url(url: str) -> bool:
-        """Check if URL is a valid Spotify URL"""
-        try:
-            patterns = {
-                'track': r'open\.spotify\.com\/track\/([a-zA-Z0-9]+)',
-                'album': r'open\.spotify\.com\/album\/([a-zA-Z0-9]+)',
-                'playlist': r'open\.spotify\.com\/playlist\/([a-zA-Z0-9]+)',
-                'artist': r'open\.spotify\.com\/artist\/([a-zA-Z0-9]+)'
-            }
-            
-            for content_type, pattern in patterns.items():
-                if re.search(pattern, url):
-                    logger.info(f"Valid Spotify {content_type} URL: {url}")
-                    return True
-                    
-            logger.warning(f"Invalid Spotify URL format: {url}")
-            return False
-            
-        except Exception as e:
-            logger.error(f"Error validating Spotify URL {url}: {str(e)}", exc_info=True)
-            return False
 
-    @staticmethod
-    def extract_deezer_info(url: str) -> Tuple[str, int]:
-        """Extract content type and ID from Deezer URL"""
-        try:
-            patterns = {
-                'track': r'deezer\.com(?:\/[a-z]{2})?\/track\/(\d+)',
-                'album': r'deezer\.com(?:\/[a-z]{2})?\/album\/(\d+)',
-                'playlist': r'deezer\.com(?:\/[a-z]{2})?\/playlist\/(\d+)'
-            }
-            
-            for content_type, pattern in patterns.items():
-                match = re.search(pattern, url)
-                if match:
-                    deezer_id = int(match.group(1))
-                    logger.info(f"Extracted Deezer info - Type: {content_type}, ID: {deezer_id}")
-                    return content_type, deezer_id
-            
-            logger.warning(f"Could not extract Deezer info from URL: {url}")
-            return None, None
-            
-        except Exception as e:
-            logger.error(f"Error extracting Deezer info from URL {url}: {str(e)}", exc_info=True)
-            return None, None
-
-    @staticmethod
-    def extract_spotify_info(url: str) -> Tuple[str, str]:
-        """Extract content type and ID from Spotify URL"""
-        try:
-            patterns = {
-                'track': r'open\.spotify\.com\/track\/([a-zA-Z0-9]+)',
-                'album': r'open\.spotify\.com\/album\/([a-zA-Z0-9]+)',
-                'playlist': r'open\.spotify\.com\/playlist\/([a-zA-Z0-9]+)',
-                'artist': r'open\.spotify\.com\/artist\/([a-zA-Z0-9]+)'
-            }
-            
-            for content_type, pattern in patterns.items():
-                match = re.search(pattern, url)
-                if match:
-                    spotify_id = match.group(1)
-                    logger.info(f"Extracted Spotify info - Type: {content_type}, ID: {spotify_id}")
-                    return content_type, spotify_id
-            
-            logger.warning(f"Could not extract Spotify info from URL: {url}")
-            return None, None
-            
-        except Exception as e:
-            logger.error(f"Error extracting Spotify info from URL {url}: {str(e)}", exc_info=True)
-            return None, None
 
 def validate_settings(settings: Dict[str, Any]) -> Tuple[bool, str]:
     """Validate user settings"""
