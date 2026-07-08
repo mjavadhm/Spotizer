@@ -19,3 +19,14 @@ ENV/
 # Database
 *.db
 *.sqlite
+
+
+###############################
+cookies.txt
+.cache
+.cache_spoty_token.json
+app.log
+app.log.*
+downloads/
+spotizer_stream/
+temp/
