@@ -197,9 +197,7 @@ class BaleDownloadController:
                                 audio=audio_file,
                                 caption=f"@Spotizer_bot 🎧",
                                 duration=t.duration,
-                                title=t.title,
-                                performer=t.artist
-                            )
+                                title=t.title)
                         
                         await self.add_download(
                             user_id=user_id,
@@ -242,9 +240,7 @@ class BaleDownloadController:
                         audio=audio_file,
                         caption=f"@Spotizer_bot 🎧",
                         duration=t.duration,
-                        title=t.title,
-                        performer=t.artist
-                    )
+                        title=t.title)
                 
                 await self.add_download(
                     user_id=user_id,
