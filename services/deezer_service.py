@@ -195,18 +195,22 @@ class DeezerAPIClient:
         data = await cls._request(f"artist/{artist_id}/albums")
         if not data or 'data' not in data:
             return []
-            
-        results = []
-        for album in data['data']:
-            results.append({
+        
+        # Fetch each album's detail in parallel to get nb_tracks
+        async def fetch_album_detail(album):
+            detail = await cls._request(f"album/{album['id']}")
+            nb_tracks = detail.get('nb_tracks', 0) if detail else 0
+            return {
                 'id': str(album['id']),
                 'name': album['title'],
                 'release_date': album.get('release_date', 'Unknown'),
                 'artist': album.get('artist', {}).get('name', 'Unknown'),
                 'main_artist': album.get('artist', {}).get('name', 'Unknown'),
-                'nb_tracks': album.get('nb_tracks', 0)
-            })
-        return results
+                'nb_tracks': nb_tracks
+            }
+        
+        results = await asyncio.gather(*[fetch_album_detail(album) for album in data['data']])
+        return list(results)
 
     @classmethod
     async def get_artist_related(cls, artist_id: str) -> List[Dict]:
