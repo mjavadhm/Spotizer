@@ -54,7 +54,7 @@ async def playlist_callback(*, callback_query):
                     await callback_query.message.edit_text(text, reply_markup=keyboard)
             else:
                 await callback_query.answer("No tracks in this playlist")
-            await callback_query.answer()
+            await callback_query.answer(" ")
         
         elif action == "download_all":
             playlist_id = int(parts[2])
@@ -127,7 +127,7 @@ async def playlist_callback(*, callback_query):
                 text = PlaylistView.format_playlist_tracks(playlist.name, tracks, page)
                 keyboard = PlaylistView.get_playlist_track_keyboard(tracks, playlist_id, page)
                 await callback_query.message.edit_text(text, reply_markup=keyboard)
-            await callback_query.answer()
+            await callback_query.answer(" ")
         
         elif action == "back_to_list":
             success, playlists = await playlist_controller.get_user_playlists(user_id)
@@ -139,7 +139,7 @@ async def playlist_callback(*, callback_query):
                 )
             else:
                 await callback_query.message.edit_text("You have no playlists.")
-            await callback_query.answer()
+            await callback_query.answer(" ")
             
     except Exception as e:
         logger.error(f"Error in playlist callback: {str(e)}", exc_info=True)
@@ -175,7 +175,7 @@ async def select_playlist_callback(*, callback_query):
         else:
             await callback_query.answer("Playlist not found", show_alert=True)
         
-        await callback_query.answer()
+        await callback_query.answer(" ")
         
     except Exception as e:
         logger.error(f"Error selecting playlist: {str(e)}", exc_info=True)
@@ -198,7 +198,7 @@ async def settings_callback(*, callback_query):
             
             keyboard = MessageView.get_quality_options_keyboard(settings['download_quality'])
             await callback_query.message.edit_reply_markup(reply_markup=keyboard)
-            await callback_query.answer()
+            await callback_query.answer(" ")
             
         elif action == "toggle_zip":
             success, settings = await user_controller.get_user_settings(user_id)
@@ -281,7 +281,7 @@ async def search_callback(*, callback_query):
             text,
             reply_markup=keyboard
         )
-        await callback_query.answer()
+        await callback_query.answer(" ")
         
     except Exception as e:
         logger.error(f"Search callback error: {str(e)}", exc_info=True)
@@ -312,7 +312,7 @@ async def page_callback(*, callback_query):
             text,
             reply_markup=keyboard
         )
-        await callback_query.answer()
+        await callback_query.answer(" ")
         
     except Exception as e:
         logger.error(f"Page callback error: {str(e)}", exc_info=True)
@@ -364,7 +364,7 @@ async def select_callback(*, callback_query):
                 text,
                 reply_markup=keyboard
             )
-        await callback_query.answer()
+        await callback_query.answer(" ")
         
     except Exception as e:
         logger.error(f"Selection callback error: {str(e)}", exc_info=True)
@@ -418,7 +418,7 @@ async def view_callback(*, callback_query):
             caption=text,
             reply_markup=keyboard
         )
-        await callback_query.answer()
+        await callback_query.answer(" ")
         
     except Exception as e:
         logger.error(f"View callback error: {str(e)}", exc_info=True)
@@ -434,7 +434,7 @@ async def download_callback(*, callback_query):
         logger.info(f"Processing download for user {user_id} - Type: {content_type}, ID: {item_id}")
         
         # Answer callback query IMMEDIATELY to remove loading state
-        await callback_query.answer()
+        await callback_query.answer(" ")
         
         # Send processing message
         status_message = await callback_query.message.reply("⏳")
@@ -503,7 +503,7 @@ async def confirm_dl_callback(*, callback_query):
         user_id = callback_query.author.id
         
         await callback_query.message.edit_text("⏳ Request added to download queue...")
-        await callback_query.answer()
+        await callback_query.answer(" ")
         
         if content_type == "artist":
             from services.deezer_service import DeezerAPIClient
@@ -536,7 +536,7 @@ async def delete_callback(*, callback_query):
         user_id = callback_query.author.id
         logger.info(f"Processing delete request from user {user_id}")
         await callback_query.message.delete()
-        await callback_query.answer()
+        await callback_query.answer(" ")
         logger.info(f"Message deleted for user {user_id}")
     except Exception as e:
         logger.error(f"Delete callback error: {str(e)}", exc_info=True)
