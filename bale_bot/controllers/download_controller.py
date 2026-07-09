@@ -105,18 +105,19 @@ class BaleDownloadController:
             return False, {}
 
     async def process_download_request(self, user_id, url):
-        """
-        Process download request from user.
-        For Bale: Always download fresh - no file_id caching.
-        """
+        """Process download request from user"""
         try:
             logger.info(f"Processing download request for user {user_id} - URL: {url}")
             
             if not self.url_validator.is_valid_url(url):
                 logger.error(f"Invalid URL format provided by user {user_id}: {url}")
-                return False, "Invalid URL format. Please provide a valid Deezer or Spotify link."
+                return False, "Invalid URL format. Please provide a valid Deezer link."
 
-            # Get user settings
+            if "spotify" in url.lower():
+                logger.warning(f"User {user_id} tried to download a Spotify link: {url}")
+                return False, "❌ Spotify links are no longer supported. Please use a Deezer link."
+
+            from bale_bot.controllers.user_controller import BaleUserController
             success, user_settings = await BaleUserController.get_user_settings(user_id)
             if not success:
                 quality = 'MP3_320'
@@ -124,165 +125,154 @@ class BaleDownloadController:
             else:
                 quality = user_settings.get('download_quality', 'MP3_320')
                 make_zip = user_settings.get('make_zip', True)
+            
             logger.info(f"User {user_id} settings - Quality: {quality}, Make ZIP: {make_zip}")
 
-            if "spotify" in url.lower():
-                logger.error(f"Spotify link rejected: {url}")
-                return False, "❌ Spotify links are no longer supported. Please use a Deezer link."
-
             content_type, deezer_id = self.deezer_service.extract_info_from_url(url)
-            logger.info(f"Extracted info - Type: {content_type}, ID: {deezer_id}")
-            
             if not content_type or not deezer_id:
-                logger.error(f"Could not extract content type or ID from URL: {url}")
-                return False, "❌ Invalid URL format. Please provide a valid Deezer or Spotify link."
+                return False, "❌ Invalid URL format. Please provide a valid Deezer link."
 
-            # For Bale: Always download fresh, no caching
-            if make_zip and 'track' not in url:
-                logger.info(f"Downloading {content_type} as ZIP: {deezer_id}")
-                smart = await self.deezer_service.download(url, quality_download=quality, make_zip=True)
+            logger.info(f"Downloading {content_type}: {deezer_id}")
+            result = await self.deezer_service.download(url, quality_download=quality)
+            
+            if not result.success:
+                return False, f"❌ Download failed: {result.error}"
+
+            import shutil
+            from bale_bot.app import bot
+
+            # If it's an album or playlist, we can optionally zip it
+            if result.is_album_or_playlist:
+                if not result.tracks:
+                    return False, "❌ Album/Playlist is empty or failed to download."
                 
-                if smart.album:
-                    logger.info(f"Processing album download: {smart.album.title}")
-                    file_path = smart.album.zip_path
+                download_dir = os.path.dirname(result.tracks[0].file_path)
+                
+                if content_type == 'album':
+                    title = result.tracks[0].album if result.tracks[0].album else f"album_{deezer_id}"
+                    artist = result.tracks[0].artist if result.tracks[0].artist else "Unknown Artist"
+                    display_title = f"{title} - {artist}"
+                elif content_type == 'artist':
+                    title = f"artist_discography_{deezer_id}"
+                    artist = result.tracks[0].artist if result.tracks[0].artist else "Unknown Artist"
+                    display_title = f"{artist} - Full Discography"
+                else:
+                    title = f"playlist_{deezer_id}"
+                    display_title = title
                     
-                    # Send document to user (always fresh, no caching)
-                    await bot.send_document(
-                        chat_id=user_id, 
-                        document=open(file_path, 'rb'),
-                        caption=f"@Spotizer_bot 🎧"
-                    )
-                    
-                    await self.add_download(
-                        user_id=user_id,
-                        deezer_id=deezer_id,
-                        content_type='album',
-                        quality=quality,
-                        url=url,
-                        title=smart.album.title,
-                        artist=smart.album.artist,
-                        album=smart.album.title,
-                    )
-                    
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
-                        logger.info(f"Deleted album ZIP file: {file_path}")
-                    
-                elif smart.playlist:
-                    logger.info(f"Processing playlist download: {smart.playlist.title}")
-                    file_path = smart.playlist.zip_path
-                    
-                    # Send document to user
-                    await bot.send_document(
-                        chat_id=user_id, 
-                        document=open(file_path, 'rb'),
-                        caption=f"@Spotizer_bot 🎧"
-                    )
+                if make_zip:
+                    logger.info(f"Creating ZIP for {content_type} {deezer_id}")
+                    zip_success, zip_path = self.file_handler.zip_folder(download_dir, title)
+                    if not zip_success:
+                        return False, "❌ Failed to create ZIP archive."
+                        
+                    with open(zip_path, 'rb') as zip_file:
+                        sent_message = await bot.send_document(
+                            chat_id=user_id, 
+                            document=zip_file, 
+                            caption=f"@Spotizer_bot 🎧\n📀 {display_title}"
+                        )
                     
                     await self.add_download(
                         user_id=user_id,
                         deezer_id=deezer_id,
-                        content_type='playlist',
+                        content_type=content_type,
                         quality=quality,
                         url=url,
-                        title=smart.playlist.title,
-                        artist=smart.playlist.artist,
-                        album=None,
+                        title=title,
+                        artist=artist if content_type == 'album' else "Unknown",
+                        album=title if content_type == 'album' else None,
+                        file_name=os.path.basename(zip_path)
                     )
                     
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
-                        logger.info(f"Deleted playlist ZIP file: {file_path}")
+                    if os.path.exists(zip_path):
+                        os.remove(zip_path)
+                    shutil.rmtree(download_dir, ignore_errors=True)
+                else:
+                    musics_playlist = []
+                    for t in result.tracks:
+                        with open(t.file_path, 'rb') as audio_file:
+                            sent_message = await bot.send_audio(
+                                chat_id=user_id,
+                                audio=audio_file,
+                                caption=f"@Spotizer_bot 🎧",
+                                duration=t.duration,
+                                title=t.title,
+                                performer=t.artist
+                            )
+                        
+                        await self.add_download(
+                            user_id=user_id,
+                            deezer_id=deezer_id, 
+                            content_type='track',
+                            quality=quality,
+                            url=url,
+                            title=t.title,
+                            artist=t.artist,
+                            duration=t.duration,
+                            file_name=os.path.basename(t.file_path),
+                            album=t.album
+                        )
+                        musics_playlist.append((t.title, t.duration, os.path.basename(t.file_path)))
+                        if os.path.exists(t.file_path):
+                            os.remove(t.file_path)
+
+                    if len(musics_playlist) > 1:
+                        filename = f'deezer_{deezer_id}.m3u'
+                        await self.file_handler.playlist_creator(musics_playlist, filename)
+                        
+                        with open(filename, 'rb') as playlist_file:
+                            await bot.send_document(
+                                chat_id=user_id,
+                                document=playlist_file,
+                                caption="<a href='https://telegra.ph/How-to-Use-M3U-Playlists-03-02'>What is this and how can I use it?</a>\n\n@Spotizer_bot 🎧",
+                            )
+                        if os.path.exists(filename):
+                            os.remove(filename)
+                            
+                    shutil.rmtree(download_dir, ignore_errors=True)
             else:
-                logger.info(f"Processing individual tracks for {content_type} {deezer_id}")
-                track_ids = await self.deezer_service.get_track_list(content_type, deezer_id)
-                musics_playlist = []
+                if not result.tracks:
+                    return False, "❌ Failed to download track."
+                    
+                t = result.tracks[0]
+                with open(t.file_path, 'rb') as audio_file:
+                    sent_message = await bot.send_audio(
+                        chat_id=user_id,
+                        audio=audio_file,
+                        caption=f"@Spotizer_bot 🎧",
+                        duration=t.duration,
+                        title=t.title,
+                        performer=t.artist
+                    )
                 
-                for track_id in track_ids:
-                    try:
-                        logger.info(f"Processing track: {track_id}")
-                        
-                        # For Bale: Always download fresh
-                        track_link = f"https://www.deezer.com/track/{track_id}"
-                        logger.info(f"Downloading track: {track_link}")
-                        smart = await self.deezer_service.download(track_link, quality_download=quality, make_zip=False)
-                        
-                        if smart.track:
-                            file_path = smart.track.song_path
-                            try:
-                                duration = self.file_handler.get_audio_duration(file_path)
-                                
-                                title = smart.track.music if hasattr(smart.track, "music") else f"Track {track_id}"
-                                artist = smart.track.artist if hasattr(smart.track, "artist") else "Unknown Artist"
-                                album = smart.track.album if hasattr(smart.track, "album") else "Unknown Album"
+                await self.add_download(
+                    user_id=user_id,
+                    deezer_id=deezer_id,
+                    content_type='track',
+                    quality=quality,
+                    url=url,
+                    title=t.title,
+                    artist=t.artist,
+                    duration=t.duration,
+                    file_name=os.path.basename(t.file_path),
+                    album=t.album
+                )
+                
+                if os.path.exists(t.file_path):
+                    os.remove(t.file_path)
 
-                                # Send audio to user (always fresh file)
-                                with open(file_path, 'rb') as audio_file:
-                                    await bot.send_audio(
-                                        chat_id=user_id,
-                                        audio=audio_file,
-                                        caption=f"@Spotizer_bot 🎧",
-                                        duration=duration,
-                                        title=title,
-                                        performer=artist,
-                                    )
-
-                                download_id = await self.add_download(
-                                    user_id=user_id,
-                                    deezer_id=track_id,
-                                    content_type='track',
-                                    quality=quality,
-                                    url=track_link,
-                                    title=title,
-                                    artist=artist,
-                                    duration=duration,
-                                    file_name=os.path.basename(file_path),
-                                    album=album,
-                                )
-                                
-                                musics = (title, duration, os.path.basename(file_path))
-                                musics_playlist.append(musics)
-                            except Exception as e:
-                                logger.error(f"Download processing error: {str(e)}", exc_info=True)
-                                await bot.send_message(
-                                    chat_id=user_id,
-                                    text="An error occurred while processing your download request."
-                                )
-                            finally:
-                                if os.path.exists(file_path):
-                                    os.remove(file_path)
-                                    logger.info(f"Deleted track file: {file_path}")
-                    except Exception as e:
-                        await bot.send_message(
-                            chat_id=user_id,
-                            text=f"❌ Track 'https://www.deezer.com/us/track/{track_id}' isn't in Deezer or not available for download.",
-                        )
-                        logger.error(f"Error processing track {track_id}: {str(e)}", exc_info=True)
-
-                if len(musics_playlist) > 1:
-                    filename = f'deezer_{deezer_id}.m3u'
-                    logger.info(f"Creating playlist file: {filename}")
-                    await self.file_handler.playlist_creator(musics_playlist, filename)
-                    
-                    with open(filename, 'rb') as playlist_file:
-                        await bot.send_document(
-                            chat_id=user_id,
-                            document=playlist_file,
-                            caption="<a href='https://telegra.ph/How-to-Use-M3U-Playlists-03-02'>What is this and how can I use it?</a>\n\n@Spotizer_bot 🎧",
-                        )
-                    
-                    if os.path.exists(filename):
-                        os.remove(filename)
-                        logger.info(f"Deleted playlist file: {filename}")
-
-            return True, "Download completed successfully"
-
+            return True, "Download completed successfully."
         except Exception as e:
             logger.error(f"Download processing error: {str(e)}", exc_info=True)
-            await bot.send_message(
-                chat_id=user_id,
-                text="An unexpected error occurred. Please try again later."
-            )
+            try:
+                from bale_bot.app import bot
+                await bot.send_message(
+                    chat_id=user_id,
+                    text="An unexpected error occurred. Please try again later."
+                )
+            except:
+                pass
             return False, "An error occurred while processing your download request."
 
     @staticmethod
