@@ -10,14 +10,14 @@ from logger import get_logger
 from balethon.objects import InlineKeyboard
 
 def InlineKeyboardButton(text, callback_data=None, url=None, **kwargs):
-if url:
-    return (text, url)
-return (text, callback_data)
+    if url:
+        return (text, url)
+    return (text, callback_data)
 
 def InlineKeyboardMarkup(*args, **kwargs):
-if args:
-    return InlineKeyboard(*args[0])
-return InlineKeyboard(*kwargs.get("inline_keyboard", []))
+    if args:
+        return InlineKeyboard(*args[0])
+    return InlineKeyboard(*kwargs.get("inline_keyboard", []))
 
 logger = get_logger(__name__)
 
@@ -28,7 +28,7 @@ playlist_controller = BalePlaylistController()
 logger.info("Setting up callback routes for Bale")
 
 @bot.on_callback_query(regex(r"^playlist:"))
-async def playlist_callback(callback_query):
+async def playlist_callback(*, callback_query):
     """Handle playlist-related callbacks"""
     try:
         parts = callback_query.data.split(":")
@@ -146,7 +146,7 @@ async def playlist_callback(callback_query):
         await callback_query.answer("Error processing request", show_alert=True)
 
 @bot.on_callback_query(regex(r"^select_playlist:"))
-async def select_playlist_callback(callback_query):
+async def select_playlist_callback(*, callback_query):
     """Handle playlist selection from /playlists command"""
     try:
         user_id = callback_query.author.id
@@ -182,7 +182,7 @@ async def select_playlist_callback(callback_query):
         await callback_query.answer("Error loading playlist", show_alert=True)
 
 @bot.on_callback_query(regex(r"^setting:"))
-async def settings_callback(callback_query):
+async def settings_callback(*, callback_query):
     """Handle settings-related callbacks"""
     try:
         action = callback_query.data.split(":")[1]
@@ -227,7 +227,7 @@ async def settings_callback(callback_query):
         await callback_query.answer("Error processing settings")
 
 @bot.on_callback_query(regex(r"^set_quality:"))
-async def set_quality_callback(callback_query):
+async def set_quality_callback(*, callback_query):
     """Handle quality setting callbacks"""
     try:
         quality = callback_query.data.split(":")[1]
@@ -260,7 +260,7 @@ async def set_quality_callback(callback_query):
         await callback_query.answer("Error updating quality")
 
 @bot.on_callback_query(regex(r"^search:"))
-async def search_callback(callback_query):
+async def search_callback(*, callback_query):
     """Handle search-related callbacks"""
     try:
         # Extract search type and query
@@ -288,7 +288,7 @@ async def search_callback(callback_query):
         await callback_query.answer("Error processing search")
 
 @bot.on_callback_query(regex(r"^page:"))
-async def page_callback(callback_query):
+async def page_callback(*, callback_query):
     """Handle pagination callbacks"""
     try:
         # Extract page info
@@ -319,7 +319,7 @@ async def page_callback(callback_query):
         await callback_query.answer("Error loading page")
 
 @bot.on_callback_query(regex(r"^select:"))
-async def select_callback(callback_query):
+async def select_callback(*, callback_query):
     """Handle item selection callbacks"""
     try:
         # Extract selection info
@@ -371,7 +371,7 @@ async def select_callback(callback_query):
         await callback_query.answer("Error processing selection")
 
 @bot.on_callback_query(regex(r"^view:"))
-async def view_callback(callback_query):
+async def view_callback(*, callback_query):
     """Handle view callbacks (e.g., viewing album/playlist tracks)"""
     try:
         # Extract view info
@@ -425,7 +425,7 @@ async def view_callback(callback_query):
         await callback_query.answer("Error displaying tracks")
 
 @bot.on_callback_query(regex(r"^download:"))
-async def download_callback(callback_query):
+async def download_callback(*, callback_query):
     """Handle download callbacks"""
     try:
         # Extract download info
@@ -496,7 +496,7 @@ async def download_callback(callback_query):
             pass
 
 @bot.on_callback_query(regex(r"^confirm_dl:"))
-async def confirm_dl_callback(callback_query):
+async def confirm_dl_callback(*, callback_query):
     """Handle confirmed download callbacks"""
     try:
         _, content_type, item_id = callback_query.data.split(":")
@@ -530,7 +530,7 @@ async def confirm_dl_callback(callback_query):
         await callback_query.answer("Error processing request")
 
 @bot.on_callback_query(regex(r"^delete$"))
-async def delete_callback(callback_query):
+async def delete_callback(*, callback_query):
     """Handle message deletion callbacks"""
     try:
         user_id = callback_query.author.id
@@ -543,7 +543,7 @@ async def delete_callback(callback_query):
         await callback_query.answer("Error deleting message")
 
 @bot.on_callback_query(regex(r"^rate:"))
-async def rate_callback(callback_query):
+async def rate_callback(*, callback_query):
     """Handle like/dislike rating callbacks"""
     try:
         # Parse: rate:like:123 or rate:dislike:123

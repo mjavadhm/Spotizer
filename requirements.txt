@@ -18,7 +18,7 @@ python-multipart>=0.0.6
 aiogram>=3.3.0
 
 # Bale Messenger Bot Framework
-balethon>=1.3.0
+balethon
 
 # HTTP Requests and Session Management
 requests>=2.31.0

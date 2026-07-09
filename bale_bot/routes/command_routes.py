@@ -8,12 +8,8 @@ from logger import get_logger
 logger = get_logger(__name__)
 
 
-from bale_bot.controllers.user_controller import BaleUserController
-from bale_bot.controllers.playlist_controller import BalePlaylistController
-
 user_controller = BaleUserController()
 playlist_controller = BalePlaylistController()
-
 logger.info("Setting up command routes for Bale")
 
 @bot.on_command(name="start")
@@ -58,6 +54,66 @@ async def settings_command(*, message):
     """Handle /settings command"""
     try:
         user_id = message.author.id
+        logger.info(f"Processing /settings command for user {user_id}")
+        
+        # Get user settings
+        success, settings = await user_controller.get_user_settings(user_id)
+        if not success:
+            logger.error(f"Failed to get settings for user {user_id}: {settings}")
+            await message.reply("Error accessing settings. Please try again.")
+            return
+        
+        logger.info(f"Retrieved settings for user {user_id}: {settings}")
+        
+        # Create settings keyboard
+        keyboard = MessageView.get_settings_keyboard(settings)
+        await message.reply("⚙️ Your settings:", reply_markup=keyboard)
+        logger.info(f"Sent settings keyboard to user {user_id}")
+        
+    except Exception as e:
+        logger.error(f"Error processing /settings command: {str(e)}", exc_info=True)
+        await message.reply("Error accessing settings. Please try again later.")
+
+@bot.on_command(name="history")
+async def history_command(*, message):
+    """Handle /history command"""
+    try:
+        user_id = message.author.id
+        logger.info(f"Processing /history command for user {user_id}")
+        
+        # Get user's download history
+        success, downloads = await user_controller.get_user_downloads(user_id, limit=5)
+        
+        if not success:
+            logger.error(f"Failed to get download history for user {user_id}: {downloads}")
+            await message.reply("Error retrieving download history.")
+            return
+        
+        logger.info(f"Retrieved {len(downloads)} download records for user {user_id}")
+        
+        # Format history message
+        history_text = MessageView.format_download_history(downloads)
+        await message.reply(history_text)
+        logger.info(f"Sent download history to user {user_id}")
+        
+    except Exception as e:
+        logger.error(f"Error processing /history command: {str(e)}", exc_info=True)
+        await message.reply("Error retrieving download history.")
+
+@bot.on_command(name="help")
+async def help_command(*, message):
+    """Handle /help command"""
+    try:
+        user_id = message.author.id
+        logger.info(f"Processing /help command for user {user_id}")
+        
+        help_text = """🎵 *MusicDownloader Bot Help* 🎵
+
+*Available Commands:*
+/start - Start the bot and see welcome message
+/settings - Customize your download preferences
+/history - View your recent downloads
+/help - Show this help message
 
 *How to Use:*
 1. Send a Deezer or Spotify link to download music
@@ -81,7 +137,7 @@ If you have any issues or questions, feel free to contact support."""
         await message.reply("Error displaying help message.")
 
 @bot.on_command(name="about")
-async def about_command(message):
+async def about_command(*, message):
     """Handle /about command"""
     try:
         user_id = message.author.id
@@ -110,7 +166,7 @@ Thank you for using MusicDownloader Bot! 🎧"""
         await message.reply("Error displaying about information.")
 
 @bot.on_command(name="newplaylist")
-async def newplaylist_command(message):
+async def newplaylist_command(*, message):
     """Handle /newplaylist command"""
     try:
         user_id = message.author.id
@@ -127,7 +183,7 @@ async def newplaylist_command(message):
         await message.reply("Error creating playlist. Please try again.")
 
 @bot.on_command(name="playlists")
-async def playlists_command(message):
+async def playlists_command(*, message):
     try:
         user_id = message.author.id
         logger.info(f"Processing /playlists command for user {user_id}")
@@ -146,7 +202,7 @@ async def playlists_command(message):
         await message.reply("Error displaying playlists.")
 
 @bot.on_command(name="recommend")
-async def recommend_command(message):
+async def recommend_command(*, message):
     """Handle /recommend command"""
     try:
         user_id = message.author.id

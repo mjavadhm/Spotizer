@@ -11,14 +11,13 @@ from logger import get_logger
 logger = get_logger(__name__)
 
 
-url_validator = URLValidator()
-playlist_controller = BalePlaylistController()
-# The download_controller will be imported directly if needed
-from bale_bot.controllers.download_controller import BaleDownloadController
 download_controller = BaleDownloadController()
+playlist_controller = BalePlaylistController()
+url_validator = URLValidator()
+logger.info("Setting up message routes for Bale")
 
 @bot.on_message(regex(r"^(?!/).+"))
-async def handle_text_message(message):
+async def handle_text_message(*, message):
     """Handle text messages - either links or search queries"""
     try:
         user_input = message.text
@@ -39,7 +38,7 @@ async def handle_text_message(message):
         error_message = MessageView.get_error_message('general_error')
         await message.reply(error_message)
 
-async def handle_music_link(message, url: str, download_controller: BaleDownloadController):
+async def handle_music_link(*, message, url: str):
     """Handle music download links"""
     status_message = None
     try:
@@ -90,7 +89,7 @@ async def handle_music_link(message, url: str, download_controller: BaleDownload
             except:
                 pass
 
-async def handle_search_query(message, query: str):
+async def handle_search_query(*, message, query: str):
     """Handle search queries"""
     try:
         user_id = message.author.id
@@ -112,7 +111,7 @@ async def handle_search_query(message, query: str):
         await message.reply(error_message)
 
 @bot.on_message(audio)
-async def handle_audio(message):
+async def handle_audio(*, message):
     """Handle audio file messages"""
     user_id = message.author.id
     logger.info(f"Received audio message from user {user_id}")
@@ -123,7 +122,7 @@ async def handle_audio(message):
     logger.info(f"Sent help message to user {user_id}")
 
 @bot.on_message(document)
-async def handle_document(message):
+async def handle_document(*, message):
     """Handle document messages"""
     user_id = message.author.id
     logger.info(f"Received document message from user {user_id}")
@@ -134,7 +133,7 @@ async def handle_document(message):
     logger.info(f"Sent help message to user {user_id}")
 
 @bot.on_message(voice)
-async def handle_voice(message):
+async def handle_voice(*, message):
     """Handle voice messages"""
     user_id = message.author.id
     logger.info(f"Received voice message from user {user_id}")
