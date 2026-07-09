@@ -161,6 +161,7 @@ class DeezerAPIClient:
                 'name': item['name'],
                 'url': item.get('link', f"https://www.deezer.com/artist/{item['id']}"),
                 'followers': item.get('nb_fan', 0),
+                'total_tracks': item.get('nb_album', 0),  # Not all endpoints return total tracks, nb_album is useful too, or fetch later
                 'popularity': 0,
                 'genres': [],
                 'image': item.get('picture_xl') or item.get('picture_medium') or item.get('picture') or "https://e7.pngegg.com/pngimages/708/311/png-clipart-icon-logo-twitter-logo-twitter-logo-blue-social-media-thumbnail.png",
@@ -205,6 +206,23 @@ class DeezerAPIClient:
                 'main_artist': album.get('artist', {}).get('name', 'Unknown')
             })
         return results
+
+    @classmethod
+    async def get_artist_related(cls, artist_id: str) -> List[Dict]:
+        data = await cls._request(f"artist/{artist_id}/related")
+        if not data or 'data' not in data:
+            return []
+            
+        results = []
+        for artist in data['data']:
+            results.append({
+                'id': str(artist['id']),
+                'name': artist['name'],
+                'artist': artist['name'],
+                'main_artist': artist['name']
+            })
+        return results
+
 
 @dataclass
 class DeemixResult:

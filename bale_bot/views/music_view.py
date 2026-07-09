@@ -202,6 +202,7 @@ class MusicView:
         info = [
             f"🎨 *Artist:* [{artist['name']}]({artist['url']})\n",
             f"👥 *Followers:* {artist['followers']:,}\n",
+            f"💿 *Albums:* {artist.get('total_tracks', 'N/A')}\n",
             f"🔥 *Popularity:* {artist['popularity']}/100\n",
             f"🎭 *Genres:* {genres_text}"
         ]

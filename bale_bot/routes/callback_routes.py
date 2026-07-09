@@ -387,16 +387,17 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
                 text = f"Tracks in playlist '{item_info['name']}':"
                 keyboard = MusicView.get_list_keyboard(tracks, content_type, action, page, item_id)
             elif content_type == "artist":
+                from services.deezer_service import DeezerAPIClient
                 if action == "top_tracks":
-                    tracks = item_info['more_artist_info'].get('top_tracks', [])
+                    tracks = await DeezerAPIClient.get_artist_top_tracks(item_id)
                     text = f"Top tracks by {item_info['name']}:"
                     keyboard = MusicView.get_list_keyboard(tracks, content_type, action, page, item_id)
                 elif action == "album":
-                    albums = item_info['more_artist_info'].get('albums', [])
+                    albums = await DeezerAPIClient.get_artist_albums(item_id)
                     text = f"Albums by {item_info['name']}:\n\n"
                     keyboard = MusicView.get_list_keyboard(albums, content_type, action, page, item_id)
                 elif action == "related":
-                    related_artists = item_info['more_artist_info'].get('related_artists', [])
+                    related_artists = await DeezerAPIClient.get_artist_related(item_id)
                     text = f"Artists related to {item_info['name']}:\n\n"
                     keyboard = MusicView.get_list_keyboard(related_artists, content_type, action, page, item_id)
             
