@@ -1,6 +1,7 @@
 from bale_bot.controllers.user_controller import BaleUserController
 from bale_bot.controllers.playlist_controller import BalePlaylistController
 from bale_bot.views.message_view import MessageView
+from balethon.conditions import command
 from bale_bot.views.playlist_view import PlaylistView
 from bale_bot.bot import bot
 from logger import get_logger
@@ -12,7 +13,7 @@ def setup_command_routes(user_controller: BaleUserController, playlist_controlle
     """Set up command route handlers for Bale bot"""
     logger.info("Setting up command routes for Bale")
 
-    @bot.on_message(lambda message: message.text and message.text.startswith("/start"))
+    @bot.on_message(command("start"))
     async def start_command(message):
         """Handle /start command"""
         try:
@@ -49,7 +50,7 @@ def setup_command_routes(user_controller: BaleUserController, playlist_controlle
             logger.error(f"Error processing /start command: {str(e)}", exc_info=True)
             await message.reply("An error occurred. Please try again later.")
 
-    @bot.on_message(lambda message: message.text and message.text.startswith("/settings"))
+    @bot.on_message(command("settings"))
     async def settings_command(message):
         """Handle /settings command"""
         try:
@@ -74,7 +75,7 @@ def setup_command_routes(user_controller: BaleUserController, playlist_controlle
             logger.error(f"Error processing /settings command: {str(e)}", exc_info=True)
             await message.reply("Error accessing settings. Please try again later.")
 
-    @bot.on_message(lambda message: message.text and message.text.startswith("/history"))
+    @bot.on_message(command("history"))
     async def history_command(message):
         """Handle /history command"""
         try:
@@ -100,7 +101,7 @@ def setup_command_routes(user_controller: BaleUserController, playlist_controlle
             logger.error(f"Error processing /history command: {str(e)}", exc_info=True)
             await message.reply("Error retrieving download history.")
 
-    @bot.on_message(lambda message: message.text and message.text.startswith("/help"))
+    @bot.on_message(command("help"))
     async def help_command(message):
         """Handle /help command"""
         try:
@@ -136,7 +137,7 @@ If you have any issues or questions, feel free to contact support."""
             logger.error(f"Error processing /help command: {str(e)}", exc_info=True)
             await message.reply("Error displaying help message.")
 
-    @bot.on_message(lambda message: message.text and message.text.startswith("/about"))
+    @bot.on_message(command("about"))
     async def about_command(message):
         """Handle /about command"""
         try:
@@ -165,7 +166,7 @@ Thank you for using MusicDownloader Bot! 🎧"""
             logger.error(f"Error processing /about command: {str(e)}", exc_info=True)
             await message.reply("Error displaying about information.")
     
-    @bot.on_message(lambda message: message.text and message.text.startswith("/newplaylist"))
+    @bot.on_message(command("newplaylist"))
     async def newplaylist_command(message):
         """Handle /newplaylist command"""
         try:
@@ -182,7 +183,7 @@ Thank you for using MusicDownloader Bot! 🎧"""
             logger.error(f"Error processing /newplaylist command: {str(e)}", exc_info=True)
             await message.reply("Error creating playlist. Please try again.")
     
-    @bot.on_message(lambda message: message.text and message.text.startswith("/playlists"))
+    @bot.on_message(command("playlists"))
     async def playlists_command(message):
         try:
             user_id = message.from_user.id
@@ -201,7 +202,7 @@ Thank you for using MusicDownloader Bot! 🎧"""
             logger.error(f"Error processing /playlists command: {str(e)}", exc_info=True)
             await message.reply("Error displaying playlists.")
 
-    @bot.on_message(lambda message: message.text and message.text.startswith("/recommend"))
+    @bot.on_message(command("recommend"))
     async def recommend_command(message):
         """Handle /recommend command"""
         try:

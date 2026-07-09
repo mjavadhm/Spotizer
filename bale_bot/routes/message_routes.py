@@ -2,6 +2,7 @@ from bale_bot.controllers.download_controller import BaleDownloadController
 from bale_bot.controllers.playlist_controller import BalePlaylistController
 from utils.url_validator import URLValidator
 from bale_bot.views.message_view import MessageView
+from balethon.conditions import regex, audio, document, voice
 from bale_bot.views.music_view import MusicView
 from bale_bot.views.playlist_view import PlaylistView
 from bale_bot.bot import bot
@@ -16,7 +17,7 @@ def setup_message_routes(download_controller: BaleDownloadController):
     playlist_controller = BalePlaylistController()
     logger.info("Setting up message routes for Bale")
 
-    @bot.on_message(lambda message: message.text and not message.text.startswith("/"))
+    @bot.on_message(regex(r"^(?!/).+"))
     async def handle_text_message(message):
         """Handle text messages - either links or search queries"""
         try:
@@ -110,7 +111,7 @@ def setup_message_routes(download_controller: BaleDownloadController):
             error_message = MessageView.get_error_message('general_error')
             await message.reply(error_message)
 
-    @bot.on_message(lambda message: message.audio is not None)
+    @bot.on_message(audio)
     async def handle_audio(message):
         """Handle audio file messages"""
         user_id = message.from_user.id
@@ -121,7 +122,7 @@ def setup_message_routes(download_controller: BaleDownloadController):
         )
         logger.info(f"Sent help message to user {user_id}")
 
-    @bot.on_message(lambda message: message.document is not None)
+    @bot.on_message(document)
     async def handle_document(message):
         """Handle document messages"""
         user_id = message.from_user.id
@@ -132,7 +133,7 @@ def setup_message_routes(download_controller: BaleDownloadController):
         )
         logger.info(f"Sent help message to user {user_id}")
 
-    @bot.on_message(lambda message: message.voice is not None)
+    @bot.on_message(voice)
     async def handle_voice(message):
         """Handle voice messages"""
         user_id = message.from_user.id
