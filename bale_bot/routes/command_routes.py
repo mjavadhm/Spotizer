@@ -12,7 +12,7 @@ def setup_command_routes(user_controller: BaleUserController, playlist_controlle
     """Set up command route handlers for Bale bot"""
     logger.info("Setting up command routes for Bale")
 
-    @bot.on_message(lambda m: m.text and m.text.startswith("/start"))
+    @bot.on_message(lambda message: message.text and message.text.startswith("/start"))
     async def start_command(message):
         """Handle /start command"""
         try:
@@ -49,7 +49,7 @@ def setup_command_routes(user_controller: BaleUserController, playlist_controlle
             logger.error(f"Error processing /start command: {str(e)}", exc_info=True)
             await message.reply("An error occurred. Please try again later.")
 
-    @bot.on_message(lambda m: m.text and m.text.startswith("/settings"))
+    @bot.on_message(lambda message: message.text and message.text.startswith("/settings"))
     async def settings_command(message):
         """Handle /settings command"""
         try:
@@ -74,7 +74,7 @@ def setup_command_routes(user_controller: BaleUserController, playlist_controlle
             logger.error(f"Error processing /settings command: {str(e)}", exc_info=True)
             await message.reply("Error accessing settings. Please try again later.")
 
-    @bot.on_message(lambda m: m.text and m.text.startswith("/history"))
+    @bot.on_message(lambda message: message.text and message.text.startswith("/history"))
     async def history_command(message):
         """Handle /history command"""
         try:
@@ -100,7 +100,7 @@ def setup_command_routes(user_controller: BaleUserController, playlist_controlle
             logger.error(f"Error processing /history command: {str(e)}", exc_info=True)
             await message.reply("Error retrieving download history.")
 
-    @bot.on_message(lambda m: m.text and m.text.startswith("/help"))
+    @bot.on_message(lambda message: message.text and message.text.startswith("/help"))
     async def help_command(message):
         """Handle /help command"""
         try:
@@ -136,7 +136,7 @@ If you have any issues or questions, feel free to contact support."""
             logger.error(f"Error processing /help command: {str(e)}", exc_info=True)
             await message.reply("Error displaying help message.")
 
-    @bot.on_message(lambda m: m.text and m.text.startswith("/about"))
+    @bot.on_message(lambda message: message.text and message.text.startswith("/about"))
     async def about_command(message):
         """Handle /about command"""
         try:
@@ -165,7 +165,7 @@ Thank you for using MusicDownloader Bot! 🎧"""
             logger.error(f"Error processing /about command: {str(e)}", exc_info=True)
             await message.reply("Error displaying about information.")
     
-    @bot.on_message(lambda m: m.text and m.text.startswith("/newplaylist"))
+    @bot.on_message(lambda message: message.text and message.text.startswith("/newplaylist"))
     async def newplaylist_command(message):
         """Handle /newplaylist command"""
         try:
@@ -182,7 +182,7 @@ Thank you for using MusicDownloader Bot! 🎧"""
             logger.error(f"Error processing /newplaylist command: {str(e)}", exc_info=True)
             await message.reply("Error creating playlist. Please try again.")
     
-    @bot.on_message(lambda m: m.text and m.text.startswith("/playlists"))
+    @bot.on_message(lambda message: message.text and message.text.startswith("/playlists"))
     async def playlists_command(message):
         try:
             user_id = message.from_user.id
@@ -201,7 +201,7 @@ Thank you for using MusicDownloader Bot! 🎧"""
             logger.error(f"Error processing /playlists command: {str(e)}", exc_info=True)
             await message.reply("Error displaying playlists.")
 
-    @bot.on_message(lambda m: m.text and m.text.startswith("/recommend"))
+    @bot.on_message(lambda message: message.text and message.text.startswith("/recommend"))
     async def recommend_command(message):
         """Handle /recommend command"""
         try:

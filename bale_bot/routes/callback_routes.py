@@ -25,7 +25,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
     """Set up callback query handlers for Bale bot"""
     logger.info("Setting up callback routes for Bale")
 
-    @bot.on_callback_query(lambda c: c.data.startswith("playlist:"))
+    @bot.on_callback_query(lambda callback_query: callback_query.data.startswith("playlist:"))
     async def playlist_callback(callback_query):
         """Handle playlist-related callbacks"""
         try:
@@ -143,7 +143,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
             logger.error(f"Error in playlist callback: {str(e)}", exc_info=True)
             await callback_query.answer("Error processing request", show_alert=True)
 
-    @bot.on_callback_query(lambda c: c.data.startswith("select_playlist:"))
+    @bot.on_callback_query(lambda callback_query: callback_query.data.startswith("select_playlist:"))
     async def select_playlist_callback(callback_query):
         """Handle playlist selection from /playlists command"""
         try:
@@ -179,7 +179,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
             logger.error(f"Error selecting playlist: {str(e)}", exc_info=True)
             await callback_query.answer("Error loading playlist", show_alert=True)
 
-    @bot.on_callback_query(lambda c: c.data.startswith("setting:"))
+    @bot.on_callback_query(lambda callback_query: callback_query.data.startswith("setting:"))
     async def settings_callback(callback_query):
         """Handle settings-related callbacks"""
         try:
@@ -224,7 +224,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
             logger.error(f"Settings callback error: {str(e)}", exc_info=True)
             await callback_query.answer("Error processing settings")
 
-    @bot.on_callback_query(lambda c: c.data.startswith("set_quality:"))
+    @bot.on_callback_query(lambda callback_query: callback_query.data.startswith("set_quality:"))
     async def set_quality_callback(callback_query):
         """Handle quality setting callbacks"""
         try:
@@ -257,7 +257,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
             logger.error(f"Quality setting error: {str(e)}", exc_info=True)
             await callback_query.answer("Error updating quality")
 
-    @bot.on_callback_query(lambda c: c.data.startswith("search:"))
+    @bot.on_callback_query(lambda callback_query: callback_query.data.startswith("search:"))
     async def search_callback(callback_query):
         """Handle search-related callbacks"""
         try:
@@ -285,7 +285,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
             logger.error(f"Search callback error: {str(e)}", exc_info=True)
             await callback_query.answer("Error processing search")
 
-    @bot.on_callback_query(lambda c: c.data.startswith("page:"))
+    @bot.on_callback_query(lambda callback_query: callback_query.data.startswith("page:"))
     async def page_callback(callback_query):
         """Handle pagination callbacks"""
         try:
@@ -316,7 +316,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
             logger.error(f"Page callback error: {str(e)}", exc_info=True)
             await callback_query.answer("Error loading page")
 
-    @bot.on_callback_query(lambda c: c.data.startswith("select:"))
+    @bot.on_callback_query(lambda callback_query: callback_query.data.startswith("select:"))
     async def select_callback(callback_query):
         """Handle item selection callbacks"""
         try:
@@ -368,7 +368,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
             logger.error(f"Selection callback error: {str(e)}", exc_info=True)
             await callback_query.answer("Error processing selection")
 
-    @bot.on_callback_query(lambda c: c.data.startswith("view:"))
+    @bot.on_callback_query(lambda callback_query: callback_query.data.startswith("view:"))
     async def view_callback(callback_query):
         """Handle view callbacks (e.g., viewing album/playlist tracks)"""
         try:
@@ -422,7 +422,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
             logger.error(f"View callback error: {str(e)}", exc_info=True)
             await callback_query.answer("Error displaying tracks")
 
-    @bot.on_callback_query(lambda c: c.data.startswith("download:"))
+    @bot.on_callback_query(lambda callback_query: callback_query.data.startswith("download:"))
     async def download_callback(callback_query):
         """Handle download callbacks"""
         try:
@@ -493,7 +493,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
             except:
                 pass
 
-    @bot.on_callback_query(lambda c: c.data.startswith("confirm_dl:"))
+    @bot.on_callback_query(lambda callback_query: callback_query.data.startswith("confirm_dl:"))
     async def confirm_dl_callback(callback_query):
         """Handle confirmed download callbacks"""
         try:
@@ -527,7 +527,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
             logger.error(f"Confirm download callback error: {str(e)}", exc_info=True)
             await callback_query.answer("Error processing request")
 
-    @bot.on_callback_query(lambda c: c.data == "delete")
+    @bot.on_callback_query(lambda callback_query: callback_query.data == "delete")
     async def delete_callback(callback_query):
         """Handle message deletion callbacks"""
         try:
@@ -540,7 +540,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
             logger.error(f"Delete callback error: {str(e)}", exc_info=True)
             await callback_query.answer("Error deleting message")
 
-    @bot.on_callback_query(lambda c: c.data.startswith("rate:"))
+    @bot.on_callback_query(lambda callback_query: callback_query.data.startswith("rate:"))
     async def rate_callback(callback_query):
         """Handle like/dislike rating callbacks"""
         try:
