@@ -1,4 +1,14 @@
-from balethon.objects import InlineKeyboardMarkup, InlineKeyboardButton
+from balethon.objects import InlineKeyboard
+
+def InlineKeyboardButton(text, callback_data=None, url=None, **kwargs):
+    if url:
+        return (text, url)
+    return (text, callback_data)
+
+def InlineKeyboardMarkup(*args, **kwargs):
+    if args:
+        return InlineKeyboard(*args[0])
+    return InlineKeyboard(*kwargs.get("inline_keyboard", []))
 
 
 class PlaylistView:

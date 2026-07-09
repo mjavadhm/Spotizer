@@ -6,6 +6,17 @@ from bale_bot.views.music_view import MusicView
 from bale_bot.views.playlist_view import PlaylistView
 from bale_bot.bot import bot
 from logger import get_logger
+from balethon.objects import InlineKeyboard
+
+def InlineKeyboardButton(text, callback_data=None, url=None, **kwargs):
+    if url:
+        return (text, url)
+    return (text, callback_data)
+
+def InlineKeyboardMarkup(*args, **kwargs):
+    if args:
+        return InlineKeyboard(*args[0])
+    return InlineKeyboard(*kwargs.get("inline_keyboard", []))
 
 logger = get_logger(__name__)
 
@@ -435,7 +446,6 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
                     total_tracks = sum(album.get('nb_tracks', 0) for album in albums)
                     
                     # Ask for confirmation
-                    from balethon.objects import InlineKeyboardMarkup, InlineKeyboardButton
                     confirm_kb = InlineKeyboardMarkup([
                         [
                             InlineKeyboardButton(text="✅ Yes, Download All", callback_data=f"confirm_dl:artist:{item_id}"),
