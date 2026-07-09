@@ -55,7 +55,6 @@ class BaleDownloadController:
                 user_id=user_id,
                 deezer_id=deezer_id,
                 content_type=content_type,
-                file_id=None,  # Not used for Bale
                 quality=quality,
                 url=url,
                 title=title,
