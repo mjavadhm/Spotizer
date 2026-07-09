@@ -16,7 +16,7 @@ def setup_message_routes(download_controller: BaleDownloadController):
     playlist_controller = BalePlaylistController()
     logger.info("Setting up message routes for Bale")
 
-    @bot.on_message(filters=lambda m: m.text and not m.text.startswith("/"))
+    @bot.on_message(lambda m: m.text and not m.text.startswith("/"))
     async def handle_text_message(message):
         """Handle text messages - either links or search queries"""
         try:
@@ -110,7 +110,7 @@ def setup_message_routes(download_controller: BaleDownloadController):
             error_message = MessageView.get_error_message('general_error')
             await message.reply(error_message)
 
-    @bot.on_message(filters=lambda m: m.audio is not None)
+    @bot.on_message(lambda m: m.audio is not None)
     async def handle_audio(message):
         """Handle audio file messages"""
         user_id = message.from_user.id
@@ -121,7 +121,7 @@ def setup_message_routes(download_controller: BaleDownloadController):
         )
         logger.info(f"Sent help message to user {user_id}")
 
-    @bot.on_message(filters=lambda m: m.document is not None)
+    @bot.on_message(lambda m: m.document is not None)
     async def handle_document(message):
         """Handle document messages"""
         user_id = message.from_user.id
@@ -132,7 +132,7 @@ def setup_message_routes(download_controller: BaleDownloadController):
         )
         logger.info(f"Sent help message to user {user_id}")
 
-    @bot.on_message(filters=lambda m: m.voice is not None)
+    @bot.on_message(lambda m: m.voice is not None)
     async def handle_voice(message):
         """Handle voice messages"""
         user_id = message.from_user.id
