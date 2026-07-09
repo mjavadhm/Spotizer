@@ -165,27 +165,99 @@ class BaleDownloadController:
                     if not zip_success:
                         return False, "❌ Failed to create ZIP archive."
                         
-                    with open(zip_path, 'rb') as zip_file:
-                        sent_message = await bot.send_document(
-                            chat_id=user_id, 
-                            document=zip_file, 
-                            caption=f"@Spotizer_bot 🎧\n📀 {display_title}"
+                    zip_size = os.path.getsize(zip_path)
+                    if zip_size > 40 * 1024 * 1024:
+                        logger.info(f"ZIP file too large ({zip_size} bytes). Falling back to individual tracks.")
+                        await bot.send_message(
+                            chat_id=user_id,
+                            text="ℹ️ The album ZIP file is too large for Bale (Max 40MB). Sending individual tracks instead..."
                         )
-                    
-                    await self.add_download(
-                        user_id=user_id,
-                        deezer_id=deezer_id,
-                        content_type=content_type,
-                        quality=quality,
-                        url=url,
-                        title=title,
-                        artist=artist if content_type == 'album' else "Unknown",
-                        album=title if content_type == 'album' else None,
-                        file_name=os.path.basename(zip_path)
-                    )
-                    
-                    if os.path.exists(zip_path):
-                        os.remove(zip_path)
+                        if os.path.exists(zip_path):
+                            os.remove(zip_path)
+                        make_zip = False
+                    else:
+                        try:
+                            with open(zip_path, 'rb') as zip_file:
+                                sent_message = await bot.send_document(
+                                    chat_id=user_id, 
+                                    document=zip_file, 
+                                    caption=f"@Spotizer_bot 🎧\n📀 {display_title}"
+                                )
+                            
+                            await self.add_download(
+                                user_id=user_id,
+                                deezer_id=deezer_id,
+                                content_type=content_type,
+                                quality=quality,
+                                url=url,
+                                title=title,
+                                artist=artist if content_type == 'album' else "Unknown",
+                                album=title if content_type == 'album' else None,
+                                file_name=os.path.basename(zip_path)
+                            )
+                            
+                            if os.path.exists(zip_path):
+                                os.remove(zip_path)
+                            shutil.rmtree(download_dir, ignore_errors=True)
+                        except Exception as e:
+                            logger.error(f"Failed to send ZIP: {str(e)}", exc_info=True)
+                            await bot.send_message(
+                                chat_id=user_id,
+                                text="ℹ️ Failed to send ZIP. Sending individual tracks instead..."
+                            )
+                            if os.path.exists(zip_path):
+                                os.remove(zip_path)
+                            make_zip = False
+
+                if not make_zip:
+                    musics_playlist = []
+                    for t in result.tracks:
+                        with open(t.file_path, 'rb') as audio_file:
+                            try:
+                                sent_message = await bot.send_audio(
+                                    chat_id=user_id,
+                                    audio=audio_file,
+                                    caption=f"@Spotizer_bot 🎧",
+                                    duration=t.duration,
+                                    title=t.title
+                                )
+                                
+                                await self.add_download(
+                                    user_id=user_id,
+                                    deezer_id=deezer_id, 
+                                    content_type='track',
+                                    quality=quality,
+                                    url=url,
+                                    title=t.title,
+                                    artist=t.artist,
+                                    duration=t.duration,
+                                    file_name=os.path.basename(t.file_path),
+                                    album=t.album
+                                )
+                            except Exception as track_err:
+                                logger.error(f"Error sending track {t.title}: {str(track_err)}")
+                                
+                        musics_playlist.append((t.title, t.duration, os.path.basename(t.file_path)))
+                        if os.path.exists(t.file_path):
+                            os.remove(t.file_path)
+
+                    if len(musics_playlist) > 1:
+                        filename = f'deezer_{deezer_id}.m3u'
+                        await self.file_handler.playlist_creator(musics_playlist, filename)
+                        
+                        try:
+                            with open(filename, 'rb') as playlist_file:
+                                await bot.send_document(
+                                    chat_id=user_id,
+                                    document=playlist_file,
+                                    caption="<a href='https://telegra.ph/How-to-Use-M3U-Playlists-03-02'>What is this and how can I use it?</a>\n\n@Spotizer_bot 🎧",
+                                )
+                        except Exception:
+                            pass
+                            
+                        if os.path.exists(filename):
+                            os.remove(filename)
+                            
                     shutil.rmtree(download_dir, ignore_errors=True)
                 else:
                     musics_playlist = []
