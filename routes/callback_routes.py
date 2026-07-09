@@ -467,7 +467,7 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                             InlineKeyboardButton(text="❌ Cancel", callback_data="delete")
                         ]
                     ])
-                    await bot.send_message(
+                    await callback_query.bot.send_message(
                         user_id,
                         f"📥 Found {len(albums)} albums/EPs ({total_tracks} total tracks) for this artist.\n\nDo you want to download the entire discography?",
                         reply_markup=confirm_kb
@@ -532,21 +532,21 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                 from services.deezer_service import DeezerAPIClient
                 albums = await DeezerAPIClient.get_artist_albums(item_id)
                 if not albums:
-                    await bot.send_message(user_id, "❌ No albums found for this artist.")
+                    await callback_query.bot.send_message(user_id, "❌ No albums found for this artist.")
                     return
                 
-                await bot.send_message(user_id, f"📥 Starting download of {len(albums)} albums...")
+                await callback_query.bot.send_message(user_id, f"📥 Starting download of {len(albums)} albums...")
                 for album in albums:
                     album_url = f"https://www.deezer.com/album/{album['id']}"
                     logger.info(f"Downloading artist album: {album['name']} - {album_url}")
                     try:
                         s, r = await download_controller.process_download_request(user_id=user_id, url=album_url)
                         if not s:
-                            await bot.send_message(user_id, f"❌ Failed to download {album['name']}: {r}")
+                            await callback_query.bot.send_message(user_id, f"❌ Failed to download {album['name']}: {r}")
                     except Exception as e:
                         logger.error(f"Error downloading album {album['name']}: {e}")
                 
-                await bot.send_message(user_id, "✅ Finished processing discography.")
+                await callback_query.bot.send_message(user_id, "✅ Finished processing discography.")
                 
         except Exception as e:
             logger.error(f"Confirm download callback error: {str(e)}", exc_info=True)
