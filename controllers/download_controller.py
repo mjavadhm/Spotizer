@@ -216,6 +216,10 @@ class DownloadController:
                     title = result.tracks[0].album if result.tracks[0].album else f"album_{deezer_id}"
                     artist = result.tracks[0].artist if result.tracks[0].artist else "Unknown Artist"
                     display_title = f"{title} - {artist}"
+                elif content_type == 'artist':
+                    title = f"artist_discography_{deezer_id}"
+                    artist = result.tracks[0].artist if result.tracks[0].artist else "Unknown Artist"
+                    display_title = f"{artist} - Full Discography"
                 else:
                     title = f"playlist_{deezer_id}"
                     display_title = title

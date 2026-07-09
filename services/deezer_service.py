@@ -324,7 +324,7 @@ class DeezerService:
                     logger.error(f"Error parsing metadata for {file_path}: {str(e)}")
                     tracks.append(DeemixTrackResult(file_path=file_path))
             
-            is_album_or_playlist = content_type in ['album', 'playlist']
+            is_album_or_playlist = content_type in ['album', 'playlist', 'artist']
             
             return DeemixResult(
                 success=True, 

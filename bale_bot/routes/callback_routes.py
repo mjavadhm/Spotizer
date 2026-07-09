@@ -381,7 +381,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
             if content_type == "album":
                 tracks = item_info.get('tracks', [])
                 text = f"Tracks in album '{item_info['name']}':"
-                keyboard = MusicView.get_list_keyboard(tracks, content_type, action, page)
+                keyboard = MusicView.get_list_keyboard(tracks, content_type, action, page, item_id)
             elif content_type == "playlist":
                 tracks = item_info.get('tracks', [])
                 text = f"Tracks in playlist '{item_info['name']}':"
