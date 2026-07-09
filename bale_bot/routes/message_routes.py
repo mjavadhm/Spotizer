@@ -38,7 +38,7 @@ async def handle_text_message(*, message):
         error_message = MessageView.get_error_message('general_error')
         await message.reply(error_message)
 
-async def handle_music_link(*, message, url: str):
+async def handle_music_link(message, url: str):
     """Handle music download links"""
     status_message = None
     try:
@@ -89,7 +89,7 @@ async def handle_music_link(*, message, url: str):
             except:
                 pass
 
-async def handle_search_query(*, message, query: str):
+async def handle_search_query(message, query: str):
     """Handle search queries"""
     try:
         user_id = message.author.id
