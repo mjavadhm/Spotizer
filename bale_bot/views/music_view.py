@@ -295,26 +295,32 @@ class MusicView:
     @staticmethod
     def get_list_keyboard(items: List[Dict[str, Any]], content_type: str, action: str, page: int = 1, spoid=1) -> InlineKeyboardMarkup:
         buttons = []
-        i = 0
+        per_page = 8
+        start = (page - 1) * per_page
+        end = page * per_page
+        page_items = items[start:end]
+        
         select_action = action
         if action == 'top_tracks':
             select_action = 'track'
-        for item in items:
-            if i < (page-1)*8:
-                i += 1
-                continue
+        elif action == 'track':
+            select_action = 'track'
+        elif action == 'tracks':
+            select_action = 'track'
+        elif action == 'album':
+            select_action = 'album'
+        
+        for item in page_items:
             if action == 'related':
                 button_text = f"{item['name']}"
-            else:
+            elif 'artist' in item:
                 button_text = f"{item['name']} - {item['artist']}"
+            else:
+                button_text = f"{item['name']}"
             
             callback_data = f"select:{select_action}:{item['id']}"
             buttons.append([InlineKeyboardButton(text=button_text, callback_data=callback_data)])
-            i += 1
-            if i >= page * 8:
-                break
         
-        remaining_items = len(items) - page * 8
         nav_buttons = []
         if page > 1:
             nav_buttons.append(
@@ -324,14 +330,15 @@ class MusicView:
                 )
             )
         
+        # Back button to return to album/playlist/artist info
         nav_buttons.append(
             InlineKeyboardButton(
-                text="❌",
-                callback_data="delete"
+                text="🔙 Back",
+                callback_data=f"select:{content_type}:{spoid}"
             )
         )
         
-        if remaining_items > 0:
+        if end < len(items):
             nav_buttons.append(
                 InlineKeyboardButton(
                     text="Next ➡️",
@@ -345,3 +352,4 @@ class MusicView:
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
         
         return keyboard
+
