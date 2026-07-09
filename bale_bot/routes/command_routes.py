@@ -12,18 +12,9 @@ def setup_command_routes(user_controller: BaleUserController, playlist_controlle
     """Set up command route handlers for Bale bot"""
     logger.info("Setting up command routes for Bale")
 
-    @bot.on_event()
-    async def log_all_events(event):
-        logger.info(f"==> BALETHON DISPATCHER RECEIVED EVENT: {type(event)}")
-
-    @bot.on_message()
-    async def log_all_messages(message):
-        logger.info(f"==> BALETHON RECEIVED MESSAGE: {getattr(message, 'text', 'No text')}")
-
     @bot.on_command(name="start")
-    async def start_command(message):
+    async def start_command(*, message):
         """Handle /start command"""
-        logger.info("==> START COMMAND HANDLER TRIGGERED! <==")
         try:
             user = message.author
             user_id = user.id
@@ -59,7 +50,7 @@ def setup_command_routes(user_controller: BaleUserController, playlist_controlle
             await message.reply("An error occurred. Please try again later.")
 
     @bot.on_command(name="settings")
-    async def settings_command(message):
+    async def settings_command(*, message):
         """Handle /settings command"""
         try:
             user_id = message.author.id
@@ -110,7 +101,7 @@ def setup_command_routes(user_controller: BaleUserController, playlist_controlle
             await message.reply("Error retrieving download history.")
 
     @bot.on_command(name="help")
-    async def help_command(message):
+    async def help_command(*, message):
         """Handle /help command"""
         try:
             user_id = message.author.id

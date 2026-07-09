@@ -97,10 +97,12 @@ def main():
         bot_instance = BaleMusicDownloaderBot()
         logger.info("Bot instance created")
         
-        # Initialize Bale-specific database synchronously first
-        asyncio.run(init_bale_models())
-        logger.info("Bale database initialized")
-        
+        @bot.on_initialize()
+        async def on_startup(client):
+            logger.info("Running startup tasks in bot's event loop...")
+            await init_bale_models()
+            logger.info("Bale database initialized")
+
         # Start bot
         logger.info("Starting Bale bot polling...")
         bot.run()
