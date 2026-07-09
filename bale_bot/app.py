@@ -93,7 +93,7 @@ def main():
     try:
         logger.info("Starting Bale music downloader bot application")
         
-        # Create bot instance
+        # Set up all routes before running
         bot_instance = BaleMusicDownloaderBot()
         logger.info("Bot instance created")
         
@@ -101,7 +101,7 @@ def main():
         asyncio.run(init_bale_models())
         logger.info("Bale database initialized")
         
-        # Start bot (balethon's run() handles the event loop)
+        # Start bot
         logger.info("Starting Bale bot polling...")
         bot.run()
         

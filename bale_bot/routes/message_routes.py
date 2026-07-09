@@ -23,7 +23,7 @@ def setup_message_routes(download_controller: BaleDownloadController):
         try:
             user_input = message.text
             chat_id = message.chat.id
-            user_id = message.from_user.id
+            user_id = message.author.id
             logger.info(f"Handling message from user {user_id} in chat {chat_id}: {user_input}")
             
             # Check if input is a URL
@@ -43,7 +43,7 @@ def setup_message_routes(download_controller: BaleDownloadController):
         """Handle music download links"""
         status_message = None
         try:
-            user_id = message.from_user.id
+            user_id = message.author.id
             logger.info(f"Processing music link for user {user_id}: {url}")
             
             # Send processing message
@@ -93,7 +93,7 @@ def setup_message_routes(download_controller: BaleDownloadController):
     async def handle_search_query(message, query: str):
         """Handle search queries"""
         try:
-            user_id = message.from_user.id
+            user_id = message.author.id
             logger.info(f"Processing search query for user {user_id}: {query}")
             
             # Create search options keyboard
@@ -114,7 +114,7 @@ def setup_message_routes(download_controller: BaleDownloadController):
     @bot.on_message(audio)
     async def handle_audio(message):
         """Handle audio file messages"""
-        user_id = message.from_user.id
+        user_id = message.author.id
         logger.info(f"Received audio message from user {user_id}")
         await message.reply(
             "I can help you download music from Deezer and Spotify. "
@@ -125,7 +125,7 @@ def setup_message_routes(download_controller: BaleDownloadController):
     @bot.on_message(document)
     async def handle_document(message):
         """Handle document messages"""
-        user_id = message.from_user.id
+        user_id = message.author.id
         logger.info(f"Received document message from user {user_id}")
         await message.reply(
             "I can help you download music from Deezer and Spotify. "
@@ -136,7 +136,7 @@ def setup_message_routes(download_controller: BaleDownloadController):
     @bot.on_message(voice)
     async def handle_voice(message):
         """Handle voice messages"""
-        user_id = message.from_user.id
+        user_id = message.author.id
         logger.info(f"Received voice message from user {user_id}")
         await message.reply(
             "I can help you download music from Deezer and Spotify. "

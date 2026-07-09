@@ -32,7 +32,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
         try:
             parts = callback_query.data.split(":")
             action = parts[1]
-            user_id = callback_query.from_user.id
+            user_id = callback_query.author.id
             logger.info(f"Processing playlist callback for user {user_id} - Action: {action}")
 
             if action == "add":
@@ -148,7 +148,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
     async def select_playlist_callback(callback_query):
         """Handle playlist selection from /playlists command"""
         try:
-            user_id = callback_query.from_user.id
+            user_id = callback_query.author.id
             playlist_id = int(callback_query.data.split(":")[1])
             logger.info(f"User {user_id} selected playlist {playlist_id}")
             
@@ -185,7 +185,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
         """Handle settings-related callbacks"""
         try:
             action = callback_query.data.split(":")[1]
-            user_id = callback_query.from_user.id
+            user_id = callback_query.author.id
             logger.info(f"Processing settings callback for user {user_id} - Action: {action}")
             
             if action == "change_quality":
@@ -230,7 +230,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
         """Handle quality setting callbacks"""
         try:
             quality = callback_query.data.split(":")[1]
-            user_id = callback_query.from_user.id
+            user_id = callback_query.author.id
             logger.info(f"Processing quality setting for user {user_id} - Quality: {quality}")
             
             if quality == "back":
@@ -264,7 +264,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
         try:
             # Extract search type and query
             _, search_type, query = callback_query.data.split(":", 2)
-            user_id = callback_query.from_user.id
+            user_id = callback_query.author.id
             logger.info(f"Processing search for user {user_id} - Type: {search_type}, Query: {query}")
             
             # Perform search
@@ -295,7 +295,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
             page = int(parts[1])
             search_type = parts[2]
             query = parts[3]
-            user_id = callback_query.from_user.id
+            user_id = callback_query.author.id
             logger.info(f"Processing page {page} for user {user_id}")
             
             # Perform search with pagination
@@ -323,7 +323,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
         try:
             # Extract selection info
             _, content_type, item_id = callback_query.data.split(":")
-            user_id = callback_query.from_user.id
+            user_id = callback_query.author.id
             logger.info(f"Processing selection for user {user_id} - Type: {content_type}, ID: {item_id}")
             
             # Get item details
@@ -379,7 +379,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
             action = parts[2]
             item_id = parts[3]
             page = int(parts[4])
-            user_id = callback_query.from_user.id
+            user_id = callback_query.author.id
             logger.info(f"Processing view for user {user_id} - Type: {content_type}, Action: {action}")
             
             # Get item details
@@ -429,7 +429,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
         try:
             # Extract download info
             _, content_type, item_id = callback_query.data.split(":")
-            user_id = callback_query.from_user.id
+            user_id = callback_query.author.id
             logger.info(f"Processing download for user {user_id} - Type: {content_type}, ID: {item_id}")
             
             # Answer callback query IMMEDIATELY to remove loading state
@@ -499,7 +499,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
         """Handle confirmed download callbacks"""
         try:
             _, content_type, item_id = callback_query.data.split(":")
-            user_id = callback_query.from_user.id
+            user_id = callback_query.author.id
             
             await callback_query.message.edit_text("⏳ Request added to download queue...")
             await callback_query.answer()
@@ -532,7 +532,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
     async def delete_callback(callback_query):
         """Handle message deletion callbacks"""
         try:
-            user_id = callback_query.from_user.id
+            user_id = callback_query.author.id
             logger.info(f"Processing delete request from user {user_id}")
             await callback_query.message.delete()
             await callback_query.answer()
@@ -549,7 +549,7 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
             parts = callback_query.data.split(":")
             action = parts[1]
             download_id = int(parts[2])
-            user_id = callback_query.from_user.id
+            user_id = callback_query.author.id
             
             rating = 1 if action == "like" else -1
             logger.info(f"User {user_id} rating download {download_id} as {action}")

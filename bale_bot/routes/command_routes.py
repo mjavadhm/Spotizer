@@ -1,7 +1,6 @@
 from bale_bot.controllers.user_controller import BaleUserController
 from bale_bot.controllers.playlist_controller import BalePlaylistController
 from bale_bot.views.message_view import MessageView
-from balethon.conditions import command
 from bale_bot.views.playlist_view import PlaylistView
 from bale_bot.bot import bot
 from logger import get_logger
@@ -13,11 +12,11 @@ def setup_command_routes(user_controller: BaleUserController, playlist_controlle
     """Set up command route handlers for Bale bot"""
     logger.info("Setting up command routes for Bale")
 
-    @bot.on_message(command("start"))
+    @bot.on_command(name="start")
     async def start_command(message):
         """Handle /start command"""
         try:
-            user = message.from_user
+            user = message.author
             user_id = user.id
             logger.info(f"Processing /start command for user {user_id}")
             
@@ -50,11 +49,11 @@ def setup_command_routes(user_controller: BaleUserController, playlist_controlle
             logger.error(f"Error processing /start command: {str(e)}", exc_info=True)
             await message.reply("An error occurred. Please try again later.")
 
-    @bot.on_message(command("settings"))
+    @bot.on_command(name="settings")
     async def settings_command(message):
         """Handle /settings command"""
         try:
-            user_id = message.from_user.id
+            user_id = message.author.id
             logger.info(f"Processing /settings command for user {user_id}")
             
             # Get user settings
@@ -75,11 +74,11 @@ def setup_command_routes(user_controller: BaleUserController, playlist_controlle
             logger.error(f"Error processing /settings command: {str(e)}", exc_info=True)
             await message.reply("Error accessing settings. Please try again later.")
 
-    @bot.on_message(command("history"))
+    @bot.on_command(name="history")
     async def history_command(message):
         """Handle /history command"""
         try:
-            user_id = message.from_user.id
+            user_id = message.author.id
             logger.info(f"Processing /history command for user {user_id}")
             
             # Get user's download history
@@ -101,11 +100,11 @@ def setup_command_routes(user_controller: BaleUserController, playlist_controlle
             logger.error(f"Error processing /history command: {str(e)}", exc_info=True)
             await message.reply("Error retrieving download history.")
 
-    @bot.on_message(command("help"))
+    @bot.on_command(name="help")
     async def help_command(message):
         """Handle /help command"""
         try:
-            user_id = message.from_user.id
+            user_id = message.author.id
             logger.info(f"Processing /help command for user {user_id}")
             
             help_text = """🎵 *MusicDownloader Bot Help* 🎵
@@ -137,11 +136,11 @@ If you have any issues or questions, feel free to contact support."""
             logger.error(f"Error processing /help command: {str(e)}", exc_info=True)
             await message.reply("Error displaying help message.")
 
-    @bot.on_message(command("about"))
+    @bot.on_command(name="about")
     async def about_command(message):
         """Handle /about command"""
         try:
-            user_id = message.from_user.id
+            user_id = message.author.id
             logger.info(f"Processing /about command for user {user_id}")
             
             about_text = """🎵 *About MusicDownloader Bot* 🎵
@@ -166,11 +165,11 @@ Thank you for using MusicDownloader Bot! 🎧"""
             logger.error(f"Error processing /about command: {str(e)}", exc_info=True)
             await message.reply("Error displaying about information.")
     
-    @bot.on_message(command("newplaylist"))
+    @bot.on_command(name="newplaylist")
     async def newplaylist_command(message):
         """Handle /newplaylist command"""
         try:
-            user_id = message.from_user.id
+            user_id = message.author.id
             logger.info(f"Processing /newplaylist command for user {user_id}")
             
             # For Bale, we'll use a simpler approach without complex FSM
@@ -183,10 +182,10 @@ Thank you for using MusicDownloader Bot! 🎧"""
             logger.error(f"Error processing /newplaylist command: {str(e)}", exc_info=True)
             await message.reply("Error creating playlist. Please try again.")
     
-    @bot.on_message(command("playlists"))
+    @bot.on_command(name="playlists")
     async def playlists_command(message):
         try:
-            user_id = message.from_user.id
+            user_id = message.author.id
             logger.info(f"Processing /playlists command for user {user_id}")
 
             success, playlists = await playlist_controller.get_user_playlists(user_id)
@@ -202,11 +201,11 @@ Thank you for using MusicDownloader Bot! 🎧"""
             logger.error(f"Error processing /playlists command: {str(e)}", exc_info=True)
             await message.reply("Error displaying playlists.")
 
-    @bot.on_message(command("recommend"))
+    @bot.on_command(name="recommend")
     async def recommend_command(message):
         """Handle /recommend command"""
         try:
-            user_id = message.from_user.id
+            user_id = message.author.id
             logger.info(f"Processing /recommend command for user {user_id}")
             
             # Send initial message since LLM might be slow
