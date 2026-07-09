@@ -426,22 +426,52 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
             # Send processing message
             status_message = await callback_query.message.reply("⏳")
             
-            target_url = f"https://www.deezer.com/{content_type}/{item_id}"
-            logger.info(f"Using Deezer URL for download: {target_url}")
+            if content_type == "artist":
+                from services.deezer_service import DeezerAPIClient
+                albums = await DeezerAPIClient.get_artist_albums(item_id)
+                if not albums:
+                    success, result = False, "No albums found for this artist."
+                else:
+                    total_tracks = sum(album.get('nb_tracks', 0) for album in albums)
+                    
+                    # Ask for confirmation
+                    from balethon.objects import InlineKeyboardMarkup, InlineKeyboardButton
+                    confirm_kb = InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton(text="✅ Yes, Download All", callback_data=f"confirm_dl:artist:{item_id}"),
+                            InlineKeyboardButton(text="❌ Cancel", callback_data="delete")
+                        ]
+                    ])
+                    await bot.send_message(
+                        user_id,
+                        f"📥 Found {len(albums)} albums/EPs ({total_tracks} total tracks) for this artist.\n\nDo you want to download the entire discography?",
+                        reply_markup=confirm_kb
+                    )
+                    
+                    if status_message:
+                        try:
+                            await status_message.delete()
+                        except:
+                            pass
+                    return
+            else:
+                target_url = f"https://www.deezer.com/{content_type}/{item_id}"
+                logger.info(f"Using Deezer URL for download: {target_url}")
 
-            success, result = await download_controller.process_download_request(
-                user_id=user_id,
-                url=target_url
-            )
+                success, result = await download_controller.process_download_request(
+                    user_id=user_id,
+                    url=target_url
+                )
             
             # Clean up status message
-            try:
-                await status_message.delete()
-            except Exception as e:
-                logger.warning(f"Failed to delete status message: {str(e)}")
+            if status_message:
+                try:
+                    await status_message.delete()
+                except:
+                    pass
             
             if not success:
-                logger.error(f"Download failed for user {user_id}: {result}")
+                logger.error(f"Download failed/partial for user {user_id}: {result}")
                 return
             
             logger.info(f"Download completed successfully for user {user_id}")
@@ -452,6 +482,40 @@ def setup_callback_routes(user_controller: BaleUserController, download_controll
                 await callback_query.answer("Error processing download", show_alert=True)
             except:
                 pass
+
+    @bot.on_callback_query(filters=lambda c: c.data.startswith("confirm_dl:"))
+    async def confirm_dl_callback(callback_query):
+        """Handle confirmed download callbacks"""
+        try:
+            _, content_type, item_id = callback_query.data.split(":")
+            user_id = callback_query.from_user.id
+            
+            await callback_query.message.edit_text("⏳ Request added to download queue...")
+            await callback_query.answer()
+            
+            if content_type == "artist":
+                from services.deezer_service import DeezerAPIClient
+                albums = await DeezerAPIClient.get_artist_albums(item_id)
+                if not albums:
+                    await bot.send_message(user_id, "❌ No albums found for this artist.")
+                    return
+                
+                await bot.send_message(user_id, f"📥 Starting download of {len(albums)} albums...")
+                for album in albums:
+                    album_url = f"https://www.deezer.com/album/{album['id']}"
+                    logger.info(f"Downloading artist album: {album['name']} - {album_url}")
+                    try:
+                        s, r = await download_controller.process_download_request(user_id=user_id, url=album_url)
+                        if not s:
+                            await bot.send_message(user_id, f"❌ Failed to download {album['name']}: {r}")
+                    except Exception as e:
+                        logger.error(f"Error downloading album {album['name']}: {e}")
+                
+                await bot.send_message(user_id, "✅ Finished processing discography.")
+                
+        except Exception as e:
+            logger.error(f"Confirm download callback error: {str(e)}", exc_info=True)
+            await callback_query.answer("Error processing request")
 
     @bot.on_callback_query(filters=lambda c: c.data == "delete")
     async def delete_callback(callback_query):

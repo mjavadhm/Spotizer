@@ -203,7 +203,8 @@ class DeezerAPIClient:
                 'name': album['title'],
                 'release_date': album.get('release_date', 'Unknown'),
                 'artist': album.get('artist', {}).get('name', 'Unknown'),
-                'main_artist': album.get('artist', {}).get('name', 'Unknown')
+                'main_artist': album.get('artist', {}).get('name', 'Unknown'),
+                'nb_tracks': album.get('nb_tracks', 0)
             })
         return results
 
