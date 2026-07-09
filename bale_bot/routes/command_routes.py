@@ -12,9 +12,18 @@ def setup_command_routes(user_controller: BaleUserController, playlist_controlle
     """Set up command route handlers for Bale bot"""
     logger.info("Setting up command routes for Bale")
 
+    @bot.on_event()
+    async def log_all_events(event):
+        logger.info(f"==> BALETHON DISPATCHER RECEIVED EVENT: {type(event)}")
+
+    @bot.on_message()
+    async def log_all_messages(message):
+        logger.info(f"==> BALETHON RECEIVED MESSAGE: {getattr(message, 'text', 'No text')}")
+
     @bot.on_command(name="start")
     async def start_command(message):
         """Handle /start command"""
+        logger.info("==> START COMMAND HANDLER TRIGGERED! <==")
         try:
             user = message.author
             user_id = user.id
