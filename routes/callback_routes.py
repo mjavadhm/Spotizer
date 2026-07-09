@@ -1,5 +1,5 @@
 from aiogram import Router, F
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 
 from controllers.user_controller import UserController
@@ -7,6 +7,7 @@ from controllers.download_controller import DownloadController
 from controllers.playlist_controller import PlayListController
 from views.message_view import MessageView
 from views.music_view import MusicView
+from services.deezer_service import DeezerAPIClient
 from logger import get_logger
 
 logger = get_logger(__name__)
@@ -406,7 +407,6 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                 text = f"Tracks in playlist '{item_info['name']}':"
                 keyboard = MusicView.get_list_keyboard(tracks, content_type, action, page, item_id)
             elif content_type == "artist":
-                from services.deezer_service import DeezerAPIClient
                 if action == "top_tracks":
                     tracks = await DeezerAPIClient.get_artist_top_tracks(item_id)
                     text = f"Top tracks by {item_info['name']}:"
@@ -452,7 +452,6 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                 logger.warning(f"Failed to send status message: {str(e)}")
             
             if content_type == "artist":
-                from services.deezer_service import DeezerAPIClient
                 albums = await DeezerAPIClient.get_artist_albums(item_id)
                 if not albums:
                     success, result = False, "No albums found for this artist."
@@ -460,7 +459,6 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                     total_tracks = sum(album.get('nb_tracks', 0) for album in albums)
                     
                     # Ask for confirmation
-                    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
                     confirm_kb = InlineKeyboardMarkup(inline_keyboard=[
                         [
                             InlineKeyboardButton(text="✅ Yes, Download All", callback_data=f"confirm_dl:artist:{item_id}"),
@@ -529,7 +527,6 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
             await callback_query.answer()
             
             if content_type == "artist":
-                from services.deezer_service import DeezerAPIClient
                 albums = await DeezerAPIClient.get_artist_albums(item_id)
                 if not albums:
                     await callback_query.bot.send_message(user_id, "❌ No albums found for this artist.")
