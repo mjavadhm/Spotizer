@@ -225,52 +225,114 @@ class DownloadController:
                     display_title = title
                     
                 if make_zip:
-                    logger.info(f"Creating ZIP for {content_type} {deezer_id}")
-                    zip_success, zip_path = self.file_handler.zip_folder(download_dir, title)
-                    if not zip_success:
-                        return False, "❌ Failed to create ZIP archive."
+                    if content_type == 'artist':
+                        logger.info(f"Creating chunked ZIPs for {content_type} {deezer_id}")
+                        zip_results = self.file_handler.zip_directories_chunked(download_dir, title, chunk_size=5)
+                        if not zip_results:
+                            return False, "❌ Failed to create ZIP archive or no files found."
                         
-                    document = FSInputFile(zip_path)
-                    music_channel_id = os.getenv('MUSIC_CHANNEL_ID')
-                    channel_msg_id = None
-                    file_id_to_send = document
-
-                    if music_channel_id:
-                        try:
-                            channel_msg = await bot.send_document(
-                                chat_id=music_channel_id,
-                                document=document,
-                                caption=f"@Spotizer_bot 🎧\n📀 {display_title}"
-                            )
-                            channel_msg_id = channel_msg.message_id
-                            file_id_to_send = channel_msg.document.file_id
-                        except Exception as e:
-                            logger.error(f"Failed to send to music channel: {e}")
-
-                    sent_message = await bot.send_document(
-                        chat_id=user_id, 
-                        document=file_id_to_send, 
-                        caption=f"@Spotizer_bot 🎧"
-                    )
-                    
-                    await self.add_download(
-                        user_id=user_id,
-                        deezer_id=deezer_id,
-                        content_type=content_type,
-                        file_id=sent_message.document.file_id,
-                        quality=quality,
-                        url=url,
-                        title=title,
-                        artist=artist if content_type == 'album' else "Unknown",
-                        album=title if content_type == 'album' else None,
-                        channel_id=int(music_channel_id) if music_channel_id else None,
-                        message_id=channel_msg_id
-                    )
-                    
-                    # Cleanup ZIP and directory
-                    if os.path.exists(zip_path):
-                        os.remove(zip_path)
-                    shutil.rmtree(download_dir, ignore_errors=True)
+                        music_channel_id = os.getenv('MUSIC_CHANNEL_ID')
+                        
+                        all_success = True
+                        for zip_success, zip_path in zip_results:
+                            if not zip_success:
+                                all_success = False
+                                continue
+                            
+                            document = FSInputFile(zip_path)
+                            channel_msg_id = None
+                            file_id_to_send = document
+        
+                            if music_channel_id:
+                                try:
+                                    channel_msg = await bot.send_document(
+                                        chat_id=music_channel_id,
+                                        document=document,
+                                        caption=f"@Spotizer_bot 🎧\n📀 {display_title}"
+                                    )
+                                    channel_msg_id = channel_msg.message_id
+                                    file_id_to_send = channel_msg.document.file_id
+                                except Exception as e:
+                                    logger.error(f"Failed to send to music channel: {e}")
+        
+                            try:
+                                sent_message = await bot.send_document(
+                                    chat_id=user_id, 
+                                    document=file_id_to_send, 
+                                    caption=f"@Spotizer_bot 🎧"
+                                )
+                                
+                                await self.add_download(
+                                    user_id=user_id,
+                                    deezer_id=deezer_id,
+                                    content_type=content_type,
+                                    file_id=sent_message.document.file_id,
+                                    quality=quality,
+                                    url=url,
+                                    title=title,
+                                    artist="Unknown",
+                                    album=None,
+                                    channel_id=int(music_channel_id) if music_channel_id else None,
+                                    message_id=channel_msg_id
+                                )
+                            except Exception as e:
+                                logger.error(f"Failed to send chunked ZIP to user: {e}")
+                                all_success = False
+                                
+                            if os.path.exists(zip_path):
+                                os.remove(zip_path)
+                                
+                        if all_success:
+                            shutil.rmtree(download_dir, ignore_errors=True)
+                        else:
+                            make_zip = False
+                    else:
+                        logger.info(f"Creating ZIP for {content_type} {deezer_id}")
+                        zip_success, zip_path = self.file_handler.zip_folder(download_dir, title)
+                        if not zip_success:
+                            return False, "❌ Failed to create ZIP archive."
+                            
+                        document = FSInputFile(zip_path)
+                        music_channel_id = os.getenv('MUSIC_CHANNEL_ID')
+                        channel_msg_id = None
+                        file_id_to_send = document
+    
+                        if music_channel_id:
+                            try:
+                                channel_msg = await bot.send_document(
+                                    chat_id=music_channel_id,
+                                    document=document,
+                                    caption=f"@Spotizer_bot 🎧\n📀 {display_title}"
+                                )
+                                channel_msg_id = channel_msg.message_id
+                                file_id_to_send = channel_msg.document.file_id
+                            except Exception as e:
+                                logger.error(f"Failed to send to music channel: {e}")
+    
+                        sent_message = await bot.send_document(
+                            chat_id=user_id, 
+                            document=file_id_to_send, 
+                            caption=f"@Spotizer_bot 🎧"
+                        )
+                        
+                        await self.add_download(
+                            user_id=user_id,
+                            deezer_id=deezer_id,
+                            content_type=content_type,
+                            file_id=sent_message.document.file_id,
+                            quality=quality,
+                            url=url,
+                            title=title,
+                            artist=artist if content_type == 'album' else "Unknown",
+                            album=title if content_type == 'album' else None,
+                            channel_id=int(music_channel_id) if music_channel_id else None,
+                            message_id=channel_msg_id
+                        )
+                        
+                        # Cleanup ZIP and directory
+                        if os.path.exists(zip_path):
+                            os.remove(zip_path)
+                        shutil.rmtree(download_dir, ignore_errors=True)
                 else:
                     # If make_zip is false but it's an album/playlist, we send tracks individually
                     # Generate an M3U playlist as well

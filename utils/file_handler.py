@@ -111,6 +111,51 @@ class FileHandler:
             logger.error(f"Failed to zip folder {folder_path}: {str(e)}", exc_info=True)
             return False, str(e)
 
+    def zip_directories_chunked(self, base_folder: str, archive_prefix: str, chunk_size: int = 5) -> List[Tuple[bool, str]]:
+        """Finds all subdirectories containing audio files, groups them in chunks, and zips them."""
+        import zipfile
+        try:
+            safe_archive_prefix = sanitize_filename(archive_prefix)
+            
+            # Find all directories containing at least one audio file
+            album_dirs = set()
+            for root, _, files in os.walk(base_folder):
+                for file in files:
+                    if file.lower().endswith(('.mp3', '.flac', '.m4a')):
+                        album_dirs.add(root)
+                        break
+            
+            album_dirs = sorted(list(album_dirs))
+            
+            if not album_dirs:
+                return []
+                
+            results = []
+            for i in range(0, len(album_dirs), chunk_size):
+                chunk = album_dirs[i:i + chunk_size]
+                part_num = (i // chunk_size) + 1
+                total_parts = (len(album_dirs) + chunk_size - 1) // chunk_size
+                
+                zip_name = f"{safe_archive_prefix}_Part_{part_num}_of_{total_parts}.zip"
+                zip_path = os.path.join(self.temp_dir, zip_name)
+                
+                logger.info(f"Creating ZIP archive {zip_name} for chunk {part_num}/{total_parts}")
+                
+                with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    for album_dir in chunk:
+                        for root, _, files in os.walk(album_dir):
+                            for file in files:
+                                file_path = os.path.join(root, file)
+                                arcname = os.path.relpath(file_path, base_folder)
+                                zipf.write(file_path, arcname)
+                                
+                results.append((True, zip_path))
+                
+            return results
+        except Exception as e:
+            logger.error(f"Failed to create chunked ZIPs for {base_folder}: {str(e)}", exc_info=True)
+            return [(False, str(e))]
+
     def create_m3u_playlist(self, tracks: List[Tuple[str, int, str]], playlist_name: str) -> Tuple[bool, str]:
         """Create M3U playlist file"""
         try:
