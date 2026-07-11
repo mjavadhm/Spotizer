@@ -527,18 +527,15 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
             await callback_query.answer()
             
             if content_type == "artist":
-                await callback_query.bot.send_message(user_id, f"📥 Starting download of the entire discography. This may take a while...")
-                artist_url = f"https://www.deezer.com/artist/{item_id}"
-                logger.info(f"Downloading artist discography: {artist_url}")
+                import asyncio
+                await callback_query.bot.send_message(user_id, f"📥 Discography download started in the background! You will receive ZIP files as they are ready.")
+                artist_id = item_id
+                logger.info(f"Downloading artist discography asynchronously: {artist_id}")
                 try:
-                    s, r = await download_controller.process_download_request(user_id=user_id, url=artist_url)
-                    if not s:
-                        await callback_query.bot.send_message(user_id, f"❌ Failed to download discography: {r}")
-                    else:
-                        await callback_query.bot.send_message(user_id, "✅ Finished processing discography.")
+                    asyncio.create_task(download_controller.process_artist_discography(user_id=user_id, artist_id=artist_id))
                 except Exception as e:
-                    logger.error(f"Error downloading artist discography {item_id}: {e}")
-                    await callback_query.bot.send_message(user_id, "❌ An error occurred while downloading the discography.")
+                    logger.error(f"Error starting async discography download {item_id}: {e}")
+                    await callback_query.bot.send_message(user_id, "❌ An error occurred while starting the download.")
                 
         except Exception as e:
             logger.error(f"Confirm download callback error: {str(e)}", exc_info=True)

@@ -113,8 +113,110 @@ class DownloadController:
             logger.info(f"Getting albums for artist {artist_id}")
             return await DeezerAPIClient.get_artist_albums(artist_id)
         except Exception as e:
-            logger.error(f"Error getting artist albums: {str(e)}", exc_info=True)
-            return []
+            logger.error(f"Error checking download limit: {str(e)}", exc_info=True)
+            # Default to not limited if check fails to avoid blocking users
+            return False, ""
+
+    async def process_artist_discography(self, user_id: int, artist_id: str):
+        """Asynchronously download and send an artist's discography in chunks of 5 albums."""
+        try:
+            from services.deezer_service import DeezerAPIClient
+            albums = await DeezerAPIClient.get_artist_albums(artist_id)
+            if not albums:
+                await bot.send_message(chat_id=user_id, text="❌ No albums found for this artist.")
+                return
+
+            artist_name = albums[0].get('artist', 'Unknown Artist')
+            await bot.send_message(chat_id=user_id, text=f"📥 Found {len(albums)} albums for {artist_name}.\nStarting chunked download (5 albums per ZIP)...")
+
+            # Get user settings
+            async with async_session_maker() as session:
+                settings = await session.execute(
+                    select(UserSettings).where(UserSettings.user_id == user_id)
+                )
+                settings = settings.scalar_one_or_none()
+                quality = settings.download_quality if settings else 'MP3_128'
+                make_zip = settings.make_zip if settings else True
+
+            chunk_size = 5
+            total_chunks = (len(albums) + chunk_size - 1) // chunk_size
+            
+            for i in range(0, len(albums), chunk_size):
+                chunk = albums[i:i + chunk_size]
+                part_num = (i // chunk_size) + 1
+                
+                await bot.send_message(chat_id=user_id, text=f"⏳ Downloading Part {part_num} of {total_chunks}...")
+                
+                # Create a unique temporary directory for this chunk
+                chunk_dir = os.path.join(self.deezer_service.download_dir, f"artist_{artist_id}_chunk_{part_num}")
+                os.makedirs(chunk_dir, exist_ok=True)
+                
+                all_success = True
+                for album in chunk:
+                    album_url = f"https://www.deezer.com/album/{album['id']}"
+                    res = await self.deezer_service.download(album_url, quality_download=quality)
+                    if res.success and res.tracks:
+                        album_folder = os.path.dirname(res.tracks[0].file_path)
+                        try:
+                            album_name_folder = os.path.basename(album_folder)
+                            target_path = os.path.join(chunk_dir, album_name_folder)
+                            if os.path.exists(target_path):
+                                target_path += f"_{album['id']}"
+                            shutil.move(album_folder, target_path)
+                            parent_dir = os.path.dirname(album_folder)
+                            if not os.listdir(parent_dir):
+                                os.rmdir(parent_dir)
+                        except Exception as e:
+                            logger.error(f"Failed to move {album_folder} to {chunk_dir}: {e}")
+                            all_success = False
+                    else:
+                        all_success = False
+
+                if not make_zip:
+                    musics_playlist = []
+                    for root, _, files in os.walk(chunk_dir):
+                        for file in files:
+                            if file.lower().endswith(('.mp3', '.flac', '.m4a')):
+                                file_path = os.path.join(root, file)
+                                document = FSInputFile(file_path)
+                                try:
+                                    await bot.send_document(chat_id=user_id, document=document, caption=f"@Spotizer_bot 🎧")
+                                    musics_playlist.append((file_path, 0, file))
+                                except Exception as e:
+                                    logger.error(f"Failed to send track: {e}")
+                                    
+                    playlist_name = f"{artist_name}_Discography_Part_{part_num}"
+                    playlist_success, playlist_path = self.file_handler.create_m3u_playlist(musics_playlist, playlist_name)
+                    if playlist_success:
+                        await bot.send_document(chat_id=user_id, document=FSInputFile(playlist_path))
+                        os.remove(playlist_path)
+                else:
+                    title = f"{artist_name}_Discography_Part_{part_num}_of_{total_chunks}"
+                    zip_success, zip_path = self.file_handler.zip_folder(chunk_dir, title)
+                    
+                    if zip_success:
+                        try:
+                            document = FSInputFile(zip_path)
+                            await bot.send_document(
+                                chat_id=user_id,
+                                document=document,
+                                caption=f"@Spotizer_bot 🎧\n📀 {title}"
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to send discography chunk {part_num} to user: {e}")
+                            await bot.send_message(chat_id=user_id, text=f"❌ Failed to upload Part {part_num}.")
+                        
+                        if os.path.exists(zip_path):
+                            os.remove(zip_path)
+                    else:
+                        await bot.send_message(chat_id=user_id, text=f"❌ Failed to zip Part {part_num}.")
+                        
+                shutil.rmtree(chunk_dir, ignore_errors=True)
+                
+            await bot.send_message(chat_id=user_id, text=f"✅ Discography download complete!")
+        except Exception as e:
+            logger.error(f"Error in process_artist_discography: {e}", exc_info=True)
+            await bot.send_message(chat_id=user_id, text="❌ An error occurred while downloading the discography.")
 
     @staticmethod
     async def get_track(track_id):

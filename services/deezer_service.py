@@ -303,10 +303,10 @@ class DeezerService:
         os.makedirs(download_path, exist_ok=True)
         
         # Run CLI in thread to avoid blocking asyncio loop
-        def run_cli():
+        def run_cli(target_url):
             cmd = [
                 self.deemix_path, 
-                url, 
+                target_url, 
                 "-b", bitrate, 
                 "-p", download_path
             ]
@@ -318,8 +318,8 @@ class DeezerService:
 
         try:
             logger.info(f"Starting download of {content_type} {deezer_id} (Quality: {bitrate})")
-            process = await asyncio.to_thread(run_cli)
             
+            process = await asyncio.to_thread(run_cli, url)
             logger.debug(f"deemix stdout: {process.stdout}")
             if process.stderr:
                 logger.warning(f"deemix stderr: {process.stderr}")
