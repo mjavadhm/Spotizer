@@ -277,6 +277,10 @@ class DownloadController:
                                 )
                             except Exception as e:
                                 logger.error(f"Failed to send chunked ZIP to user: {e}")
+                                await bot.send_message(
+                                    chat_id=user_id,
+                                    text="ℹ️ Failed to upload a part of the discography. Please try again later."
+                                )
                                 all_success = False
                                 
                             if os.path.exists(zip_path):
@@ -285,7 +289,8 @@ class DownloadController:
                         if all_success:
                             shutil.rmtree(download_dir, ignore_errors=True)
                         else:
-                            make_zip = False
+                            # Do not fall back to sending individual tracks for discographies
+                            pass
                     else:
                         logger.info(f"Creating ZIP for {content_type} {deezer_id}")
                         zip_success, zip_path = self.file_handler.zip_folder(download_dir, title)

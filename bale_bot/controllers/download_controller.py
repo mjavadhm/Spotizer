@@ -183,61 +183,13 @@ class BaleDownloadController:
                                 if os.path.exists(zip_path):
                                     os.remove(zip_path)
                             else:
-                                try:
-                                    with open(zip_path, 'rb') as zip_file:
-                                        await bot.send_document(
-                                            chat_id=user_id, 
-                                            document=zip_file, 
-                                            caption=f"@Spotizer_bot 🎧\n📀 {display_title}"
-                                        )
-                                    await self.add_download(
-                                        user_id=user_id,
-                                        deezer_id=deezer_id,
-                                        content_type=content_type,
-                                        quality=quality,
-                                        url=url,
-                                        title=title,
-                                        artist="Unknown",
-                                        album=None,
-                                        file_name=os.path.basename(zip_path)
-                                    )
-                                    if os.path.exists(zip_path):
-                                        os.remove(zip_path)
-                                except Exception as e:
-                                    logger.error(f"Failed to send ZIP part: {str(e)}", exc_info=True)
-                                    all_success = False
-                                    if os.path.exists(zip_path):
-                                        os.remove(zip_path)
-                        
-                        if all_success:
-                            shutil.rmtree(download_dir, ignore_errors=True)
-                        else:
-                            make_zip = False
-                    else:
-                        logger.info(f"Creating ZIP for {content_type} {deezer_id}")
-                        zip_success, zip_path = self.file_handler.zip_folder(download_dir, title)
-                        if not zip_success:
-                            return False, "❌ Failed to create ZIP archive."
-                            
-                        zip_size = os.path.getsize(zip_path)
-                        if zip_size > 40 * 1024 * 1024:
-                            logger.info(f"ZIP file too large ({zip_size} bytes). Falling back to individual tracks.")
-                            await bot.send_message(
-                                chat_id=user_id,
-                                text="ℹ️ The album ZIP file is too large for Bale (Max 40MB). Sending individual tracks instead..."
-                            )
-                            if os.path.exists(zip_path):
-                                os.remove(zip_path)
-                            make_zip = False
-                        else:
                             try:
                                 with open(zip_path, 'rb') as zip_file:
-                                    sent_message = await bot.send_document(
+                                    await bot.send_document(
                                         chat_id=user_id, 
                                         document=zip_file, 
                                         caption=f"@Spotizer_bot 🎧\n📀 {display_title}"
                                     )
-                                
                                 await self.add_download(
                                     user_id=user_id,
                                     deezer_id=deezer_id,
@@ -245,23 +197,62 @@ class BaleDownloadController:
                                     quality=quality,
                                     url=url,
                                     title=title,
-                                    artist=artist if content_type == 'album' else "Unknown",
-                                    album=title if content_type == 'album' else None,
+                                    artist="Unknown",
+                                    album=None,
                                     file_name=os.path.basename(zip_path)
                                 )
-                                
                                 if os.path.exists(zip_path):
                                     os.remove(zip_path)
-                                shutil.rmtree(download_dir, ignore_errors=True)
                             except Exception as e:
-                                logger.error(f"Failed to send ZIP: {str(e)}", exc_info=True)
-                                await bot.send_message(
-                                    chat_id=user_id,
-                                    text="ℹ️ Failed to send ZIP. Sending individual tracks instead..."
-                                )
+                                logger.error(f"Failed to send ZIP part: {str(e)}", exc_info=True)
+                                all_success = False
                                 if os.path.exists(zip_path):
                                     os.remove(zip_path)
-                                make_zip = False
+                        
+                        if all_success:
+                            shutil.rmtree(download_dir, ignore_errors=True)
+                        else:
+                            # We don't want to fallback to sending 100s of tracks individually for discography
+                            # as it would spam the user. Just stop here.
+                            pass
+                    else:
+                        logger.info(f"Creating ZIP for {content_type} {deezer_id}")
+                        zip_success, zip_path = self.file_handler.zip_folder(download_dir, title)
+                        if not zip_success:
+                            return False, "❌ Failed to create ZIP archive."
+                            
+                        try:
+                            with open(zip_path, 'rb') as zip_file:
+                                sent_message = await bot.send_document(
+                                    chat_id=user_id, 
+                                    document=zip_file, 
+                                    caption=f"@Spotizer_bot 🎧\n📀 {display_title}"
+                                )
+                            
+                            await self.add_download(
+                                user_id=user_id,
+                                deezer_id=deezer_id,
+                                content_type=content_type,
+                                quality=quality,
+                                url=url,
+                                title=title,
+                                artist=artist if content_type == 'album' else "Unknown",
+                                album=title if content_type == 'album' else None,
+                                file_name=os.path.basename(zip_path)
+                            )
+                            
+                            if os.path.exists(zip_path):
+                                os.remove(zip_path)
+                            shutil.rmtree(download_dir, ignore_errors=True)
+                        except Exception as e:
+                            logger.error(f"Failed to send ZIP: {str(e)}", exc_info=True)
+                            await bot.send_message(
+                                chat_id=user_id,
+                                text="ℹ️ Failed to send ZIP. Sending individual tracks instead..."
+                            )
+                            if os.path.exists(zip_path):
+                                os.remove(zip_path)
+                            make_zip = False
 
                 if not make_zip:
                     musics_playlist = []

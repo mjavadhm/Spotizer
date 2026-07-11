@@ -507,23 +507,18 @@ async def confirm_dl_callback(*, callback_query):
         
         if content_type == "artist":
             from services.deezer_service import DeezerAPIClient
-            albums = await DeezerAPIClient.get_artist_albums(item_id)
-            if not albums:
-                await bot.send_message(user_id, "❌ No albums found for this artist.")
-                return
-            
-            await bot.send_message(user_id, f"📥 Starting download of {len(albums)} albums...")
-            for album in albums:
-                album_url = f"https://www.deezer.com/album/{album['id']}"
-                logger.info(f"Downloading artist album: {album['name']} - {album_url}")
-                try:
-                    s, r = await download_controller.process_download_request(user_id=user_id, url=album_url)
-                    if not s:
-                        await bot.send_message(user_id, f"❌ Failed to download {album['name']}: {r}")
-                except Exception as e:
-                    logger.error(f"Error downloading album {album['name']}: {e}")
-            
-            await bot.send_message(user_id, "✅ Finished processing discography.")
+            await bot.send_message(user_id, f"📥 Starting download of the entire discography. This may take a while...")
+            artist_url = f"https://www.deezer.com/artist/{item_id}"
+            logger.info(f"Downloading artist discography: {artist_url}")
+            try:
+                s, r = await download_controller.process_download_request(user_id=user_id, url=artist_url)
+                if not s:
+                    await bot.send_message(user_id, f"❌ Failed to download discography: {r}")
+                else:
+                    await bot.send_message(user_id, "✅ Finished processing discography.")
+            except Exception as e:
+                logger.error(f"Error downloading artist discography {item_id}: {e}")
+                await bot.send_message(user_id, "❌ An error occurred while downloading the discography.")
             
     except Exception as e:
         logger.error(f"Confirm download callback error: {str(e)}", exc_info=True)
