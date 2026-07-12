@@ -269,13 +269,24 @@ class DeezerService:
             return
 
         os.makedirs(self.config_dir, exist_ok=True)
-        arl_path = os.path.join(self.config_dir, '.arl')
+        config_path = os.path.join(self.config_dir, 'config.json')
+        
+        config_data = {}
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config_data = json.load(f)
+            except Exception as e:
+                logger.error(f"Failed to read existing config.json: {e}")
+                
+        config_data['arl'] = arl
+        
         try:
-            with open(arl_path, 'w') as f:
-                f.write(arl)
-            logger.info("ARL token configured for deemix")
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config_data, f, indent=4)
+            logger.info("ARL token configured in deemix config.json")
         except Exception as e:
-            logger.error(f"Failed to write ARL token: {str(e)}")
+            logger.error(f"Failed to write ARL token to config.json: {str(e)}")
 
     def _map_quality(self, quality: str) -> str:
         """Map Spotizer quality to deemix bitrate flag"""
