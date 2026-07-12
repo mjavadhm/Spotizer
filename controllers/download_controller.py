@@ -232,14 +232,8 @@ class DownloadController:
                                 try:
                                     await bot.send_document(chat_id=user_id, document=document, caption=f"@Spotizer_bot 🎧", request_timeout=600)
                                     musics_playlist.append((file_path, 0, file))
-                                    
-                                    # Try to send LRC
-                                    lrc_path = os.path.splitext(file_path)[0] + '.lrc'
-                                    if os.path.exists(lrc_path):
-                                        await bot.send_document(chat_id=user_id, document=FSInputFile(lrc_path), request_timeout=600)
-                                        
                                 except Exception as e:
-                                    logger.error(f"Failed to send track or lyrics: {e}")
+                                    logger.error(f"Failed to send track: {e}")
                                     
                     playlist_name = f"{artist_name}_Discography_Part_{part_num}"
                     playlist_success, playlist_path = self.file_handler.create_m3u_playlist(musics_playlist, playlist_name)

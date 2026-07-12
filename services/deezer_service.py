@@ -269,24 +269,13 @@ class DeezerService:
             return
 
         os.makedirs(self.config_dir, exist_ok=True)
-        config_path = os.path.join(self.config_dir, 'config.json')
-        
-        config_data = {}
-        if os.path.exists(config_path):
-            try:
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    config_data = json.load(f)
-            except Exception as e:
-                logger.error(f"Failed to read existing config.json: {e}")
-                
-        config_data['arl'] = arl
-        
+        arl_path = os.path.join(self.config_dir, '.arl')
         try:
-            with open(config_path, 'w', encoding='utf-8') as f:
-                json.dump(config_data, f, indent=4)
-            logger.info("ARL token configured in deemix config.json")
+            with open(arl_path, 'w') as f:
+                f.write(arl)
+            logger.info("ARL token configured for deemix")
         except Exception as e:
-            logger.error(f"Failed to write ARL token to config.json: {str(e)}")
+            logger.error(f"Failed to write ARL token: {str(e)}")
 
     def _map_quality(self, quality: str) -> str:
         """Map Spotizer quality to deemix bitrate flag"""
@@ -332,21 +321,17 @@ class DeezerService:
         
         # Run CLI in thread to avoid blocking asyncio loop
         def run_cli(target_url):
-            deemix_abs_path = os.path.abspath(self.deemix_path)
-            deemix_dir = os.path.dirname(deemix_abs_path)
-            
             cmd = [
-                deemix_abs_path, 
+                self.deemix_path, 
                 target_url, 
                 "-b", bitrate, 
-                "-p", download_path,
-                "--portable"
+                "-p", download_path
             ]
             env = os.environ.copy()
             env["DEEMIX_CONFIG_DIR"] = self.config_dir
             
             logger.info(f"Running deemix CLI: {' '.join(cmd)}")
-            return subprocess.run(cmd, capture_output=True, text=True, env=env, cwd=deemix_dir, stdin=subprocess.DEVNULL)
+            return subprocess.run(cmd, capture_output=True, text=True, env=env)
 
         try:
             logger.info(f"Starting download of {content_type} {deezer_id} (Quality: {bitrate})")

@@ -273,14 +273,6 @@ class BaleDownloadController:
                                     title=t.title
                                 )
                                 
-                                # Send lyrics file if it exists
-                                lrc_path = os.path.splitext(t.file_path)[0] + '.lrc'
-                                if os.path.exists(lrc_path):
-                                    try:
-                                        await bot.send_document(chat_id=user_id, document=FSInputFile(lrc_path))
-                                    except Exception as e:
-                                        logger.error(f"Failed to send lyrics file {lrc_path}: {e}")
-                                
                                 await self.add_download(
                                     user_id=user_id,
                                     deezer_id=deezer_id, 
