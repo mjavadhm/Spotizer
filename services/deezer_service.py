@@ -321,8 +321,11 @@ class DeezerService:
         
         # Run CLI in thread to avoid blocking asyncio loop
         def run_cli(target_url):
+            deemix_abs_path = os.path.abspath(self.deemix_path)
+            deemix_dir = os.path.dirname(deemix_abs_path)
+            
             cmd = [
-                self.deemix_path, 
+                deemix_abs_path, 
                 target_url, 
                 "-b", bitrate, 
                 "-p", download_path,
@@ -332,7 +335,7 @@ class DeezerService:
             env["DEEMIX_CONFIG_DIR"] = self.config_dir
             
             logger.info(f"Running deemix CLI: {' '.join(cmd)}")
-            return subprocess.run(cmd, capture_output=True, text=True, env=env)
+            return subprocess.run(cmd, capture_output=True, text=True, env=env, cwd=deemix_dir, stdin=subprocess.DEVNULL)
 
         try:
             logger.info(f"Starting download of {content_type} {deezer_id} (Quality: {bitrate})")
