@@ -16,6 +16,9 @@
   "createM3U8File": false,
   "embeddedArtworkSize": 800,
   "saveArtwork": false,
+  "saveLyrics": true,
+  "embedLyrics": true,
+  "syncedLyrics": true,
   "tags": {
     "title": true,
     "artist": true,

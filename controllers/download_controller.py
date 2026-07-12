@@ -21,7 +21,11 @@ class DownloadController:
         self.deezer_service = DeezerService()
         self.file_handler = FileHandler()
         self.url_validator = URLValidator()
+        self.cancelled_downloads = set()
         logger.info("DownloadController initialized (Spotify support removed)")
+
+    def cancel_download(self, msg_id: int):
+        self.cancelled_downloads.add(msg_id)
 
     @staticmethod
     async def add_download(user_id, deezer_id, content_type, file_id, quality, url, title, artist, album, duration=None, file_name=None, channel_id=None, message_id=None):
@@ -142,10 +146,16 @@ class DownloadController:
             total_steps = len(albums) + (total_chunks * 2 if make_zip else total_chunks)
             current_step = 0
             
+            from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            cancel_kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="❌ Cancel Download", callback_data="cancel_disc")]
+            ])
+            
             prog_msg = await bot.send_message(
                 chat_id=user_id, 
                 text=f"📥 *{artist_name} Discography*\n\n[□□□□□□□□□□] 0%\n⏳ Status: Preparing to download...",
-                parse_mode="Markdown"
+                parse_mode="Markdown",
+                reply_markup=cancel_kb
             )
             prog_msg_id = prog_msg.message_id
             
@@ -157,11 +167,16 @@ class DownloadController:
                 bar = "■" * filled + "□" * empty
                 text = f"📥 *{artist_name} Discography*\n\n[{bar}] {percent}%\n⏳ Status: {status_text}"
                 try:
-                    await bot.edit_message_text(chat_id=user_id, message_id=prog_msg_id, text=text, parse_mode="Markdown")
+                    await bot.edit_message_text(chat_id=user_id, message_id=prog_msg_id, text=text, parse_mode="Markdown", reply_markup=cancel_kb)
                 except Exception:
                     pass
             
+            is_cancelled = False
             for i in range(0, len(albums), chunk_size):
+                if prog_msg_id in self.cancelled_downloads:
+                    is_cancelled = True
+                    break
+                    
                 chunk = albums[i:i + chunk_size]
                 part_num = (i // chunk_size) + 1
                 
@@ -171,6 +186,10 @@ class DownloadController:
                 
                 all_success = True
                 for idx, album in enumerate(chunk):
+                    if prog_msg_id in self.cancelled_downloads:
+                        is_cancelled = True
+                        break
+                        
                     await update_prog(f"Downloading album {idx+1}/{len(chunk)} (Part {part_num}/{total_chunks})...")
                     album_url = f"https://www.deezer.com/album/{album['id']}"
                     res = await self.deezer_service.download(album_url, quality_download=quality)
@@ -191,7 +210,16 @@ class DownloadController:
                     else:
                         all_success = False
                     
-                    current_step += 1
+                    if prog_msg_id in self.cancelled_downloads:
+                        is_cancelled = True
+                        break
+                        
+                if is_cancelled:
+                    try:
+                        shutil.rmtree(chunk_dir)
+                    except Exception:
+                        pass
+                    break
 
                 if not make_zip:
                     await update_prog(f"Sending audio files for Part {part_num}/{total_chunks}...")
@@ -202,7 +230,7 @@ class DownloadController:
                                 file_path = os.path.join(root, file)
                                 document = FSInputFile(file_path)
                                 try:
-                                    await bot.send_document(chat_id=user_id, document=document, caption=f"@Spotizer_bot 🎧")
+                                    await bot.send_document(chat_id=user_id, document=document, caption=f"@Spotizer_bot 🎧", request_timeout=600)
                                     musics_playlist.append((file_path, 0, file))
                                 except Exception as e:
                                     logger.error(f"Failed to send track: {e}")
@@ -228,7 +256,8 @@ class DownloadController:
                             await bot.send_document(
                                 chat_id=user_id,
                                 document=document,
-                                caption=f"@Spotizer_bot 🎧\n📀 {title}"
+                                caption=f"@Spotizer_bot 🎧\n📀 {title}",
+                                request_timeout=600
                             )
                         except Exception as e:
                             logger.error(f"Failed to send discography chunk {part_num} to user: {e}")
@@ -242,6 +271,14 @@ class DownloadController:
                 except Exception as e:
                     logger.error(f"Failed to cleanup chunk directory {chunk_dir}: {e}")
                     
+            if prog_msg_id in self.cancelled_downloads:
+                self.cancelled_downloads.remove(prog_msg_id)
+                try:
+                    await bot.edit_message_text(chat_id=user_id, message_id=prog_msg_id, text="🚫 Discography download cancelled by user.", parse_mode="Markdown")
+                except Exception:
+                    pass
+                return
+
             try:
                 await bot.delete_message(chat_id=user_id, message_id=prog_msg_id)
             except Exception:

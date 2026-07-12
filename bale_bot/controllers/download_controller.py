@@ -26,7 +26,11 @@ class BaleDownloadController:
         self.deezer_service = DeezerService()
         self.file_handler = FileHandler()
         self.url_validator = URLValidator()
+        self.cancelled_downloads = set()
         logger.info("BaleDownloadController initialized")
+
+    def cancel_download(self, msg_id: int):
+        self.cancelled_downloads.add(msg_id)
 
     @staticmethod
     async def add_download(user_id, deezer_id, content_type, quality, url, title, artist, album, duration=None, file_name=None):
@@ -473,9 +477,14 @@ class BaleDownloadController:
             total_steps = len(albums) + (total_chunks * 2 if make_zip else total_chunks)
             current_step = 0
             
+            cancel_kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="❌ Cancel Download", callback_data="cancel_disc")]
+            ])
+            
             prog_msg = await bot.send_message(
                 chat_id=user_id, 
-                text=f"📥 *{artist_name} Discography*\n\n[□□□□□□□□□□] 0%\n⏳ Status: Preparing to download..."
+                text=f"📥 *{artist_name} Discography*\n\n[□□□□□□□□□□] 0%\n⏳ Status: Preparing to download...",
+                reply_markup=cancel_kb
             )
             prog_msg_id = prog_msg.message_id
             
@@ -487,12 +496,17 @@ class BaleDownloadController:
                 bar = "■" * filled + "□" * empty
                 text = f"📥 *{artist_name} Discography*\n\n[{bar}] {percent}%\n⏳ Status: {status_text}"
                 try:
-                    await bot.edit_message_text(chat_id=user_id, message_id=prog_msg_id, text=text)
+                    await bot.edit_message_text(chat_id=user_id, message_id=prog_msg_id, text=text, reply_markup=cancel_kb)
                 except Exception:
                     pass
             
+            is_cancelled = False
             import shutil
             for i in range(0, len(albums), chunk_size):
+                if prog_msg_id in self.cancelled_downloads:
+                    is_cancelled = True
+                    break
+                    
                 chunk = albums[i:i + chunk_size]
                 part_num = (i // chunk_size) + 1
                 
@@ -502,6 +516,10 @@ class BaleDownloadController:
                 
                 all_success = True
                 for idx, album in enumerate(chunk):
+                    if prog_msg_id in self.cancelled_downloads:
+                        is_cancelled = True
+                        break
+                        
                     await update_prog(f"Downloading album {idx+1}/{len(chunk)} (Part {part_num}/{total_chunks})...")
                     album_url = f"https://www.deezer.com/album/{album['id']}"
                     res = await self.deezer_service.download(album_url, quality_download=quality)
@@ -522,7 +540,16 @@ class BaleDownloadController:
                     else:
                         all_success = False
                         
-                    current_step += 1
+                    if prog_msg_id in self.cancelled_downloads:
+                        is_cancelled = True
+                        break
+                        
+                if is_cancelled:
+                    try:
+                        shutil.rmtree(chunk_dir)
+                    except Exception:
+                        pass
+                    break
 
                 if not make_zip:
                     await update_prog(f"Sending audio files for Part {part_num}/{total_chunks}...")
@@ -575,7 +602,15 @@ class BaleDownloadController:
                     shutil.rmtree(chunk_dir)
                 except Exception as e:
                     logger.error(f"Failed to cleanup chunk directory {chunk_dir}: {e}")
-                    
+
+            if prog_msg_id in self.cancelled_downloads:
+                self.cancelled_downloads.remove(prog_msg_id)
+                try:
+                    await bot.edit_message_text(chat_id=user_id, message_id=prog_msg_id, text="🚫 Discography download cancelled by user.")
+                except Exception:
+                    pass
+                return
+
             try:
                 await bot.delete_message(chat_id=user_id, message_id=prog_msg_id)
             except Exception:

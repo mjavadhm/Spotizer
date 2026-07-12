@@ -543,6 +543,17 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
             logger.error(f"Confirm download callback error: {str(e)}", exc_info=True)
             await callback_query.answer("Error processing request")
 
+    @router.callback_query(F.data == "cancel_disc")
+    async def cancel_disc_callback(callback_query: CallbackQuery):
+        """Cancel an ongoing discography download"""
+        try:
+            msg_id = callback_query.message.message_id
+            download_controller.cancel_download(msg_id)
+            await callback_query.answer("Cancelling download...", show_alert=True)
+            await callback_query.message.edit_reply_markup(reply_markup=None)
+        except Exception as e:
+            logger.error(f"Cancel discography error: {e}")
+            await callback_query.answer("Error cancelling")
 
     @router.callback_query(F.data == "delete")
     async def delete_callback(callback_query: CallbackQuery):
