@@ -242,7 +242,10 @@ class DownloadController:
                 except Exception as e:
                     logger.error(f"Failed to cleanup chunk directory {chunk_dir}: {e}")
                     
-            await update_prog("✅ Download completed successfully!")
+            try:
+                await bot.delete_message(chat_id=user_id, message_id=prog_msg_id)
+            except Exception:
+                pass
             await bot.send_message(chat_id=user_id, text=f"✅ Discography download complete!")
         except Exception as e:
             logger.error(f"Error in process_artist_discography: {e}", exc_info=True)

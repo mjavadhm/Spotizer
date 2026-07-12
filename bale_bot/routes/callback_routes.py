@@ -502,12 +502,14 @@ async def confirm_dl_callback(*, callback_query):
         _, content_type, item_id = callback_query.data.split(":")
         user_id = callback_query.author.id
         
-        await callback_query.message.edit_text("⏳ Request added to download queue...")
-        await callback_query.answer(" ")
-        
+        try:
+            await callback_query.message.delete()
+        except Exception:
+            pass
+        await callback_query.answer()
+
         if content_type == "artist":
             import asyncio
-            await bot.send_message(user_id, f"📥 Discography download started in the background! You will receive ZIP files as they are ready.")
             artist_id = item_id
             logger.info(f"Downloading artist discography asynchronously: {artist_id}")
             try:

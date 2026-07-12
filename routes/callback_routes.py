@@ -523,12 +523,14 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
             _, content_type, item_id = callback_query.data.split(":")
             user_id = callback_query.from_user.id
             
-            await callback_query.message.edit_text("⏳ Request added to download queue...")
+            try:
+                await callback_query.message.delete()
+            except Exception:
+                pass
             await callback_query.answer()
             
             if content_type == "artist":
                 import asyncio
-                await callback_query.bot.send_message(user_id, f"📥 Discography download started in the background! You will receive ZIP files as they are ready.")
                 artist_id = item_id
                 logger.info(f"Downloading artist discography asynchronously: {artist_id}")
                 try:
