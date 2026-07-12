@@ -19,6 +19,7 @@ class DeemixTrackResult:
     artist: str = "Unknown Artist"
     album: str = "Unknown Album"
     duration: Optional[int] = None
+    lrc_path: Optional[str] = None
 
 class DeezerAPIClient:
     BASE_URL = "https://api.deezer.com"
@@ -306,6 +307,50 @@ class DeezerService:
             logger.error(f"Error extracting info from URL {url}: {str(e)}")
             return None, None
 
+    async def _add_lyrics(self, file_path: str, title: str, artist: str) -> Optional[str]:
+        """Fetch lyrics from LRCLib etc., embed into the file, save .lrc"""
+        def _work():
+            try:
+                import syncedlyrics
+                lrc = syncedlyrics.search(f"{title} {artist}")
+            except Exception as e:
+                logger.warning(f"Lyrics search failed for '{title} - {artist}': {e}")
+                return None
+            if not lrc:
+                logger.info(f"No lyrics found for '{title} - {artist}'")
+                return None
+
+            # 1) save synced .lrc next to the audio file
+            lrc_path = None
+            try:
+                lrc_path = os.path.splitext(file_path)[0] + ".lrc"
+                with open(lrc_path, "w", encoding="utf-8") as f:
+                    f.write(lrc)
+            except Exception as e:
+                logger.warning(f"Failed to write .lrc: {e}")
+                lrc_path = None
+
+            # 2) embed plain lyrics into the audio file tags
+            try:
+                plain = re.sub(r"\[\d{1,2}:\d{2}(?:\.\d{1,3})?\] ?", "", lrc).strip()
+                ext = os.path.splitext(file_path)[1].lower()
+                if ext == ".mp3":
+                    from mutagen.id3 import ID3, USLT
+                    tags = ID3(file_path)
+                    tags.setall("USLT", [USLT(encoding=3, lang="eng", desc="", text=plain)])
+                    tags.save()
+                elif ext == ".flac":
+                    from mutagen.flac import FLAC
+                    audio = FLAC(file_path)
+                    audio["LYRICS"] = plain
+                    audio.save()
+                logger.info(f"Lyrics embedded into {os.path.basename(file_path)}")
+            except Exception as e:
+                logger.warning(f"Failed to embed lyrics into {file_path}: {e}")
+
+            return lrc_path
+        return await asyncio.to_thread(_work)
+
     async def download(self, url: str, output_folder="downloads", quality_download: str = 'MP3_320', make_zip: bool = False) -> DeemixResult:
         """Download track/album/playlist from Deezer using deemix-cli"""
         
@@ -351,18 +396,31 @@ class DeezerService:
             
             tracks = []
             for file_path in audio_files:
+                title = "Unknown Title"
+                artist = "Unknown Artist"
+                album = "Unknown Album"
+                duration = None
                 try:
                     tag = TinyTag.get(file_path)
-                    tracks.append(DeemixTrackResult(
-                        file_path=file_path,
-                        title=tag.title or "Unknown Title",
-                        artist=tag.artist or "Unknown Artist",
-                        album=tag.album or "Unknown Album",
-                        duration=int(tag.duration) if tag.duration else None
-                    ))
+                    title = tag.title or title
+                    artist = tag.artist or artist
+                    album = tag.album or album
+                    duration = int(tag.duration) if tag.duration else None
                 except Exception as e:
                     logger.error(f"Error parsing metadata for {file_path}: {str(e)}")
-                    tracks.append(DeemixTrackResult(file_path=file_path))
+
+                lrc_path = None
+                if title != "Unknown Title":
+                    lrc_path = await self._add_lyrics(file_path, title, artist)
+
+                tracks.append(DeemixTrackResult(
+                    file_path=file_path,
+                    title=title,
+                    artist=artist,
+                    album=album,
+                    duration=duration,
+                    lrc_path=lrc_path
+                ))
             
             is_album_or_playlist = content_type in ['album', 'playlist', 'artist']
             
