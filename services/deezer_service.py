@@ -325,7 +325,8 @@ class DeezerService:
                 self.deemix_path, 
                 target_url, 
                 "-b", bitrate, 
-                "-p", download_path
+                "-p", download_path,
+                "--portable"
             ]
             env = os.environ.copy()
             env["DEEMIX_CONFIG_DIR"] = self.config_dir
