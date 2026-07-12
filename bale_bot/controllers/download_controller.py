@@ -162,7 +162,8 @@ class BaleDownloadController:
                 if make_zip:
                     if content_type == 'artist':
                         logger.info(f"Creating chunked ZIPs for {content_type} {deezer_id}")
-                        zip_results = self.file_handler.zip_directories_chunked(download_dir, title, chunk_size=5)
+                        import asyncio
+                        zip_results = await asyncio.to_thread(self.file_handler.zip_directories_chunked, download_dir, title, chunk_size=5)
                         if not zip_results:
                             return False, "❌ Failed to create ZIP archive or no files found."
                         
@@ -217,7 +218,8 @@ class BaleDownloadController:
                             pass
                     else:
                         logger.info(f"Creating ZIP for {content_type} {deezer_id}")
-                        zip_success, zip_path = self.file_handler.zip_folder(download_dir, title)
+                        import asyncio
+                        zip_success, zip_path = await asyncio.to_thread(self.file_handler.zip_folder, download_dir, title)
                         if not zip_success:
                             return False, "❌ Failed to create ZIP archive."
                             
@@ -455,7 +457,6 @@ class BaleDownloadController:
                 return
 
             artist_name = albums[0].get('artist', 'Unknown Artist')
-            await bot.send_message(chat_id=user_id, text=f"📥 Found {len(albums)} albums for {artist_name}.\nStarting chunked download (5 albums per ZIP)...")
 
             # Get user settings
             async with bale_async_session_maker() as session:
@@ -469,20 +470,39 @@ class BaleDownloadController:
 
             chunk_size = 5
             total_chunks = (len(albums) + chunk_size - 1) // chunk_size
+            total_steps = len(albums) + (total_chunks * 2 if make_zip else total_chunks)
+            current_step = 0
+            
+            prog_msg = await bot.send_message(
+                chat_id=user_id, 
+                text=f"📥 *{artist_name} Discography*\n\n[□□□□□□□□□□] 0%\n⏳ Status: Preparing to download..."
+            )
+            prog_msg_id = prog_msg.message_id
+            
+            async def update_prog(status_text):
+                percent = int((current_step / total_steps) * 100) if total_steps > 0 else 0
+                if percent > 100: percent = 100
+                filled = percent // 10
+                empty = 10 - filled
+                bar = "■" * filled + "□" * empty
+                text = f"📥 *{artist_name} Discography*\n\n[{bar}] {percent}%\n⏳ Status: {status_text}"
+                try:
+                    await bot.edit_message_text(chat_id=user_id, message_id=prog_msg_id, text=text)
+                except Exception:
+                    pass
             
             import shutil
             for i in range(0, len(albums), chunk_size):
                 chunk = albums[i:i + chunk_size]
                 part_num = (i // chunk_size) + 1
                 
-                await bot.send_message(chat_id=user_id, text=f"⏳ Downloading Part {part_num} of {total_chunks}...")
-                
                 # Create a unique temporary directory for this chunk
                 chunk_dir = os.path.join(self.deezer_service.download_dir, f"artist_{artist_id}_chunk_{part_num}")
                 os.makedirs(chunk_dir, exist_ok=True)
                 
                 all_success = True
-                for album in chunk:
+                for idx, album in enumerate(chunk):
+                    await update_prog(f"Downloading album {idx+1}/{len(chunk)} (Part {part_num}/{total_chunks})...")
                     album_url = f"https://www.deezer.com/album/{album['id']}"
                     res = await self.deezer_service.download(album_url, quality_download=quality)
                     if res.success and res.tracks:
@@ -501,8 +521,11 @@ class BaleDownloadController:
                             all_success = False
                     else:
                         all_success = False
+                        
+                    current_step += 1
 
                 if not make_zip:
+                    await update_prog(f"Sending audio files for Part {part_num}/{total_chunks}...")
                     musics_playlist = []
                     for root, _, files in os.walk(chunk_dir):
                         for file in files:
@@ -520,12 +543,19 @@ class BaleDownloadController:
                     if playlist_success:
                         await bot.send_document(chat_id=user_id, document=bale.InputFile(playlist_path))
                         os.remove(playlist_path)
+                        
+                    current_step += 1
                 else:
                     title = f"{artist_name}_Discography_Part_{part_num}_of_{total_chunks}"
-                    zip_success, zip_path = self.file_handler.zip_folder(chunk_dir, title)
+                    
+                    await update_prog(f"Zipping Part {part_num}/{total_chunks}...")
+                    import asyncio
+                    zip_success, zip_path = await asyncio.to_thread(self.file_handler.zip_folder, chunk_dir, title)
+                    current_step += 1
                     
                     if zip_success:
                         try:
+                            await update_prog(f"Uploading Part {part_num}/{total_chunks}...")
                             document = bale.InputFile(zip_path)
                             await bot.send_document(
                                 chat_id=user_id,
@@ -536,13 +566,17 @@ class BaleDownloadController:
                             logger.error(f"Failed to send discography chunk {part_num} to user: {e}")
                             await bot.send_message(chat_id=user_id, text=f"❌ Failed to upload Part {part_num}.")
                         
+                        current_step += 1
+                        
                         if os.path.exists(zip_path):
                             os.remove(zip_path)
-                    else:
-                        await bot.send_message(chat_id=user_id, text=f"❌ Failed to zip Part {part_num}.")
-                        
-                shutil.rmtree(chunk_dir, ignore_errors=True)
-                
+                            
+                try:
+                    shutil.rmtree(chunk_dir)
+                except Exception as e:
+                    logger.error(f"Failed to cleanup chunk directory {chunk_dir}: {e}")
+                    
+            await update_prog("✅ Download completed successfully!")
             await bot.send_message(chat_id=user_id, text=f"✅ Discography download complete!")
         except Exception as e:
             logger.error(f"Error in process_artist_discography: {e}", exc_info=True)

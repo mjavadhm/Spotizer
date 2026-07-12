@@ -192,25 +192,42 @@ class DeezerAPIClient:
 
     @classmethod
     async def get_artist_albums(cls, artist_id: str) -> List[Dict]:
-        data = await cls._request(f"artist/{artist_id}/albums")
-        if not data or 'data' not in data:
-            return []
+        # First get the artist name
+        artist_data = await cls._request(f"artist/{artist_id}")
+        artist_name = artist_data.get('name', 'Unknown') if artist_data else 'Unknown'
+
+        all_albums = []
+        url = f"artist/{artist_id}/albums?limit=100"
         
-        # Fetch each album's detail in parallel to get nb_tracks
-        async def fetch_album_detail(album):
-            detail = await cls._request(f"album/{album['id']}")
-            nb_tracks = detail.get('nb_tracks', 0) if detail else 0
-            return {
-                'id': str(album['id']),
-                'name': album['title'],
-                'release_date': album.get('release_date', 'Unknown'),
-                'artist': album.get('artist', {}).get('name', 'Unknown'),
-                'main_artist': album.get('artist', {}).get('name', 'Unknown'),
-                'nb_tracks': nb_tracks
-            }
-        
-        results = await asyncio.gather(*[fetch_album_detail(album) for album in data['data']])
-        return list(results)
+        while url:
+            # _request handles full URLs if they start with http
+            if url.startswith("http"):
+                # extract just the path for _request or make a direct request
+                # actually _request prefixes with BASE_URL if not starting with http
+                # Let's extract the query part
+                import urllib.parse
+                parsed = urllib.parse.urlparse(url)
+                url = f"{parsed.path.lstrip('/')}?{parsed.query}"
+                if url.startswith("api.deezer.com/"):
+                    url = url.replace("api.deezer.com/", "")
+                    
+            data = await cls._request(url)
+            if not data or 'data' not in data:
+                break
+                
+            for album in data['data']:
+                all_albums.append({
+                    'id': str(album['id']),
+                    'name': album['title'],
+                    'release_date': album.get('release_date', 'Unknown'),
+                    'artist': artist_name,
+                    'main_artist': artist_name,
+                    'nb_tracks': 0 # We skip individual nb_tracks to save API calls
+                })
+                
+            url = data.get('next')
+
+        return all_albums
 
     @classmethod
     async def get_artist_related(cls, artist_id: str) -> List[Dict]:
