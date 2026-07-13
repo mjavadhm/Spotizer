@@ -307,47 +307,43 @@ class DeezerService:
             logger.error(f"Error extracting info from URL {url}: {str(e)}")
             return None, None
 
-    async def _add_lyrics(self, file_path: str, title: str, artist: str) -> Optional[str]:
-        """Fetch lyrics from LRCLib etc., embed into the file, save .lrc"""
+    async def _search_lyrics(self, title: str, artist: str) -> Optional[str]:
+        """Search lyrics on LRCLib etc. (network only, no file writes)"""
         def _work():
             try:
                 import syncedlyrics
-                lrc = syncedlyrics.search(f"{title} {artist}")
+                return syncedlyrics.search(f"{title} {artist}")
             except Exception as e:
                 logger.warning(f"Lyrics search failed for '{title} - {artist}': {e}")
                 return None
-            if not lrc:
-                logger.info(f"No lyrics found for '{title} - {artist}'")
-                return None
+        return await asyncio.to_thread(_work)
 
-            # 1) save synced .lrc next to the audio file
+    async def _apply_lyrics(self, file_path: str, lrc: str) -> Optional[str]:
+        """Write .lrc next to the file + embed synced lyrics into tags (no network)"""
+        def _work():
             lrc_path = None
             try:
                 lrc_path = os.path.splitext(file_path)[0] + ".lrc"
                 with open(lrc_path, "w", encoding="utf-8") as f:
                     f.write(lrc)
             except Exception as e:
-                logger.warning(f"Failed to write .lrc: {e}")
+                logger.warning(f"Failed to write .lrc for {file_path}: {e}")
                 lrc_path = None
-
-            # 2) embed plain lyrics into the audio file tags
             try:
-                plain = re.sub(r"\[\d{1,2}:\d{2}(?:\.\d{1,3})?\] ?", "", lrc).strip()
                 ext = os.path.splitext(file_path)[1].lower()
                 if ext == ".mp3":
                     from mutagen.id3 import ID3, USLT
                     tags = ID3(file_path)
-                    tags.setall("USLT", [USLT(encoding=3, lang="eng", desc="", text=plain)])
+                    tags.setall("USLT", [USLT(encoding=3, lang="eng", desc="", text=lrc)])
                     tags.save()
                 elif ext == ".flac":
                     from mutagen.flac import FLAC
                     audio = FLAC(file_path)
-                    audio["LYRICS"] = plain
+                    audio["LYRICS"] = lrc
                     audio.save()
                 logger.info(f"Lyrics embedded into {os.path.basename(file_path)}")
             except Exception as e:
                 logger.warning(f"Failed to embed lyrics into {file_path}: {e}")
-
             return lrc_path
         return await asyncio.to_thread(_work)
 
@@ -381,6 +377,18 @@ class DeezerService:
         try:
             logger.info(f"Starting download of {content_type} {deezer_id} (Quality: {bitrate})")
             
+            # Start lyrics search in parallel with the deemix download (single tracks)
+            lyrics_task = None
+            if content_type == 'track':
+                try:
+                    info = await DeezerAPIClient.get_item_info('track', str(deezer_id))
+                    if info:
+                        lyrics_task = asyncio.create_task(
+                            self._search_lyrics(info['name'], info['main_artist'])
+                        )
+                except Exception as e:
+                    logger.warning(f"Failed to prefetch track info for lyrics: {e}")
+
             process = await asyncio.to_thread(run_cli, url)
             logger.debug(f"deemix stdout: {process.stdout}")
             if process.stderr:
@@ -394,7 +402,8 @@ class DeezerService:
             if not audio_files:
                 return DeemixResult(False, error="No files were downloaded. Deemix failed.")
             
-            tracks = []
+            # 1) Read tags from all downloaded files
+            meta = []
             for file_path in audio_files:
                 title = "Unknown Title"
                 artist = "Unknown Artist"
@@ -408,11 +417,32 @@ class DeezerService:
                     duration = int(tag.duration) if tag.duration else None
                 except Exception as e:
                     logger.error(f"Error parsing metadata for {file_path}: {str(e)}")
+                meta.append((file_path, title, artist, album, duration))
 
+            # 2) Fetch all lyrics concurrently (max 5 at a time)
+            if lyrics_task is not None and len(meta) == 1:
+                lrc_texts = [await lyrics_task]
+            else:
+                if lyrics_task is not None:
+                    lyrics_task.cancel()
+                sem = asyncio.Semaphore(5)
+
+                async def _fetch(t, a):
+                    if t == "Unknown Title":
+                        return None
+                    async with sem:
+                        return await self._search_lyrics(t, a)
+
+                lrc_texts = await asyncio.gather(
+                    *[_fetch(t, a) for (_, t, a, _, _) in meta]
+                )
+
+            # 3) Apply lyrics and build results
+            tracks = []
+            for (file_path, title, artist, album, duration), lrc in zip(meta, lrc_texts):
                 lrc_path = None
-                if title != "Unknown Title":
-                    lrc_path = await self._add_lyrics(file_path, title, artist)
-
+                if lrc:
+                    lrc_path = await self._apply_lyrics(file_path, lrc)
                 tracks.append(DeemixTrackResult(
                     file_path=file_path,
                     title=title,
