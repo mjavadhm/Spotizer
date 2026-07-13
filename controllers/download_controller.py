@@ -289,31 +289,38 @@ class DownloadController:
             await bot.send_message(chat_id=user_id, text="❌ An error occurred while downloading the discography.")
 
     @staticmethod
-    async def get_track(track_id):
-        """Get a track from the database."""
+    async def get_track(track_id, quality):
+        """Get a track from the database by track_id + quality."""
         async with async_session_maker() as session:
-            return await session.get(Track, track_id)
+            return await session.get(Track, {"track_id": track_id, "quality": quality})
 
     @staticmethod
     async def add_track(track_id, url, file_id, title, artist, album, duration, quality, channel_id=None, message_id=None, spotify_id=None):
-        """Add a track to the database."""
+        """Add or update a track in the database (upsert by track_id + quality)."""
         async with async_session_maker() as session:
             async with session.begin():
-                track = Track(
-                    track_id=track_id,
-                    spotify_id=spotify_id,
-                    url=url,
-                    file_id=file_id,
-                    title=title,
-                    artist=artist,
-                    album=album,
-                    duration=duration,
-                    quality=quality,
-                    channel_id=channel_id,
-                    message_id=message_id,
-                )
-                session.add(track)
-            await session.commit()
+                existing = await session.get(Track, {"track_id": track_id, "quality": quality})
+                if existing:
+                    existing.file_id = file_id
+                    existing.download_count = (existing.download_count or 0) + 1
+                    existing.channel_id = channel_id
+                    existing.message_id = message_id
+                else:
+                    track = Track(
+                        track_id=track_id,
+                        spotify_id=spotify_id,
+                        url=url,
+                        file_id=file_id,
+                        title=title,
+                        artist=artist,
+                        album=album,
+                        duration=duration,
+                        quality=quality,
+                        channel_id=channel_id,
+                        message_id=message_id,
+                    )
+                    session.add(track)
+                await session.commit()
 
     @staticmethod
     async def get_track_by_deezer_id_quality(user_id, deezer_id, quality):
@@ -368,6 +375,36 @@ class DownloadController:
                         caption=f"@Spotizer_bot 🎧"
                     )
                     return True, "Sent existing ZIP file"
+
+            # Cache check for single tracks
+            if content_type == 'track':
+                cached_track = await self.get_track(str(deezer_id), quality)
+                if cached_track and cached_track.file_id and cached_track.quality == quality:
+                    logger.info(f"Cache hit for track {deezer_id} - sending existing file_id")
+                    sent_message = await bot.send_audio(
+                        chat_id=user_id,
+                        audio=cached_track.file_id,
+                        caption=f"@Spotizer_bot 🎧",
+                        duration=cached_track.duration,
+                        title=cached_track.title,
+                        performer=cached_track.artist,
+                    )
+                    download_id = await self.add_download(
+                        user_id=user_id,
+                        deezer_id=deezer_id,
+                        content_type='track',
+                        file_id=cached_track.file_id,
+                        quality=quality,
+                        url=url,
+                        title=cached_track.title,
+                        artist=cached_track.artist,
+                        duration=cached_track.duration,
+                        album=cached_track.album,
+                    )
+                    await sent_message.edit_reply_markup(
+                        reply_markup=MusicView.get_rating_keyboard(download_id)
+                    )
+                    return True, "Sent from cache"
 
             logger.info(f"Downloading {content_type}: {deezer_id}")
             result = await self.deezer_service.download(url, quality_download=quality)

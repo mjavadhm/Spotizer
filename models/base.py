@@ -68,19 +68,19 @@ class UserActivity(Base):
 class Track(Base):
     __tablename__ = "tracks"
     track_id = Column(String, primary_key=True)
-    spotify_id = Column(String(64), nullable=True, index=True)  # Spotify track ID for linking
+    quality = Column(String(50), primary_key=True)
+    spotify_id = Column(String(64), nullable=True, index=True)
     url = Column(Text, nullable=False)
     file_id = Column(Text, nullable=True)
     title = Column(String(255), nullable=True)
     artist = Column(String(255), nullable=True)
     album = Column(String(255), nullable=True)
     telethon_file_id: Mapped[Optional[str]] = mapped_column(Text)
-    quality = Column(String(50), nullable=False)
     duration = Column(Integer, nullable=True)
     download_count = Column(Integer, default=1)
     last_downloaded = Column(TIMESTAMP, server_default=func.now())
-    channel_id = Column(BigInteger, nullable=True)  # Telegram channel ID for streaming
-    message_id = Column(BigInteger, nullable=True)  # Message ID in the channel
+    channel_id = Column(BigInteger, nullable=True)
+    message_id = Column(BigInteger, nullable=True)
 
     __table_args__ = (Index("idx_tracks_downloads", download_count.desc()),)
 
