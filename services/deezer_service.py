@@ -313,7 +313,10 @@ class DeezerService:
         def _work():
             try:
                 import syncedlyrics
-                return syncedlyrics.search(f"{title} {artist}")
+                return syncedlyrics.search(
+                    f"{title} {artist}",
+                    providers=["Lrclib", "NetEase", "Megalobiz", "Genius"],
+                )
             except Exception as e:
                 logger.warning(f"Lyrics search failed for '{title} - {artist}': {e}")
                 return None
