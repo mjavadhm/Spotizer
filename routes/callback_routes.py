@@ -8,6 +8,7 @@ from controllers.playlist_controller import PlayListController
 from views.message_view import MessageView
 from views.music_view import MusicView
 from services.deezer_service import DeezerAPIClient
+from utils.topic_manager import get_topic_thread_id, get_or_create_topic
 from logger import get_logger
 
 logger = get_logger(__name__)
@@ -695,6 +696,51 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
         except Exception as e:
             logger.error(f"Rate callback error for user {callback_query.from_user.id}: {str(e)}", exc_info=True)
             await callback_query.answer("Error updating rating")
+
+    @router.callback_query(F.data.startswith("mktopic:"))
+    async def make_topic_callback(callback_query: CallbackQuery):
+        """Create a forum topic for an artist/album/playlist on user request"""
+        user_id = callback_query.from_user.id
+        _, content_type, item_id = callback_query.data.split(":")
+    
+        existing = await get_topic_thread_id(user_id, content_type, str(item_id))
+        if existing:
+            await callback_query.answer("🧵 Topic already exists for this item.", show_alert=True)
+            return
+    
+        await callback_query.answer("Creating topic...")
+    
+        title = None
+        try:
+            info = await DeezerAPIClient.get_item_info(content_type, item_id)
+            if info:
+                title = info.get('name') or info.get('title')
+        except Exception:
+            pass
+        if not title:
+            title = content_type.capitalize() + " " + str(item_id)
+    
+        thread_id, created = await get_or_create_topic(
+            callback_query.bot, user_id, content_type, str(item_id), title
+        )
+    
+        if thread_id is None:
+            await callback_query.bot.send_message(
+                user_id,
+                "❗️ Couldn't create a topic.\n"
+                "This usually means your Telegram app is outdated. "
+                "Please update Telegram to the latest version and try again.\n"
+                "Until then, downloads will be sent to this chat as usual."
+            )
+            return
+    
+        if created:
+            await callback_query.bot.send_message(
+                user_id,
+                "🧵 Topic \"" + str(title) + "\" created!\n"
+                "Future downloads of this item will be sent here.",
+                message_thread_id=thread_id,
+            )
 
     # Register all routes
     dp.include_router(router)

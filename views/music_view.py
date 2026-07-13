@@ -163,6 +163,7 @@ class MusicView:
                 text="⬇️ Download Album",
                 callback_data=f"download:album:{album['id']}"
             )],
+            [InlineKeyboardButton(text="🧵 Create Topic", callback_data=f"mktopic:album:{album['id']}")],
             [InlineKeyboardButton(
                 text="📋 View Tracks",
                 callback_data=f"view:album:track:{album['id']}:1"
@@ -204,6 +205,7 @@ class MusicView:
                 text="⬇️ Download Playlist",
                 callback_data=f"download:playlist:{playlist['id']}"
             )],
+            [InlineKeyboardButton(text="🧵 Create Topic", callback_data=f"mktopic:playlist:{playlist['id']}")],
             [InlineKeyboardButton(
                 text="❌",
                 callback_data="delete"
@@ -255,6 +257,9 @@ class MusicView:
                 text="⬇️ Download Discography (Slow)",
                 callback_data=f"download:artist:{artist['id']}"
             )
+        )
+        buttons.append(
+            InlineKeyboardButton(text="🧵 Create Topic", callback_data=f"mktopic:artist:{artist['id']}")
         )
         buttons.append(
             InlineKeyboardButton(

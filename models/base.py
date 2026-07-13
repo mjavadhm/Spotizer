@@ -147,3 +147,19 @@ class Message(Base):
     media = Column(Text, nullable=True)
 
     user = relationship("User")
+
+
+class UserTopic(Base):
+    __tablename__ = "user_topics"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
+    topic_type = Column(String(20), nullable=False)   # artist / album / playlist
+    topic_key = Column(String(64), nullable=False)    # Deezer ID
+    title = Column(String(255), nullable=True)
+    thread_id = Column(BigInteger, nullable=False)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "topic_type", "topic_key", name="user_topic_unique"),
+        Index("idx_user_topics_user", "user_id"),
+    )

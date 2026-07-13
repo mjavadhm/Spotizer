@@ -9,6 +9,7 @@ from models.base import User, UserSettings, UserDownload, Track
 from services.deezer_service import DeezerService, DeezerAPIClient
 from utils.file_handler import FileHandler
 from utils.url_validator import URLValidator
+from utils.topic_manager import get_topic_thread_id, send_safely
 from views.music_view import MusicView
 from aiogram.types import FSInputFile
 from bot import bot
@@ -124,11 +125,15 @@ class DownloadController:
     async def process_artist_discography(self, user_id: int, artist_id: str, albums=None):
         """Asynchronously download and send an artist's discography in chunks of 5 albums."""
         try:
+            topic_thread_id = await get_topic_thread_id(user_id, "artist", str(artist_id))
             from services.deezer_service import DeezerAPIClient
             if albums is None:
                 albums = await DeezerAPIClient.get_artist_albums(artist_id)
             if not albums:
-                await bot.send_message(chat_id=user_id, text="❌ No albums found for this artist.")
+                await send_safely(
+                    bot.send_message, user_id, "artist", str(artist_id), topic_thread_id,
+                    chat_id=user_id, text="❌ No albums found for this artist."
+                )
                 return
 
             artist_name = albums[0].get('artist', 'Unknown Artist')
@@ -152,7 +157,8 @@ class DownloadController:
                 [InlineKeyboardButton(text="❌ Cancel Download", callback_data="cancel_disc")]
             ])
             
-            prog_msg = await bot.send_message(
+            prog_msg = await send_safely(
+                bot.send_message, user_id, "artist", str(artist_id), topic_thread_id,
                 chat_id=user_id, 
                 text=f"📥 *{artist_name} Discography*\n\n[□□□□□□□□□□] 0%\n⏳ Status: Preparing to download...",
                 parse_mode="Markdown",
@@ -231,7 +237,10 @@ class DownloadController:
                                 file_path = os.path.join(root, file)
                                 document = FSInputFile(file_path)
                                 try:
-                                    await bot.send_document(chat_id=user_id, document=document, caption=f"@Spotizer_bot 🎧", request_timeout=600)
+                                    await send_safely(
+                                        bot.send_document, user_id, "artist", str(artist_id), topic_thread_id,
+                                        chat_id=user_id, document=document, caption=f"@Spotizer_bot 🎧", request_timeout=600
+                                    )
                                     musics_playlist.append((file_path, 0, file))
                                 except Exception as e:
                                     logger.error(f"Failed to send track: {e}")
@@ -239,7 +248,10 @@ class DownloadController:
                     playlist_name = f"{artist_name}_Discography_Part_{part_num}"
                     playlist_success, playlist_path = self.file_handler.create_m3u_playlist(musics_playlist, playlist_name)
                     if playlist_success:
-                        await bot.send_document(chat_id=user_id, document=FSInputFile(playlist_path))
+                        await send_safely(
+                            bot.send_document, user_id, "artist", str(artist_id), topic_thread_id,
+                            chat_id=user_id, document=FSInputFile(playlist_path)
+                        )
                         os.remove(playlist_path)
                     
                 else:
@@ -254,7 +266,8 @@ class DownloadController:
                         try:
                             await update_prog(f"Uploading Part {part_num}/{total_chunks}...")
                             document = FSInputFile(zip_path)
-                            await bot.send_document(
+                            await send_safely(
+                                bot.send_document, user_id, "artist", str(artist_id), topic_thread_id,
                                 chat_id=user_id,
                                 document=document,
                                 caption=f"@Spotizer_bot 🎧\n📀 {title}",
@@ -262,7 +275,10 @@ class DownloadController:
                             )
                         except Exception as e:
                             logger.error(f"Failed to send discography chunk {part_num} to user: {e}")
-                            await bot.send_message(chat_id=user_id, text=f"❌ Failed to upload Part {part_num}.")
+                            await send_safely(
+                                bot.send_message, user_id, "artist", str(artist_id), topic_thread_id,
+                                chat_id=user_id, text=f"❌ Failed to upload Part {part_num}."
+                            )
                         
                         if os.path.exists(zip_path):
                             os.remove(zip_path)
@@ -284,10 +300,16 @@ class DownloadController:
                 await bot.delete_message(chat_id=user_id, message_id=prog_msg_id)
             except Exception:
                 pass
-            await bot.send_message(chat_id=user_id, text=f"✅ Discography download complete!")
+            await send_safely(
+                bot.send_message, user_id, "artist", str(artist_id), topic_thread_id,
+                chat_id=user_id, text=f"✅ Discography download complete!"
+            )
         except Exception as e:
             logger.error(f"Error in process_artist_discography: {e}", exc_info=True)
-            await bot.send_message(chat_id=user_id, text="❌ An error occurred while downloading the discography.")
+            await send_safely(
+                bot.send_message, user_id, "artist", str(artist_id), topic_thread_id,
+                chat_id=user_id, text="❌ An error occurred while downloading the discography."
+            )
 
     @staticmethod
     async def get_track(track_id, quality):
@@ -365,12 +387,17 @@ class DownloadController:
             if not content_type or not deezer_id:
                 return False, "❌ Invalid URL format. Please provide a valid Deezer link."
 
+            topic_thread_id = None
+            if content_type in ('album', 'playlist'):
+                topic_thread_id = await get_topic_thread_id(user_id, content_type, str(deezer_id))
+
             # Check for existing ZIP if album/playlist and make_zip is True
             if make_zip and content_type in ['album', 'playlist']:
                 existing_zip = await self.get_track_by_deezer_id_quality(user_id, deezer_id, quality)
                 if existing_zip:
                     logger.info(f"Found existing ZIP for {content_type} {deezer_id}")
-                    await bot.send_document(
+                    await send_safely(
+                        bot.send_document, user_id, content_type, str(deezer_id), topic_thread_id,
                         chat_id=user_id,
                         document=existing_zip.file_id,
                         caption=f"@Spotizer_bot 🎧"
@@ -382,7 +409,8 @@ class DownloadController:
                 cached_track = await self.get_track(str(deezer_id), quality)
                 if cached_track and cached_track.file_id and cached_track.quality == quality:
                     logger.info(f"Cache hit for track {deezer_id} - sending existing file_id")
-                    sent_message = await bot.send_audio(
+                    sent_message = await send_safely(
+                        bot.send_audio, user_id, content_type, str(deezer_id), topic_thread_id,
                         chat_id=user_id,
                         audio=cached_track.file_id,
                         caption=f"@Spotizer_bot 🎧",
@@ -467,7 +495,8 @@ class DownloadController:
                                     logger.error(f"Failed to send to music channel: {e}")
         
                             try:
-                                sent_message = await bot.send_document(
+                                sent_message = await send_safely(
+                                    bot.send_document, user_id, content_type, str(deezer_id), topic_thread_id,
                                     chat_id=user_id, 
                                     document=file_id_to_send, 
                                     caption=f"@Spotizer_bot 🎧"
@@ -488,7 +517,8 @@ class DownloadController:
                                 )
                             except Exception as e:
                                 logger.error(f"Failed to send chunked ZIP to user: {e}")
-                                await bot.send_message(
+                                await send_safely(
+                                    bot.send_message, user_id, content_type, str(deezer_id), topic_thread_id,
                                     chat_id=user_id,
                                     text="ℹ️ Failed to upload a part of the discography. Please try again later."
                                 )
@@ -526,7 +556,8 @@ class DownloadController:
                             except Exception as e:
                                 logger.error(f"Failed to send to music channel: {e}")
     
-                        sent_message = await bot.send_document(
+                        sent_message = await send_safely(
+                            bot.send_document, user_id, content_type, str(deezer_id), topic_thread_id,
                             chat_id=user_id, 
                             document=file_id_to_send, 
                             caption=f"@Spotizer_bot 🎧"
@@ -557,7 +588,8 @@ class DownloadController:
                     for t in result.tracks:
                         # Send track
                         audio_file = FSInputFile(t.file_path)
-                        sent_message = await bot.send_audio(
+                        sent_message = await send_safely(
+                            bot.send_audio, user_id, content_type, str(deezer_id), topic_thread_id,
                             chat_id=user_id,
                             audio=audio_file,
                             caption=f"@Spotizer_bot 🎧",
@@ -585,7 +617,8 @@ class DownloadController:
                     if len(musics_playlist) > 1:
                         filename = f'deezer_{deezer_id}.m3u'
                         await self.file_handler.playlist_creator(musics_playlist, filename)
-                        await bot.send_document(
+                        await send_safely(
+                            bot.send_document, user_id, content_type, str(deezer_id), topic_thread_id,
                             chat_id=user_id,
                             document=FSInputFile(filename),
                             caption="<a href='https://telegra.ph/How-to-Use-M3U-Playlists-03-02'>What is this and how can I use it?</a>\n\n@Spotizer_bot 🎧",
@@ -623,7 +656,8 @@ class DownloadController:
                     except Exception as e:
                         logger.error(f"Failed to send to music channel: {e}")
 
-                sent_message = await bot.send_audio(
+                sent_message = await send_safely(
+                    bot.send_audio, user_id, content_type, str(deezer_id), topic_thread_id,
                     chat_id=user_id,
                     audio=file_id_to_send,
                     caption=f"@Spotizer_bot 🎧",
