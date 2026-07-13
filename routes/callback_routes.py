@@ -74,7 +74,9 @@ def build_disc_keyboard(user_id: int) -> InlineKeyboardMarkup:
             style="danger",
         ),
     ])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    kb = InlineKeyboardMarkup(inline_keyboard=rows)
+    logger.info("KB JSON: " + kb.model_dump_json(exclude_none=True)[:400])
+    return kb
 
 def setup_callback_routes(dp: Router, user_controller: UserController, download_controller: DownloadController, playlist_controller: PlayListController):
     """Set up callback query handlers"""
