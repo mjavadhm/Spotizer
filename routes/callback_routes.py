@@ -12,6 +12,69 @@ from logger import get_logger
 
 logger = get_logger(__name__)
 
+# --- Discography selection (in-memory sessions) ---
+discography_sessions = {}  # user_id -> {"albums": [...], "selected": set(), "page": 0, "artist_id": str}
+DISC_PAGE_SIZE = 8
+
+def build_disc_keyboard(user_id: int) -> InlineKeyboardMarkup:
+    sess = discography_sessions[user_id]
+    albums = sess["albums"]
+    page = sess["page"]
+    start = page * DISC_PAGE_SIZE
+    rows = []
+
+    for idx in range(start, min(start + DISC_PAGE_SIZE, len(albums))):
+        a = albums[idx]
+        is_selected = idx in sess["selected"]
+        year = (a.get('release_date') or '')[:4]
+        rtype = a.get('record_type', 'album')
+        if rtype == 'single':
+            suffix = " [Single]"
+        elif rtype == 'ep':
+            suffix = " [EP]"
+        else:
+            suffix = ""
+        if is_selected:
+            label = "✅ " + a['name'][:35] + suffix + " (" + year + ")"
+        else:
+            label = a['name'][:35] + suffix + " (" + year + ")"
+        rows.append([InlineKeyboardButton(
+            text=label,
+            callback_data="dsel:t:" + str(idx),
+            style="success" if is_selected else None,
+        )])
+
+    total_pages = (len(albums) + DISC_PAGE_SIZE - 1) // DISC_PAGE_SIZE
+    if total_pages > 1:
+        nav = []
+        if page > 0:
+            nav.append(InlineKeyboardButton(text="◀️", callback_data="dsel:pg:-1"))
+        nav.append(InlineKeyboardButton(
+            text=str(page + 1) + "/" + str(total_pages),
+            callback_data="dsel:nop:0",
+        ))
+        if page < total_pages - 1:
+            nav.append(InlineKeyboardButton(text="▶️", callback_data="dsel:pg:1"))
+        rows.append(nav)
+
+    rows.append([
+        InlineKeyboardButton(text="✅ Select All", callback_data="dsel:all:0"),
+        InlineKeyboardButton(text="⬜ None", callback_data="dsel:none:0"),
+    ])
+    rows.append([
+        InlineKeyboardButton(
+            text="📥 Download (" + str(len(sess["selected"])) + ")",
+            callback_data="dsel:go:0",
+            style="primary",
+        ),
+        InlineKeyboardButton(
+            text="❌ Cancel",
+            callback_data="dsel:cancel:0",
+            style="danger",
+        ),
+    ])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
 def setup_callback_routes(dp: Router, user_controller: UserController, download_controller: DownloadController, playlist_controller: PlayListController):
     """Set up callback query handlers"""
     router = Router()
@@ -456,19 +519,16 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                 if not albums:
                     success, result = False, "No albums found for this artist."
                 else:
-                    total_tracks = sum(album.get('nb_tracks', 0) for album in albums)
-                    
-                    # Ask for confirmation
-                    confirm_kb = InlineKeyboardMarkup(inline_keyboard=[
-                        [
-                            InlineKeyboardButton(text="✅ Yes, Download All", callback_data=f"confirm_dl:artist:{item_id}"),
-                            InlineKeyboardButton(text="❌ Cancel", callback_data="delete")
-                        ]
-                    ])
+                    discography_sessions[user_id] = {
+                        "albums": albums,
+                        "selected": set(),
+                        "page": 0,
+                        "artist_id": item_id
+                    }
                     await callback_query.bot.send_message(
                         user_id,
-                        f"📥 Found {len(albums)} albums/EPs ({total_tracks} total tracks) for this artist.\n\nDo you want to download the entire discography?",
-                        reply_markup=confirm_kb
+                        f"📥 Found {len(albums)} albums/EPs for this artist.\n\nPlease select the items you want to download:",
+                        reply_markup=build_disc_keyboard(user_id)
                     )
                     
                     if status_message:
@@ -516,32 +576,69 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                     pass
             raise
 
-    @router.callback_query(F.data.startswith("confirm_dl:"))
-    async def confirm_dl_callback(callback_query: CallbackQuery, state: FSMContext):
-        """Handle confirmed download callbacks"""
-        try:
-            _, content_type, item_id = callback_query.data.split(":")
-            user_id = callback_query.from_user.id
-            
+    @router.callback_query(F.data.startswith("dsel:"))
+    async def disc_select_callback(callback_query: CallbackQuery):
+        """Handle discography album selection"""
+        user_id = callback_query.from_user.id
+        sess = discography_sessions.get(user_id)
+        if not sess:
+            await callback_query.answer(
+                "This list expired. Request the discography again.",
+                show_alert=True,
+            )
+            return
+
+        _, action, val = callback_query.data.split(":")
+
+        if action == "t":
+            idx = int(val)
+            if idx in sess["selected"]:
+                sess["selected"].remove(idx)
+            else:
+                sess["selected"].add(idx)
+        elif action == "pg":
+            sess["page"] += int(val)
+        elif action == "all":
+            sess["selected"] = set(range(len(sess["albums"])))
+        elif action == "none":
+            sess["selected"] = set()
+        elif action == "nop":
+            await callback_query.answer()
+            return
+        elif action == "cancel":
+            del discography_sessions[user_id]
             try:
                 await callback_query.message.delete()
             except Exception:
                 pass
-            await callback_query.answer()
-            
-            if content_type == "artist":
-                import asyncio
-                artist_id = item_id
-                logger.info(f"Downloading artist discography asynchronously: {artist_id}")
-                try:
-                    asyncio.create_task(download_controller.process_artist_discography(user_id=user_id, artist_id=artist_id))
-                except Exception as e:
-                    logger.error(f"Error starting async discography download {item_id}: {e}")
-                    await callback_query.bot.send_message(user_id, "❌ An error occurred while starting the download.")
-                
-        except Exception as e:
-            logger.error(f"Confirm download callback error: {str(e)}", exc_info=True)
-            await callback_query.answer("Error processing request")
+            await callback_query.answer("Cancelled")
+            return
+        elif action == "go":
+            if not sess["selected"]:
+                await callback_query.answer("Nothing selected!", show_alert=True)
+                return
+            chosen = [sess["albums"][i] for i in sorted(sess["selected"])]
+            artist_id = sess["artist_id"]
+            del discography_sessions[user_id]
+            try:
+                await callback_query.message.delete()
+            except Exception:
+                pass
+            await callback_query.answer(
+                "Downloading " + str(len(chosen)) + " albums..."
+            )
+            import asyncio
+            asyncio.create_task(
+                download_controller.process_artist_discography(
+                    user_id=user_id, artist_id=artist_id, albums=chosen
+                )
+            )
+            return
+
+        await callback_query.message.edit_reply_markup(
+            reply_markup=build_disc_keyboard(user_id)
+        )
+        await callback_query.answer()
 
     @router.callback_query(F.data == "cancel_disc")
     async def cancel_disc_callback(callback_query: CallbackQuery):

@@ -121,11 +121,12 @@ class DownloadController:
             # Default to not limited if check fails to avoid blocking users
             return False, ""
 
-    async def process_artist_discography(self, user_id: int, artist_id: str):
+    async def process_artist_discography(self, user_id: int, artist_id: str, albums=None):
         """Asynchronously download and send an artist's discography in chunks of 5 albums."""
         try:
             from services.deezer_service import DeezerAPIClient
-            albums = await DeezerAPIClient.get_artist_albums(artist_id)
+            if albums is None:
+                albums = await DeezerAPIClient.get_artist_albums(artist_id)
             if not albums:
                 await bot.send_message(chat_id=user_id, text="❌ No albums found for this artist.")
                 return

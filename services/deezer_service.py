@@ -221,6 +221,7 @@ class DeezerAPIClient:
                     'id': str(album['id']),
                     'name': album['title'],
                     'release_date': album.get('release_date', 'Unknown'),
+                    'record_type': album.get('record_type', 'album'),
                     'artist': artist_name,
                     'main_artist': artist_name,
                     'nb_tracks': 0 # We skip individual nb_tracks to save API calls
