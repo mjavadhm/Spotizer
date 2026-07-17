@@ -163,3 +163,19 @@ class UserTopic(Base):
         UniqueConstraint("user_id", "topic_type", "topic_key", name="user_topic_unique"),
         Index("idx_user_topics_user", "user_id"),
     )
+
+class ArtistSubscription(Base):
+    __tablename__ = "artist_subscriptions"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
+    artist_id = Column(String(64), nullable=False)
+    artist_name = Column(String(255), nullable=True)
+    last_release_id = Column(String(64), nullable=True)     # آخرین آلبومی که خبرش رو دادیم
+    last_release_date = Column(String(20), nullable=True)   # 'YYYY-MM-DD'
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "artist_id", name="user_artist_sub_unique"),
+        Index("idx_artist_subs_artist", "artist_id"),
+    )
+

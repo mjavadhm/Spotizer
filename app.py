@@ -87,6 +87,12 @@ class MusicDownloaderBot:
             await init_models()
             logger.info("Database initialized successfully")
             
+            # Start background release checker (Phase 2)
+            from services.subscription_scheduler import run_release_checker
+            asyncio.create_task(run_release_checker(self.bot))
+            logger.info("Release checker scheduled")
+
+            
             # Start polling
             logger.info("Starting bot polling...")
             await self.dp.start_polling(self.bot)

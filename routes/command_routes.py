@@ -249,13 +249,19 @@ Thank you for using MusicDownloader Bot! 🎧"""
             
             from controllers.recommendation_controller import RecommendationController
             
-            success, result_text = await RecommendationController.recommend_music(user_id)
+            success, result_text, tracks = await RecommendationController.recommend_music(user_id)
             
             # Delete processing message
             await processing_msg.delete()
             
-            # Send result
-            sm = await message.reply(result_text, parse_mode="Markdown")
+            if not success:
+                sm = await message.reply(result_text)
+                await MessageModel.add_message(user_id, sm)
+                return
+            
+            from views.music_view import MusicView
+            keyboard = MusicView.get_recommendations_keyboard(tracks) if tracks else None
+            sm = await message.reply(result_text, reply_markup=keyboard, parse_mode="Markdown")
             await MessageModel.add_message(user_id, sm)
             logger.info(f"Sent recommendations to user {user_id}")
             
@@ -263,6 +269,27 @@ Thank you for using MusicDownloader Bot! 🎧"""
             logger.error(f"Error processing /recommend command for user {user_id}: {str(e)}", exc_info=True)
             sm = await message.reply("Error getting recommendations.")
             await MessageModel.add_message(user_id, sm)
+
+    @router.message(Command("subscriptions"))
+    async def subscriptions_command(message: Message, state: FSMContext):
+        from controllers.subscription_controller import SubscriptionController
+        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+        try:
+            user_id = message.from_user.id
+            subs = await SubscriptionController.list_subscriptions(user_id)
+            if not subs:
+                await message.reply("You're not following any artists yet.\nOpen an artist and tap 🔔 Follow.")
+                return
+            rows = [[InlineKeyboardButton(
+                text=f"❌ {s.artist_name or s.artist_id}",
+                callback_data=f"sub:remove:{s.artist_id}"
+            )] for s in subs]
+            kb = InlineKeyboardMarkup(inline_keyboard=rows)
+            await message.reply("🔔 *Artists you follow* (tap to unfollow):",
+                                reply_markup=kb, parse_mode="Markdown")
+        except Exception as e:
+            logger.error(f"/subscriptions error: {e}", exc_info=True)
+            await message.reply("Error loading subscriptions.")
 
     # Register all routes
     dp.include_router(router)

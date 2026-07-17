@@ -742,6 +742,35 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                 message_thread_id=thread_id,
             )
 
+    @router.callback_query(F.data.startswith("sub:"))
+    async def subscription_callback(callback_query: CallbackQuery, state: FSMContext):
+        from controllers.subscription_controller import SubscriptionController
+        try:
+            _, action, artist_id = callback_query.data.split(":")
+            user_id = callback_query.from_user.id
+    
+            if action == "add":
+                name = None
+                try:
+                    info = await DeezerAPIClient.get_item_info("artist", artist_id)
+                    if info:
+                        name = info.get('name')
+                except Exception:
+                    pass
+                ok, msg = await SubscriptionController.subscribe(user_id, artist_id, name)
+                await callback_query.answer(msg, show_alert=True)
+    
+            elif action == "remove":
+                ok, msg = await SubscriptionController.unsubscribe(user_id, artist_id)
+                await callback_query.answer(msg, show_alert=True)
+                try:
+                    await callback_query.message.delete()
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.error(f"Subscription callback error: {e}", exc_info=True)
+            await callback_query.answer("Error", show_alert=True)
+
     # Register all routes
     dp.include_router(router)
     logger.info("Callback routes setup completed")

@@ -259,6 +259,12 @@ class MusicView:
             )
         )
         buttons.append(
+            InlineKeyboardButton(
+                text="🔔 Follow",
+                callback_data=f"sub:add:{artist['id']}"
+            )
+        )
+        buttons.append(
             InlineKeyboardButton(text="🧵 Create Topic", callback_data=f"mktopic:artist:{artist['id']}")
         )
         buttons.append(
@@ -407,4 +413,19 @@ class MusicView:
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
         
         return keyboard
+
+    @staticmethod
+    def get_recommendations_keyboard(tracks):
+        """دکمهی دانلود برای هر ترک resolveشده. به هندلر download:track وصل میشه."""
+        rows = []
+        for t in tracks:
+            label = f"⬇️ {t['artist']} - {t['title']}"
+            if len(label) > 60:
+                label = label[:57] + "..."
+            rows.append([InlineKeyboardButton(
+                text=label,
+                callback_data=f"download:track:{t['deezer_id']}"
+            )])
+        rows.append([InlineKeyboardButton(text="🗑 Close", callback_data="delete")])
+        return InlineKeyboardMarkup(inline_keyboard=rows)
 
