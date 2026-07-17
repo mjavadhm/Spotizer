@@ -5,10 +5,18 @@ from sqlalchemy.orm import Session
 from models.base import UserDownload
 from services.llm_service import LLMService
 
+_llm_service_singleton: LLMService | None = None
+
+def _get_llm_service() -> LLMService:
+    global _llm_service_singleton
+    if _llm_service_singleton is None:
+        _llm_service_singleton = LLMService()
+    return _llm_service_singleton
+
 class RecommendationService:
     def __init__(self, db_session: Session):
         self.db = db_session
-        self.llm_service = LLMService()
+        self.llm_service = _get_llm_service()
 
     async def get_user_history(self, user_id: int):
         """

@@ -118,9 +118,8 @@ class DownloadController:
             logger.info(f"Getting albums for artist {artist_id}")
             return await DeezerAPIClient.get_artist_albums(artist_id)
         except Exception as e:
-            logger.error(f"Error checking download limit: {str(e)}", exc_info=True)
-            # Default to not limited if check fails to avoid blocking users
-            return False, ""
+            logger.error(f"Error getting artist albums for {artist_id}: {str(e)}", exc_info=True)
+            return []
 
     async def process_artist_discography(self, user_id: int, artist_id: str, albums=None):
         """Asynchronously download and send an artist's discography in chunks of 5 albums."""

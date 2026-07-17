@@ -3,7 +3,7 @@ import os
 from sqlalchemy.future import select
 from database.session import async_session_maker
 from models.base import Playlist, PlaylistTrack
-from services.deezer_service import DeezerService
+from services.deezer_service import DeezerService, DeezerAPIClient
 import aiogram.types
 from bot import bot
 from logger import get_logger
@@ -97,13 +97,10 @@ class PlayListController:
 
             else:
                 track_id = callback_query.data.split(":")[3]
-                spotify_url = f"https://open.spotify.com/track/{track_id}"
-                url = await self.deezer_service.convert_to_deezer(spotify_url)
-                if not url:
-                    await callback_query.answer("Could not find track on Deezer")
-                    return
-                content_type, deezer_id = self.deezer_service.extract_info_from_url(url)
-                if not deezer_id:
+                # ترک‌ها الان مستقیماً Deezer track id هستن؛ تبدیل Spotify لازم نیست
+                try:
+                    deezer_id = int(track_id)
+                except (TypeError, ValueError):
                     await callback_query.answer("Could not process track")
                     return
                 playlist_id = int(callback_query.data.split(":")[2])  # Convert to int
@@ -160,7 +157,7 @@ class PlayListController:
             tracks_info = []
             for pt in playlist_tracks:
                 try:
-                    track_info = await self.deezer_service.get_deezer_info('track', pt.track_deezer_id)
+                    track_info = await DeezerAPIClient.get_item_info('track', str(pt.track_deezer_id))
                     if track_info:
                         track_info['playlist_track_id'] = pt.playlist_track_id
                         track_info['added_at'] = pt.added_at

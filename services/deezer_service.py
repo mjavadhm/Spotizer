@@ -3,6 +3,7 @@ import re
 import asyncio
 import subprocess
 import glob
+import uuid
 import aiohttp
 from dataclasses import dataclass, field
 from typing import Optional, Tuple, Dict, Any, List
@@ -23,15 +24,22 @@ class DeemixTrackResult:
 
 class DeezerAPIClient:
     BASE_URL = "https://api.deezer.com"
+    _session: Optional[aiohttp.ClientSession] = None
+
+    @classmethod
+    async def _get_session(cls) -> aiohttp.ClientSession:
+        if cls._session is None or cls._session.closed:
+            cls._session = aiohttp.ClientSession()
+        return cls._session
 
     @classmethod
     async def _request(cls, endpoint: str, params: dict = None):
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"{cls.BASE_URL}/{endpoint}", params=params) as resp:
-                    if resp.status == 200:
-                        return await resp.json()
-                    return None
+            session = await cls._get_session()
+            async with session.get(f"{cls.BASE_URL}/{endpoint}", params=params) as resp:
+                if resp.status == 200:
+                    return await resp.json()
+                return None
         except Exception as e:
             logger.error(f"Deezer API request failed: {str(e)}")
             return None
@@ -256,6 +264,8 @@ class DeemixResult:
     is_album_or_playlist: bool = False
 
 class DeezerService:
+    _download_semaphore = asyncio.Semaphore(3)
+
     def __init__(self):
         self.deemix_path = os.getenv('DEEMIX_PATH', 'tools/deemix/deemix')
         self.config_dir = os.path.abspath(os.getenv('DEEMIX_CONFIG_DIR', 'tools/deemix/config'))
@@ -361,7 +371,7 @@ class DeezerService:
         bitrate = self._map_quality(quality_download)
         
         # Determine specific download directory to isolate files for this download
-        download_path = os.path.abspath(os.path.join(output_folder, f"deemix_{deezer_id}"))
+        download_path = os.path.abspath(os.path.join(output_folder, f"deemix_{deezer_id}_{uuid.uuid4().hex[:8]}"))
         os.makedirs(download_path, exist_ok=True)
         
         # Run CLI in thread to avoid blocking asyncio loop
@@ -393,7 +403,8 @@ class DeezerService:
                 except Exception as e:
                     logger.warning(f"Failed to prefetch track info for lyrics: {e}")
 
-            process = await asyncio.to_thread(run_cli, url)
+            async with self._download_semaphore:
+                process = await asyncio.to_thread(run_cli, url)
             logger.debug(f"deemix stdout: {process.stdout}")
             if process.stderr:
                 logger.warning(f"deemix stderr: {process.stderr}")
