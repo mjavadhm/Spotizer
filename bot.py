@@ -1,9 +1,23 @@
 import os
+import shutil
 import logging
 from dotenv import load_dotenv
 from aiogram import Bot
 from aiogram.client.telegram import TelegramAPIServer
 from aiogram.client.session.aiohttp import AiohttpSession
+
+def cleanup_workdirs(dirs=("downloads", "temp")):
+    """موقع استارت بات، پوشههای کاری رو خالی میکنه."""
+    for d in dirs:
+        try:
+            if os.path.isdir(d):
+                shutil.rmtree(d, ignore_errors=True)
+            os.makedirs(d, exist_ok=True)
+        except Exception as e:
+            print(f"cleanup_workdirs failed for {d}: {e}")
+
+cleanup_workdirs()
+
 load_dotenv()
 API_BASE_URL = 'http://localhost:8081'
 

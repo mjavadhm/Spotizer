@@ -262,6 +262,7 @@ class DeemixResult:
     tracks: List[DeemixTrackResult] = field(default_factory=list)
     error: Optional[str] = None
     is_album_or_playlist: bool = False
+    root_path: Optional[str] = None
 
 class DeezerService:
     _download_semaphore = asyncio.Semaphore(3)
@@ -472,7 +473,8 @@ class DeezerService:
             return DeemixResult(
                 success=True, 
                 tracks=tracks, 
-                is_album_or_playlist=is_album_or_playlist
+                is_album_or_playlist=is_album_or_playlist,
+                root_path=download_path
             )
             
         except Exception as e:
