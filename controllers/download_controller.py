@@ -1,6 +1,7 @@
 import aiogram
 import os
 import shutil
+import asyncio
 from sqlalchemy.future import select
 from sqlalchemy.sql import func
 from database.session import async_session_maker
@@ -362,6 +363,71 @@ class DownloadController:
             )
             return result.scalars().first()
 
+    async def _handle_spotify_request(self, user_id, url):
+        """Resolve a Spotify link to Deezer and download it.
+
+        Single track   -> resolve + reuse the normal Deezer download flow.
+        Album/playlist -> resolve each track, show download buttons.
+        """
+        from services.spotify_service import SpotifyService
+
+        logger.info("Resolving Spotify link for user %s: %s" % (user_id, url))
+        data = await SpotifyService.get_tracks(url)
+        if not data or not data.get("tracks"):
+            return False, "❌ نتونستم اطلاعات این لینک Spotify رو بخونم. لطفاً لینک رو چک کن یا یه لینک Deezer بفرست."
+
+        content_type = data["type"]
+        sp_tracks = data["tracks"]
+
+        if content_type == "track":
+            tr = sp_tracks[0]
+            dsec = int(tr["duration_ms"] / 1000) if tr.get("duration_ms") else None
+            match = await DeezerAPIClient.resolve_track(tr["title"], tr["artist"], dsec)
+            if not match:
+                return False, "❌ آهنگ «%s - %s» روی Deezer پیدا نشد." % (tr["artist"], tr["title"])
+            deezer_url = "https://www.deezer.com/track/" + str(match["id"])
+            return await self.process_download_request(user_id, deezer_url)
+
+        MAX_TRACKS = 40
+        truncated = len(sp_tracks) > MAX_TRACKS
+        sp_tracks = sp_tracks[:MAX_TRACKS]
+
+        sem = asyncio.Semaphore(5)
+
+        async def _resolve(tr):
+            dsec = int(tr["duration_ms"] / 1000) if tr.get("duration_ms") else None
+            async with sem:
+                match = await DeezerAPIClient.resolve_track(tr["title"], tr["artist"], dsec)
+            if match:
+                return {
+                    "deezer_id": match["id"],
+                    "title": match["name"],
+                    "artist": match.get("main_artist", tr["artist"]),
+                }
+            return None
+
+        results = await asyncio.gather(*[_resolve(t) for t in sp_tracks])
+        found = [r for r in results if r]
+
+        if not found:
+            return False, "❌ هیچکدوم از آهنگهای این لینک روی Deezer پیدا نشد."
+
+        lines = []
+        lines.append("🎧 Spotify %s: %s" % (content_type, data["name"]))
+        lines.append("✅ %d از %d آهنگ روی Deezer پیدا شد." % (len(found), len(sp_tracks)))
+        if truncated:
+            lines.append("⚠️ فقط %d آهنگ اول پردازش شد." % MAX_TRACKS)
+        lines.append("")
+        lines.append("روی هر آهنگ بزن تا دانلود بشه:")
+        header = chr(10).join(lines)
+
+        await bot.send_message(
+            user_id,
+            header,
+            reply_markup=MusicView.get_recommendations_keyboard(found),
+        )
+        return True, "Sent Spotify matches"
+
     async def process_download_request(self, user_id, url):
         """Process download request from user"""
         try:
@@ -371,10 +437,10 @@ class DownloadController:
                 logger.error(f"Invalid URL format provided by user {user_id}: {url}")
                 return False, "Invalid URL format. Please provide a valid Deezer link."
 
-            # Reject Spotify links directly
-            if "spotify" in url.lower():
-                logger.warning(f"User {user_id} tried to download a Spotify link: {url}")
-                return False, "❌ Spotify links are no longer supported. Please use a Deezer link."
+            # Spotify links: resolve to Deezer via the public embed (no API key)
+            from services.spotify_service import SpotifyService
+            if SpotifyService.is_spotify_url(url):
+                return await self._handle_spotify_request(user_id, url)
 
             success, user_settings = await UserController.get_user_settings(user_id)
             if not success:

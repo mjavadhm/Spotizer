@@ -74,20 +74,10 @@ def setup_message_routes(dp: Router, download_controller: DownloadController):
                 await state.clear()
                 return
             
-            # Convert Spotify track ID to Deezer ID
-            from services.deezer_service import DeezerService
-            deezer_service = DeezerService()
-            spotify_url = f"https://open.spotify.com/track/{track_id}"
-            deezer_url = await deezer_service.convert_to_deezer(spotify_url)
-            
-            if not deezer_url:
-                await message.reply("❌ Could not find this track on Deezer.")
-                await state.clear()
-                return
-            
-            content_type, deezer_id = deezer_service.extract_info_from_url(deezer_url)
-            
-            if not deezer_id:
+            # track_id is already a Deezer track ID (from the download buttons)
+            try:
+                deezer_id = int(track_id)
+            except (TypeError, ValueError):
                 await message.reply("❌ Could not process the track.")
                 await state.clear()
                 return
@@ -149,16 +139,6 @@ def setup_message_routes(dp: Router, download_controller: DownloadController):
             print(f"[DEBUG] Status message sent")
             logger.info(f"Sent processing status message to user {user_id}")
             
-            # Validate URL type
-            if "spotify" in url:
-                if 'playlist' in url:
-                    logger.warning(f"Spotify playlist not supported: {url}")
-                    sm = await message.reply(MessageView.get_error_message('spotify_playlist'))
-                    await MessageModel.add_message(user_id, sm)
-                    if status_message:
-                        await status_message.delete()
-                    return
-                    
             # Process download request
             print(f"[DEBUG] Calling process_download_request...")
             logger.info(f"Starting download process for user {user_id}")

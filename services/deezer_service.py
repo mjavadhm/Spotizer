@@ -91,6 +91,30 @@ class DeezerAPIClient:
         return results
 
     @classmethod
+    async def resolve_track(cls, title, artist, duration_sec=None, limit=5):
+        """Find the best matching Deezer track for a (title, artist) pair.
+        Used to map Spotify tracks onto Deezer. Returns a search-result dict
+        (with 'id', 'name', 'main_artist') or None."""
+        query = f"{title} {artist}".strip()
+        results = await cls.search(query, "track", limit=limit)
+        if not results:
+            results = await cls.search(title, "track", limit=limit)
+        if not results:
+            return None
+        if duration_sec:
+            def _to_sec(v):
+                try:
+                    m, sec = str(v).split(":")
+                    return int(m) * 60 + int(sec)
+                except Exception:
+                    return 10 ** 6
+            results = sorted(
+                results,
+                key=lambda r: abs(_to_sec(r.get("duration", "0:00")) - duration_sec),
+            )
+        return results[0]
+
+    @classmethod
     async def get_item_info(cls, content_type: str, item_id: str) -> Optional[Dict]:
         """Get full details of a specific item"""
         item = await cls._request(f"{content_type}/{item_id}")
