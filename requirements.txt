@@ -17,6 +17,9 @@ python-multipart>=0.0.6
 # Telegram Bot Framework (for bot)
 aiogram>=3.3.0
 
+# Bale Messenger Bot Framework
+balethon>=1.3.0
+
 # HTTP Requests and Session Management
 requests>=2.31.0
 httpx>=0.26.0
@@ -31,7 +34,8 @@ alembic>=1.13.0
 # Music APIs and Downloaders
 spotipy>=2.23.0
 deezloader
-# Alternative: deezer-python>=5.0.0 (if deezloader doesn't work)
+ytmusicapi>=1.5.4
+yt-dlp>=2023.12.30
 
 # Audio/Video Processing
 ffmpeg-python>=0.2.0
@@ -79,7 +83,10 @@ pathlib>=1.0.1
 # 4. Telegram Bot Token from @BotFather
 #    Add to .env as: BOT_TOKEN=your_bot_token
 #
-# 5. Spotify API Credentials from Spotify Developer Dashboard
+# 5. Bale Bot Token from @BotFather on Bale (ble.ir/botfather)
+#    Add to .env as: BALE_BOT_TOKEN=your_bale_bot_token
+#
+# 6. Spotify API Credentials from Spotify Developer Dashboard
 #    Add to .env as:
 #    SPOTIFY_CLIENT_ID=your_client_id
 #    SPOTIFY_CLIENT_SECRET=your_client_secret

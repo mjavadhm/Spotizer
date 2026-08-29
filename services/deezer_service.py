@@ -41,6 +41,8 @@ class DeezerService:
 
     async def download(self, url: str, output_folder="downloads", quality_download: str = 'MP3_320', make_zip: bool = False) -> Union[Smart, DownloadResult, bool]:
         """Download track/album/playlist from Deezer"""
+        import asyncio
+        
         if not self.client:
             logger.error("Deezer client is not initialized. Cannot download.")
             return DownloadResult(False, error="Deezer client not initialized")
@@ -54,9 +56,22 @@ class DeezerService:
                 return DownloadResult(False, error="Invalid Deezer URL")
 
             logger.info(f"Downloading {content_type} with ID: {deezer_id}")
-            smart = self.client.download_smart(url, output_folder, quality_download=quality_download, make_zip=make_zip)
-            logger.info(f"Successfully downloaded {content_type} - ID: {deezer_id}")
-            return smart
+            loop = asyncio.get_event_loop()
+            
+            # Run blocking deezloader call in thread pool with timeout
+            try:
+                smart = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        None,
+                        lambda: self.client.download_smart(url, output_folder, quality_download=quality_download, make_zip=make_zip)
+                    ),
+                    timeout=300.0  # 5 minute timeout for downloads
+                )
+                logger.info(f"Successfully downloaded {content_type} - ID: {deezer_id}")
+                return smart
+            except asyncio.TimeoutError:
+                logger.error(f"Timeout downloading {content_type} {deezer_id}")
+                return DownloadResult(False, error="Download timed out")
 
         except Exception as e:
             logger.error(f"Download error for URL {url}: {str(e)}", exc_info=True)
@@ -86,9 +101,11 @@ class DeezerService:
             logger.error(f"Error extracting info from URL {url}: {str(e)}", exc_info=True)
             return None, None
 
-    def get_deezer_info(self, content_type: str, deezer_id: int) -> Dict[str, Any]:
+    async def get_deezer_info(self, content_type: str, deezer_id: int) -> Dict[str, Any]:
         """Get information from Deezer API"""
-        try:
+        import asyncio
+        
+        def _fetch():
             url = f"https://api.deezer.com/{content_type}/{deezer_id}"
             response = requests.get(url)
             if response.status_code == 200:
@@ -97,7 +114,9 @@ class DeezerService:
                 error_msg = f"Failed to get Deezer info: HTTP {response.status_code}"
                 logger.error(error_msg)
                 raise Exception(error_msg)
-    
+        
+        try:
+            return await asyncio.to_thread(_fetch)
         except Exception as e:
             logger.error(f"Error getting Deezer info for {content_type} {deezer_id}: {str(e)}", exc_info=True)
             raise
@@ -129,7 +148,7 @@ class DeezerService:
                 return [deezer_id]
             
             elif content_type in ['album', 'playlist']:
-                info = self.get_deezer_info(content_type, deezer_id)
+                info = await self.get_deezer_info(content_type, deezer_id)
                 if "tracks" in info:
                     track_ids = [track['id'] for track in info['tracks']['data']]
                     logger.info(f"Retrieved {len(track_ids)} tracks from {content_type} {deezer_id}")
@@ -147,18 +166,37 @@ class DeezerService:
             logger.error(f"Error getting track list for {content_type} {deezer_id}: {str(e)}", exc_info=True)
             raise
     
-    def convert_to_deezer(self, url: str) -> Optional[str]:
-        """Convert Spotify URL to Deezer URL"""
-        if not self.client:
-            logger.error("Deezer client is not initialized. Cannot convert URL.")
-            return None
-
+    async def convert_to_deezer(self, url: str) -> Optional[str]:
+        """Convert Spotify URL to Deezer URL using SpotifyService (non-blocking)"""
+        import asyncio
+        from services.spotify_service import SpotifyService
+        
+        print(f"[DEBUG] convert_to_deezer: ENTER - url={url}")
+        
         try:
-            if 'track' in url:
-                return self.client.convert_spoty_to_dee_link_track(url)
-            elif 'album' in url:
-                return self.client.convert_spoty_to_dee_link_album(url)
-            return url
+            # Use SpotifyService instead of deezloader's blocking librespot
+            spotify_service = SpotifyService()
+            
+            print(f"[DEBUG] convert_to_deezer: using SpotifyService.convert_to_deezer_url")
+            
+            loop = asyncio.get_event_loop()
+            # Run in executor since spotipy uses requests which is blocking
+            result = await loop.run_in_executor(
+                None,
+                spotify_service.convert_to_deezer_url,
+                url
+            )
+            
+            print(f"[DEBUG] convert_to_deezer: result={result}")
+            
+            if result:
+                logger.info(f"Converted {url} to {result}")
+            else:
+                logger.warning(f"Could not convert {url} to Deezer URL")
+            
+            return result
+            
         except Exception as e:
+            print(f"[DEBUG] convert_to_deezer: EXCEPTION - {e}")
             logger.error(f"Error converting {url}: {str(e)}", exc_info=True)
-            raise
+            return None

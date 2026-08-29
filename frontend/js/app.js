@@ -111,6 +111,88 @@ function initializeApp() {
 
     // Load page from URL (for routing)
     loadPageFromUrl();
+
+    // Connect to WebSocket for real-time notifications
+    connectWebSocket();
+}
+
+// ==================== WebSocket Connection ====================
+
+let ws = null;
+
+function connectWebSocket() {
+    // Determine WebSocket URL (ws:// for http, wss:// for https)
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${API_BASE_URL.replace(/^https?:\/\//, '').replace(/\/api\/v1$/, '')}/ws`;
+
+    try {
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+            console.log('WebSocket connected');
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                handleWebSocketMessage(data);
+            } catch (e) {
+                console.error('Failed to parse WebSocket message:', e);
+            }
+        };
+
+        ws.onclose = () => {
+            console.log('WebSocket disconnected, reconnecting in 5s...');
+            setTimeout(connectWebSocket, 5000);
+        };
+
+        ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+    } catch (e) {
+        console.error('Failed to connect WebSocket:', e);
+    }
+}
+
+function handleWebSocketMessage(data) {
+    if (data.type === 'download_started') {
+        const title = data.title || 'Track';
+        const artist = data.artist || '';
+        showToast(`⏳ Downloading: ${artist ? artist + ' - ' : ''}${title}`, 'info');
+    } else if (data.type === 'download_completed') {
+        if (data.success) {
+            showToast('✅ Download completed!', 'success');
+        } else {
+            showToast(`❌ Download failed: ${data.error || 'Unknown error'}`, 'error');
+        }
+    }
+}
+
+// ==================== Toast Notifications ====================
+
+function showToast(message, type = 'info') {
+    // Remove existing toast if any
+    const existingToast = document.querySelector('.toast-notification');
+    if (existingToast) {
+        existingToast.remove();
+    }
+
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.className = `toast-notification toast-${type}`;
+    toast.textContent = message;
+
+    // Add to body
+    document.body.appendChild(toast);
+
+    // Trigger animation
+    setTimeout(() => toast.classList.add('show'), 10);
+
+    // Auto-remove after 4 seconds
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 4000);
 }
 
 // Load and display user info
@@ -207,15 +289,19 @@ function displaySearchResults(results, type) {
         return;
     }
 
+    // Store results globally for queue context
+    window.currentSearchResults = results;
+    window.currentSearchType = type;
+
     resultsContainer.innerHTML = '';
 
-    results.forEach(item => {
-        const card = createResultCard(item, type);
+    results.forEach((item, index) => {
+        const card = createResultCard(item, type, results, index);
         resultsContainer.appendChild(card);
     });
 }
 
-function createResultCard(item, type) {
+function createResultCard(item, type, trackList = null, index = 0) {
     const card = document.createElement('div');
     card.className = 'result-card';
 
@@ -226,9 +312,15 @@ function createResultCard(item, type) {
     const artistInfo = getArtistInfo(item);
     const albumInfo = getAlbumInfo(item);
 
+    // Add play button for tracks only
+    const playButton = type === 'track'
+        ? `<button class="track-play-btn" data-track-id="${item.id}" title="Stream"><i class="fas fa-play"></i></button>`
+        : '';
+
     card.innerHTML = `
-        <div class="cover">
+        <div class="cover" style="position: relative;">
             ${coverUrl ? `<img src="${coverUrl}" alt="${item.name}">` : '<i class="fas fa-music"></i>'}
+            ${playButton}
         </div>
         <div class="title">${item.name}</div>
         <div class="artist">
@@ -246,6 +338,17 @@ function createResultCard(item, type) {
 
     // Make the whole card clickable to go to detail page
     card.addEventListener('click', (e) => {
+        // If clicked on play button, stream the track
+        if (e.target.closest('.track-play-btn')) {
+            e.stopPropagation();
+            // Use context-aware play if we have a track list
+            if (trackList && trackList.length > 0) {
+                playTrackInContext(item, trackList, index);
+            } else {
+                playTrackFromItem(item);
+            }
+            return;
+        }
         // If clicked on a link, handle that instead
         if (e.target.classList.contains('clickable-link')) {
             e.stopPropagation();
@@ -366,15 +469,15 @@ function showTrackDetailPage(item) {
                     ${item.explicit ? `<span class="explicit-badge">E</span>` : ''}
                 </div>
                 <div class="detail-actions">
-                    <button onclick="downloadItem('${item.id}', 'track')" class="btn btn-primary">
+                    <button onclick="playTrackFromDetail()" class="btn btn-primary">
+                        <i class="fas fa-play"></i> Stream
+                    </button>
+                    <button onclick="downloadItem('${item.id}', 'track')" class="btn btn-secondary">
                         <i class="fas fa-download"></i> Download
                     </button>
                     <button onclick="addToPlaylistModal('${item.id}')" class="btn btn-secondary">
                         <i class="fas fa-plus"></i> Add to Playlist
                     </button>
-                    ${item.preview_url ? `<button onclick="playPreview('${item.preview_url}')" class="btn btn-secondary">
-                        <i class="fas fa-play"></i> Preview
-                    </button>` : ''}
                 </div>
             </div>
         </div>
@@ -443,11 +546,17 @@ async function loadSimilarTracks(trackId) {
             return;
         }
 
+        // Store similar tracks globally for queue context
+        window.currentSimilarTracks = similarTracks;
+
         container.innerHTML = similarTracks.map((track, index) => `
             <div class="track-item clickable" onclick="navigateToTrack('${track.id}')">
                 <div class="track-number">${index + 1}</div>
-                <div class="track-cover-mini">
+                <div class="track-cover-mini" style="position: relative;">
                     ${track.image ? `<img src="${track.image}" alt="${track.name}">` : '<i class="fas fa-music"></i>'}
+                    <button class="cover-play-btn" onclick="event.stopPropagation(); playSimilarTrack(${index})" title="Play">
+                        <i class="fas fa-play"></i>
+                    </button>
                 </div>
                 <div class="track-info">
                     <div class="track-name">${track.name}</div>
@@ -464,6 +573,14 @@ async function loadSimilarTracks(trackId) {
     } catch (error) {
         console.error('Failed to load similar tracks:', error);
         container.innerHTML = '<p class="placeholder-text">Could not load similar tracks</p>';
+    }
+}
+
+// Play track from similar tracks with context
+function playSimilarTrack(index) {
+    const tracks = window.currentSimilarTracks;
+    if (tracks && tracks[index]) {
+        playTrackInContext(tracks[index], tracks, index);
     }
 }
 
@@ -527,7 +644,11 @@ function showAlbumDetailPage(item) {
     }
 }
 
-function renderAlbumTracks(tracks) {
+function renderAlbumTracks(tracks, albumInfo = null) {
+    // Store album tracks globally for queue context
+    window.currentAlbumTracks = tracks;
+    window.currentAlbumInfo = albumInfo;
+
     return tracks.map((track, index) => `
         <div class="track-item clickable" onclick="navigateToTrack('${track.id}')">
             <div class="track-number">${track.track_number || index + 1}</div>
@@ -539,12 +660,23 @@ function renderAlbumTracks(tracks) {
             </div>
             <div class="track-duration">${track.duration || formatDuration(track.duration_ms)}</div>
             <div class="track-actions">
+                <button onclick="event.stopPropagation(); playAlbumTrack(${index})" title="Play" class="play-btn">
+                    <i class="fas fa-play"></i>
+                </button>
                 <button onclick="event.stopPropagation(); downloadItem('${track.id}', 'track')" title="Download">
                     <i class="fas fa-download"></i>
                 </button>
             </div>
         </div>
     `).join('');
+}
+
+// Play track from album with context
+function playAlbumTrack(index) {
+    const tracks = window.currentAlbumTracks;
+    if (tracks && tracks[index]) {
+        playTrackInContext(tracks[index], tracks, index);
+    }
 }
 
 async function showAlbumDetail(albumId) {
@@ -654,11 +786,17 @@ function showArtistDetailPage(item) {
 }
 
 function renderArtistTopTracks(tracks) {
+    // Store artist tracks globally for queue context
+    window.currentArtistTracks = tracks;
+
     return tracks.slice(0, 10).map((track, index) => `
         <div class="track-item clickable" onclick="navigateToTrack('${track.id}')">
             <div class="track-number">${index + 1}</div>
-            <div class="track-cover-mini">
+            <div class="track-cover-mini" style="position: relative;">
                 ${track.image ? `<img src="${track.image}" alt="${track.name}">` : '<i class="fas fa-music"></i>'}
+                <button class="cover-play-btn" onclick="event.stopPropagation(); playArtistTrack(${index})" title="Play">
+                    <i class="fas fa-play"></i>
+                </button>
             </div>
             <div class="track-info">
                 <div class="track-name">${track.name}</div>
@@ -674,6 +812,14 @@ function renderArtistTopTracks(tracks) {
             </div>
         </div>
     `).join('');
+}
+
+// Play track from artist with context
+function playArtistTrack(index) {
+    const tracks = window.currentArtistTracks;
+    if (tracks && tracks[index]) {
+        playTrackInContext(tracks[index], tracks, index);
+    }
 }
 
 function renderArtistAlbums(albums) {
@@ -993,3 +1139,446 @@ document.addEventListener('click', (e) => {
         e.target.classList.remove('active');
     }
 });
+
+// ==================== Audio Player ====================
+
+class AudioPlayer {
+    constructor() {
+        this.audio = document.getElementById('audio-element');
+        this.playerBar = document.getElementById('audio-player-bar');
+        this.playPauseBtn = document.getElementById('player-play-pause');
+        this.prevBtn = document.getElementById('player-prev');
+        this.nextBtn = document.getElementById('player-next');
+        this.seekSlider = document.getElementById('player-seek');
+        this.progressFill = document.getElementById('player-progress-fill');
+        this.currentTimeEl = document.getElementById('player-current-time');
+        this.durationEl = document.getElementById('player-duration');
+        this.volumeSlider = document.getElementById('player-volume');
+        this.muteBtn = document.getElementById('player-mute');
+        this.coverImg = document.getElementById('player-cover-img');
+        this.titleEl = document.getElementById('player-track-title');
+        this.artistEl = document.getElementById('player-track-artist');
+        this.trackInfoEl = document.querySelector('.player-track-info');
+
+        // Queue panel elements
+        this.queueBtn = document.getElementById('player-queue-btn');
+        this.queuePanel = document.getElementById('queue-panel');
+        this.queueCloseBtn = document.getElementById('queue-close-btn');
+        this.queueList = document.getElementById('queue-list');
+
+        this.currentTrack = null;
+        this.isPlaying = false;
+        this.previousVolume = 0.8;
+
+        // Playback queue system
+        this.queue = [];
+        this.queueIndex = -1;
+
+        this.init();
+    }
+
+    init() {
+        if (!this.audio || !this.playerBar) {
+            console.warn('Audio player elements not found');
+            return;
+        }
+
+        // Play/Pause button
+        this.playPauseBtn?.addEventListener('click', () => this.togglePlayPause());
+
+        // Prev/Next buttons
+        this.prevBtn?.addEventListener('click', () => this.playPrevious());
+        this.nextBtn?.addEventListener('click', () => this.playNext());
+
+        // Track info click - navigate to track detail
+        this.trackInfoEl?.addEventListener('click', () => this.navigateToCurrentTrack());
+
+        // Queue panel toggle
+        this.queueBtn?.addEventListener('click', () => this.toggleQueue());
+        this.queueCloseBtn?.addEventListener('click', () => this.hideQueue());
+
+        // Seek slider
+        this.seekSlider?.addEventListener('input', (e) => {
+            const percent = e.target.value;
+            const time = (percent / 100) * this.audio.duration;
+            if (!isNaN(time)) {
+                this.audio.currentTime = time;
+            }
+        });
+
+        // Volume slider
+        this.volumeSlider?.addEventListener('input', (e) => {
+            const volume = e.target.value / 100;
+            this.audio.volume = volume;
+            this.updateVolumeIcon(volume);
+            this.updateVolumeSliderTrack(volume);
+        });
+
+        // Mute button
+        this.muteBtn?.addEventListener('click', () => this.toggleMute());
+
+        // Audio events
+        this.audio.addEventListener('timeupdate', () => this.updateProgress());
+        this.audio.addEventListener('loadedmetadata', () => this.updateDuration());
+        this.audio.addEventListener('play', () => this.onPlay());
+        this.audio.addEventListener('pause', () => this.onPause());
+        this.audio.addEventListener('ended', () => this.onEnded());
+        this.audio.addEventListener('error', (e) => this.onError(e));
+
+        // Set initial volume
+        this.audio.volume = 0.8;
+        this.updateVolumeSliderTrack(0.8);
+    }
+
+    async play(trackId, title, artist, coverUrl, quality = 'MP3_320') {
+        try {
+            const streamUrl = getStreamUrl(trackId, quality);
+
+            this.currentTrack = { trackId, title, artist, coverUrl, quality };
+
+            // Update UI with loading state
+            this.titleEl.textContent = title || 'Unknown Title';
+            this.artistEl.textContent = 'Loading...';
+
+            // Add loading class for visual feedback
+            this.playerBar.classList.add('loading');
+
+            if (coverUrl) {
+                this.coverImg.src = coverUrl;
+                this.coverImg.style.display = 'block';
+            } else {
+                this.coverImg.src = '';
+                this.coverImg.style.display = 'none';
+            }
+
+            // Show player bar
+            this.show();
+
+            // Reset seek slider
+            if (this.seekSlider) {
+                this.seekSlider.value = 0;
+            }
+
+            // Load the audio source
+            this.audio.src = streamUrl;
+
+            // Wait for audio to be ready (handles on-demand download wait)
+            await new Promise((resolve, reject) => {
+                const onCanPlay = () => {
+                    this.audio.removeEventListener('canplay', onCanPlay);
+                    this.audio.removeEventListener('error', onError);
+                    resolve();
+                };
+                const onError = (e) => {
+                    this.audio.removeEventListener('canplay', onCanPlay);
+                    this.audio.removeEventListener('error', onError);
+                    reject(e);
+                };
+                this.audio.addEventListener('canplay', onCanPlay);
+                this.audio.addEventListener('error', onError);
+                this.audio.load();
+            });
+
+            // Remove loading state
+            this.playerBar.classList.remove('loading');
+            this.artistEl.textContent = artist || 'Unknown Artist';
+
+            // Play
+            await this.audio.play();
+
+            showToast(`Now playing: ${title}`, 'success');
+        } catch (error) {
+            console.error('Failed to play track:', error);
+            this.playerBar.classList.remove('loading');
+            this.artistEl.textContent = artist || 'Unknown Artist';
+            showToast('Failed to play track. It may not be available for streaming.', 'error');
+        }
+    }
+
+    togglePlayPause() {
+        if (this.isPlaying) {
+            this.audio.pause();
+        } else {
+            this.audio.play();
+        }
+    }
+
+    toggleMute() {
+        if (this.audio.volume > 0) {
+            this.previousVolume = this.audio.volume;
+            this.audio.volume = 0;
+            this.volumeSlider.value = 0;
+        } else {
+            this.audio.volume = this.previousVolume;
+            this.volumeSlider.value = this.previousVolume * 100;
+        }
+        this.updateVolumeIcon(this.audio.volume);
+        this.updateVolumeSliderTrack(this.audio.volume);
+    }
+
+    updateProgress() {
+        if (!isNaN(this.audio.duration)) {
+            const percent = (this.audio.currentTime / this.audio.duration) * 100;
+            this.seekSlider.value = percent;
+            this.progressFill.style.width = `${percent}%`;
+            this.currentTimeEl.textContent = this.formatTime(this.audio.currentTime);
+        }
+    }
+
+    updateDuration() {
+        if (!isNaN(this.audio.duration)) {
+            this.durationEl.textContent = this.formatTime(this.audio.duration);
+        }
+    }
+
+    updateVolumeIcon(volume) {
+        const icon = this.muteBtn?.querySelector('i');
+        if (!icon) return;
+
+        if (volume === 0) {
+            icon.className = 'fas fa-volume-mute';
+        } else if (volume < 0.5) {
+            icon.className = 'fas fa-volume-down';
+        } else {
+            icon.className = 'fas fa-volume-up';
+        }
+    }
+
+    updateVolumeSliderTrack(volume) {
+        if (this.volumeSlider) {
+            this.volumeSlider.style.setProperty('--volume-percent', `${volume * 100}%`);
+        }
+    }
+
+    onPlay() {
+        this.isPlaying = true;
+        const icon = this.playPauseBtn?.querySelector('i');
+        if (icon) icon.className = 'fas fa-pause';
+    }
+
+    onPause() {
+        this.isPlaying = false;
+        const icon = this.playPauseBtn?.querySelector('i');
+        if (icon) icon.className = 'fas fa-play';
+    }
+
+    onEnded() {
+        this.isPlaying = false;
+        const icon = this.playPauseBtn?.querySelector('i');
+        if (icon) icon.className = 'fas fa-play';
+        this.seekSlider.value = 0;
+        this.progressFill.style.width = '0%';
+
+        // Auto-play next track if queue has more
+        if (this.queueIndex < this.queue.length - 1) {
+            this.playNext();
+        }
+    }
+
+    onError(e) {
+        console.error('Audio playback error:', e);
+        showToast('Playback error. Track may not be available.', 'error');
+    }
+
+    show() {
+        this.playerBar?.classList.remove('hidden');
+        document.querySelector('.main-content')?.classList.add('player-visible');
+    }
+
+    hide() {
+        this.playerBar?.classList.add('hidden');
+        document.querySelector('.main-content')?.classList.remove('player-visible');
+    }
+
+    formatTime(seconds) {
+        if (isNaN(seconds)) return '0:00';
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // ==================== Queue Methods ====================
+
+    setQueue(tracks, startIndex = 0) {
+        // Set playback queue with array of track objects
+        // Each track should have: id, name, artists/main_artist, album/image
+        this.queue = tracks;
+        this.queueIndex = startIndex;
+    }
+
+    playInContext(track, trackList, index) {
+        // Play a track within a context (album, playlist, search results)
+        this.setQueue(trackList, index);
+        const coverUrl = track.album?.images?.[0]?.url || track.image || track.cover_url || '';
+        const artist = track.main_artist || track.artists?.[0]?.name || '';
+        this.play(track.id, track.name, artist, coverUrl);
+    }
+
+    playNext() {
+        if (this.queue.length === 0) {
+            showToast('No queue available', 'info');
+            return;
+        }
+
+        if (this.queueIndex < this.queue.length - 1) {
+            this.queueIndex++;
+            const track = this.queue[this.queueIndex];
+            const coverUrl = track.album?.images?.[0]?.url || track.image || track.cover_url || '';
+            const artist = track.main_artist || track.artists?.[0]?.name || '';
+            this.play(track.id, track.name, artist, coverUrl);
+        } else {
+            showToast('End of queue', 'info');
+        }
+    }
+
+    playPrevious() {
+        if (this.queue.length === 0) {
+            // If no queue, just restart current track
+            if (this.audio.currentTime > 3) {
+                this.audio.currentTime = 0;
+            }
+            return;
+        }
+
+        // If more than 3 seconds in, restart current track
+        if (this.audio.currentTime > 3) {
+            this.audio.currentTime = 0;
+            return;
+        }
+
+        if (this.queueIndex > 0) {
+            this.queueIndex--;
+            const track = this.queue[this.queueIndex];
+            const coverUrl = track.album?.images?.[0]?.url || track.image || track.cover_url || '';
+            const artist = track.main_artist || track.artists?.[0]?.name || '';
+            this.play(track.id, track.name, artist, coverUrl);
+        }
+    }
+
+    navigateToCurrentTrack() {
+        if (this.currentTrack?.trackId) {
+            navigateToTrack(this.currentTrack.trackId);
+        }
+    }
+
+    updateVolumeSliderTrack(volume) {
+        // Update volume slider visual fill
+        if (this.volumeSlider) {
+            const percent = volume * 100;
+            this.volumeSlider.style.setProperty('--volume-percent', `${percent}%`);
+        }
+    }
+
+    // ==================== Queue Panel Methods ====================
+
+    toggleQueue() {
+        if (this.queuePanel?.classList.contains('show')) {
+            this.hideQueue();
+        } else {
+            this.showQueue();
+        }
+    }
+
+    showQueue() {
+        if (this.queuePanel) {
+            this.renderQueue();
+            this.queuePanel.classList.remove('hidden');
+            // Trigger reflow for animation
+            this.queuePanel.offsetHeight;
+            this.queuePanel.classList.add('show');
+        }
+    }
+
+    hideQueue() {
+        if (this.queuePanel) {
+            this.queuePanel.classList.remove('show');
+            setTimeout(() => {
+                this.queuePanel.classList.add('hidden');
+            }, 300);
+        }
+    }
+
+    renderQueue() {
+        if (!this.queueList) return;
+
+        if (this.queue.length === 0) {
+            this.queueList.innerHTML = '<p class="placeholder-text">No tracks in queue</p>';
+            return;
+        }
+
+        this.queueList.innerHTML = this.queue.map((track, index) => {
+            const artist = track.main_artist || track.artists?.[0]?.name || track.artist || '';
+            const isActive = index === this.queueIndex;
+            return `
+                <div class="queue-item ${isActive ? 'active' : ''}" onclick="audioPlayer.playFromQueue(${index})">
+                    <div class="queue-item-number">${isActive ? '<i class="fas fa-volume-up"></i>' : index + 1}</div>
+                    <div class="queue-item-info">
+                        <div class="queue-item-title">${track.name}</div>
+                        <div class="queue-item-artist">${artist}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    playFromQueue(index) {
+        if (this.queue[index]) {
+            this.queueIndex = index;
+            const track = this.queue[index];
+            const coverUrl = track.album?.images?.[0]?.url || track.image || track.cover_url || '';
+            const artist = track.main_artist || track.artists?.[0]?.name || '';
+            this.play(track.id, track.name, artist, coverUrl);
+            this.renderQueue(); // Re-render to update active state
+        }
+    }
+}
+
+// Global audio player instance
+let audioPlayer = null;
+
+// Initialize audio player when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    audioPlayer = new AudioPlayer();
+});
+
+// Global function to play a track
+function playTrack(trackId, title, artist, coverUrl, quality) {
+    if (!audioPlayer) {
+        audioPlayer = new AudioPlayer();
+    }
+    // Get quality from settings if not specified
+    const selectedQuality = quality || document.getElementById('setting-quality')?.value || 'MP3_320';
+    audioPlayer.play(trackId, title, artist, coverUrl, selectedQuality);
+}
+
+// Play track from search result or detail page (single track, no queue)
+function playTrackFromItem(item) {
+    if (!audioPlayer) {
+        audioPlayer = new AudioPlayer();
+    }
+    // Clear queue for single play
+    audioPlayer.queue = [];
+    audioPlayer.queueIndex = -1;
+
+    const coverUrl = item.album?.images?.[0]?.url || item.image || item.cover_url || '';
+    const artist = getArtistName(item);
+    playTrack(item.id, item.name, artist, coverUrl);
+}
+
+// Play track with context (album, playlist, search results)
+function playTrackInContext(track, trackList, index) {
+    if (!audioPlayer) {
+        audioPlayer = new AudioPlayer();
+    }
+    audioPlayer.playInContext(track, trackList, index);
+}
+
+// Play track from detail page (uses stored currentDetailItem)
+function playTrackFromDetail() {
+    const item = window.currentDetailItem;
+    if (item) {
+        playTrackFromItem(item);
+    } else {
+        showToast('No track selected', 'error');
+    }
+}

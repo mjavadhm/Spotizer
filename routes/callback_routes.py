@@ -366,12 +366,21 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
                 await callback_query.answer("Invalid content type")
                 return
 
-            await callback_query.message.answer_photo(
-                photo=item_info['image'],
-                caption=text,
-                reply_markup=keyboard,
-                parse_mode="Markdown"
-            )
+            image_url = item_info.get('image')
+            if image_url:
+                await callback_query.message.answer_photo(
+                    photo=image_url,
+                    caption=text,
+                    reply_markup=keyboard,
+                    parse_mode="Markdown"
+                )
+            else:
+                await callback_query.message.answer(
+                    text=text,
+                    reply_markup=keyboard,
+                    parse_mode="Markdown",
+                    disable_web_page_preview=True
+                )
             await callback_query.answer()
             
         except Exception as e:
@@ -450,13 +459,17 @@ def setup_callback_routes(dp: Router, user_controller: UserController, download_
             except Exception as e:
                 logger.warning(f"Failed to send status message: {str(e)}")
             
-            # Check if item_id is numeric (Deezer ID) or string (Spotify ID)
-            if item_id.isdigit():
-                target_url = f"https://www.deezer.com/{content_type}/{item_id}"
-                logger.info(f"Detected Deezer ID {item_id}, using URL: {target_url}")
+            # Generate target URL based on content type and YouTube Music ID
+            if content_type == 'track':
+                target_url = f"https://music.youtube.com/watch?v={item_id}"
+            elif content_type == 'album':
+                target_url = f"https://music.youtube.com/browse/{item_id}"
+            elif content_type == 'playlist':
+                target_url = f"https://music.youtube.com/playlist?list={item_id}"
             else:
-                target_url = f"https://open.spotify.com/{content_type}/{item_id}"
-                logger.info(f"Detected Spotify ID {item_id}, using URL: {target_url}")
+                target_url = f"https://music.youtube.com/channel/{item_id}"
+            
+            logger.info(f"Generated YTMusic URL for download: {target_url}")
 
             success, result = await download_controller.process_download_request(
                 user_id=user_id,

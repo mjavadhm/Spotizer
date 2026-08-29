@@ -73,36 +73,21 @@ class MusicView:
         """Format track information"""
         artists = ", ".join([artist['name'] for artist in track['artists']])
         
-        info = [
-            f"🎵 *{track['name']}*\n",
-            f"👤 Artist: {artists}\n",
-            f"💿 Album: {track['album']['name']}\n",
-            f"⏱ Duration: {track['duration']}",
-            f"📅 Release: {track['album']['release_date']}"
-        ]
-        text = f"""🎵 *Track:* [{track['name']}]({track['url']})
-
-👤 *Artist:* {track['main_artist']}
-
-💿 *Album:* {track['album']['name']}
-
-📅 *Released:* {track['album']['release_date']}
-
-⏱ *Duration:* {track['duration']}
-
-🔥 *Popularity:* {track['popularity']}/100
-
-🔞 *Explicit:* {'Yes' if track['explicit'] else 'No'}"""
+        text = f"🎵 *Track:* [{track['name']}]({track['url']})\n\n"
+        text += f"👤 *Artist:* {track['main_artist']}\n\n"
+        
+        if track['album'].get('name') and track['album']['name'] != 'Unknown':
+            text += f"💿 *Album:* {track['album']['name']}\n\n"
+            
+        if track['album'].get('release_date') and track['album']['release_date'] != 'Unknown':
+            text += f"📅 *Released:* {track['album']['release_date']}\n\n"
+            
+        text += f"⏱ *Duration:* {track['duration']}\n\n"
+        text += f"🔥 *Popularity:* {track['popularity']}/100\n\n"
+        text += f"🔞 *Explicit:* {'Yes' if track['explicit'] else 'No'}"
         
         if 'audio_features' in track:
             features = track['audio_features']
-            info.extend([
-                f"\n🎼 *Audio Features:*",
-                f"💃 Danceability: {features['danceability']}",
-                f"⚡️ Energy: {features['energy']}",
-                f"🎹 Key: {features['key']}",
-                f"⏰ Tempo: {int(features['tempo'])} BPM"
-            ])
             text += f"""
 🎛 *Audio Features:*
 • Danceability: {features['danceability']:.2f}
@@ -111,7 +96,6 @@ class MusicView:
 • Key: {features['key']}
 • Time Signature: {features['time_signature']}/4"""
         
-        # return "\n".join(info)
         return text
 
     @staticmethod
@@ -121,15 +105,36 @@ class MusicView:
             [InlineKeyboardButton(
                 text="⬇️ Download",
                 callback_data=f"download:track:{track['id']}"
-            )],
-            [InlineKeyboardButton(
+            )]
+        ]
+        
+        artist_id = track['artists'][0].get('id')
+        album_id = track['album'].get('id')
+        
+        if album_id:
+            buttons.append([InlineKeyboardButton(
+                text=f"⬅️ Back to Album",
+                callback_data=f"select:album:{album_id}"
+            )])
+        elif artist_id:
+            buttons.append([InlineKeyboardButton(
+                text=f"⬅️ Back to Artist",
+                callback_data=f"select:artist:{artist_id}"
+            )])
+            
+        if artist_id:
+            buttons.append([InlineKeyboardButton(
                 text=f"🎨 Artist:{track['main_artist']}",
-                callback_data=f"select:artist:{track['artists'][0]['id']}"
-            )],
-            [InlineKeyboardButton(
+                callback_data=f"select:artist:{artist_id}"
+            )])
+            
+        if album_id:
+            buttons.append([InlineKeyboardButton(
                 text=f"📀 Album:{track['album']['name']}",
-                callback_data=f"select:album:{track['album']['id']}"
-            )],
+                callback_data=f"select:album:{album_id}"
+            )])
+            
+        buttons.extend([
             [InlineKeyboardButton(
                 text="➕ Add to Playlist",
                 callback_data=f"playlist:add:get_playlist:{track['id']}"
@@ -138,7 +143,7 @@ class MusicView:
                 text="❌",
                 callback_data="delete"
             )]
-        ]
+        ])
         return InlineKeyboardMarkup(inline_keyboard=buttons)
 
     @staticmethod
@@ -166,16 +171,25 @@ class MusicView:
             [InlineKeyboardButton(
                 text="📋 View Tracks",
                 callback_data=f"view:album:track:{album['id']}:1"
-            )],
-            [InlineKeyboardButton(
+            )]
+        ]
+        
+        artist_id = album['artists'][0].get('id')
+        if artist_id:
+            buttons.append([InlineKeyboardButton(
+                text=f"⬅️ Back to Artist",
+                callback_data=f"select:artist:{artist_id}"
+            )])
+            buttons.append([InlineKeyboardButton(
                 text=f"🎨 Artist:{album['main_artist']}",
-                callback_data=f"select:artist:{album['artists'][0]['id']}"
-            )],
-            [InlineKeyboardButton(
+                callback_data=f"select:artist:{artist_id}"
+            )])
+            
+        buttons.append([InlineKeyboardButton(
                 text="❌",
                 callback_data="delete"
             )]
-        ]
+        )
         return InlineKeyboardMarkup(inline_keyboard=buttons)
 
     @staticmethod
@@ -216,9 +230,15 @@ class MusicView:
         """Format artist information"""
         genres_text = ", ".join(artist['genres']) if hasattr(artist, 'genres') else "N/A"
         
+        followers = artist.get('followers', 'Unknown')
+        if isinstance(followers, (int, float)):
+            followers_text = f"{followers:,}"
+        else:
+            followers_text = str(followers)
+            
         info = [
             f"🎨 *Artist:* [{artist['name']}]({artist['url']})\n",
-            f"👥 *Followers:* {artist['followers']:,}\n",
+            f"👥 *Followers:* {followers_text}\n",
             f"🔥 *Popularity:* {artist['popularity']}/100\n",
             f"🎭 *Genres:* {genres_text}"
         ]
@@ -342,8 +362,9 @@ class MusicView:
         select_acrion = action
         if action == 'top_tracks':
             select_acrion = 'track'
-        for item in items:
-            if i < (page-1)*8 :
+            
+        for i, item in enumerate(items):
+            if i < (page-1)*8:
                 continue
             if action == 'related':
                 button_text = f"{item['name']}"
@@ -352,9 +373,9 @@ class MusicView:
             
             callback_data = f"select:{select_acrion}:{item['id']}"
             buttons.append([InlineKeyboardButton(text=button_text, callback_data=callback_data)])
-            i+=1
-            if i > (page)*8:
+            if i >= (page)*8 - 1:
                 break
+                
         remaining_items = len(items) - (page)*8
         nav_buttons = []
         if page > 1:
@@ -364,6 +385,13 @@ class MusicView:
                     callback_data=f"view:{content_type}:{action}:{spoid}:{page-1}"
                 )
             )
+            
+        nav_buttons.append(
+            InlineKeyboardButton(
+                text="⬆️ Back",
+                callback_data=f"select:{content_type}:{spoid}"
+            )
+        )
         
         nav_buttons.append(
             InlineKeyboardButton(

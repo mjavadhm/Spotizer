@@ -1,36 +1,16 @@
 import os
 import re
-import logging
 import requests
-from typing import Optional, Tuple, Dict, Any, List
 from dataclasses import dataclass
+from typing import Optional, Tuple, Dict, Any, List, Union
 
-from ..config import settings
+from deezloader.deezloader import DeeLogin
+from deezloader.models.smart import Smart
 
-logger = logging.getLogger(__name__)
+from ..utils.file_handler import FileHandler
+from ..logger import get_logger
 
-# Lazy initialization of deezer downloader
-_deedownload = None
-
-
-def get_deedownload():
-    """Get or initialize the Deezer downloader"""
-    global _deedownload
-    if _deedownload is None:
-        try:
-            from deezloader.deezloader import DeeLogin
-            arl = settings.DEEZER_ARL
-            if arl:
-                _deedownload = DeeLogin(arl=arl)
-                logger.info("DeezerService: DeeLogin initialized")
-            else:
-                logger.warning("DeezerService: No ARL token provided")
-        except ImportError:
-            logger.warning("DeezerService: deezloader not installed")
-        except Exception as e:
-            logger.error(f"DeezerService: Failed to initialize DeeLogin: {e}")
-    return _deedownload
-
+logger = get_logger(__name__)
 
 @dataclass
 class DownloadResult:
@@ -39,204 +19,224 @@ class DownloadResult:
     file_path: Optional[str] = None
     error: Optional[str] = None
 
-
 class DeezerService:
     def __init__(self):
+        self.file_handler = FileHandler()
+        self.client: Optional[DeeLogin] = None
+        self._initialize_client()
         logger.info("DeezerService initialized")
+
+    def _initialize_client(self):
+        """Initialize the Deezer client with ARL from environment."""
+        arl = os.getenv('DEEZER_ARL')
+        if not arl:
+            logger.error("DEEZER_ARL environment variable is not set.")
+            return
+
+        try:
+            self.client = DeeLogin(arl=arl)
+            logger.info("Deezer client initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize Deezer client: {str(e)}", exc_info=True)
+
+    async def download(self, url: str, output_folder="downloads", quality_download: str = 'MP3_320', make_zip: bool = False) -> Union[Smart, DownloadResult, bool]:
+        """Download track/album/playlist from Deezer"""
+        import asyncio
+        
+        if not self.client:
+            logger.error("Deezer client is not initialized. Cannot download.")
+            return DownloadResult(False, error="Deezer client not initialized")
+
+        try:
+            logger.info(f"Starting download - URL: {url}, Quality: {quality_download}, Make ZIP: {make_zip}")
+            content_type, deezer_id = self.extract_info_from_url(url)
+            
+            if not content_type or not deezer_id:
+                logger.error(f"Invalid Deezer URL provided: {url}")
+                return DownloadResult(False, error="Invalid Deezer URL")
+
+            logger.info(f"Downloading {content_type} with ID: {deezer_id}")
+            loop = asyncio.get_event_loop()
+            
+            # Run blocking deezloader call in thread pool with timeout
+            try:
+                smart = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        None,
+                        lambda: self.client.download_smart(url, output_folder, quality_download=quality_download, make_zip=make_zip)
+                    ),
+                    timeout=300.0  # 5 minute timeout for downloads
+                )
+                logger.info(f"Successfully downloaded {content_type} - ID: {deezer_id}")
+                return smart
+            except asyncio.TimeoutError:
+                logger.error(f"Timeout downloading {content_type} {deezer_id}")
+                return DownloadResult(False, error="Download timed out")
+
+        except Exception as e:
+            logger.error(f"Download error for URL {url}: {str(e)}", exc_info=True)
+            return False
 
     def extract_info_from_url(self, url: str) -> Tuple[Optional[str], Optional[int]]:
         """Extract content type and ID from Deezer URL"""
         try:
+            # logger.info(f"Extracting info from URL: {url}")
             patterns = {
                 'track': r'deezer\.com(?:\/[a-z]{2})?\/track\/(\d+)',
                 'album': r'deezer\.com(?:\/[a-z]{2})?\/album\/(\d+)',
                 'playlist': r'deezer\.com(?:\/[a-z]{2})?\/playlist\/(\d+)'
             }
-
+            
             for content_type, pattern in patterns.items():
                 match = re.search(pattern, url)
                 if match:
                     deezer_id = int(match.group(1))
                     logger.info(f"Extracted {content_type} with ID: {deezer_id}")
                     return content_type, deezer_id
-
+                    
             logger.error(f"No matching pattern found for URL: {url}")
             return None, None
-
+            
         except Exception as e:
-            logger.error(f"Error extracting info from URL {url}: {str(e)}")
+            logger.error(f"Error extracting info from URL {url}: {str(e)}", exc_info=True)
             return None, None
 
-    def get_deezer_info(self, content_type: str, deezer_id: int) -> Dict[str, Any]:
+    async def get_deezer_info(self, content_type: str, deezer_id: int) -> Dict[str, Any]:
         """Get information from Deezer API"""
-        try:
+        import asyncio
+        
+        def _fetch():
             url = f"https://api.deezer.com/{content_type}/{deezer_id}"
             response = requests.get(url)
             if response.status_code == 200:
                 return response.json()
             else:
-                raise Exception(f"Failed to get Deezer info: HTTP {response.status_code}")
-
+                error_msg = f"Failed to get Deezer info: HTTP {response.status_code}"
+                logger.error(error_msg)
+                raise Exception(error_msg)
+        
+        try:
+            return await asyncio.to_thread(_fetch)
         except Exception as e:
-            logger.error(f"Error getting Deezer info: {str(e)}")
+            logger.error(f"Error getting Deezer info for {content_type} {deezer_id}: {str(e)}", exc_info=True)
             raise
 
-    async def get_track_info(self, track_id: int) -> Optional[Dict[str, Any]]:
-        """Get track information from Deezer"""
-        try:
-            info = self.get_deezer_info('track', track_id)
-            return {
-                'id': info['id'],
-                'title': info['title'],
-                'artist': info['artist']['name'],
-                'album': info['album']['title'],
-                'duration': info['duration'],
-                'preview': info.get('preview'),
-                'cover': info['album'].get('cover_medium')
+    async def search(self, query: str, limit: int = 1) -> List[Dict[str, Any]]:
+        """Search Deezer API"""
+        import asyncio
+        
+        def _search():
+            url = "https://api.deezer.com/search"
+            params = {
+                'q': query,
+                'limit': limit,
+                'order': 'RANKING'
             }
-        except Exception as e:
-            logger.error(f"Error getting track info: {str(e)}")
-            return None
-
-    async def get_album_info(self, album_id: int) -> Optional[Dict[str, Any]]:
-        """Get album information from Deezer"""
-        try:
-            info = self.get_deezer_info('album', album_id)
-            return {
-                'id': info['id'],
-                'title': info['title'],
-                'artist': info['artist']['name'],
-                'cover': info.get('cover_medium'),
-                'nb_tracks': info['nb_tracks'],
-                'release_date': info.get('release_date'),
-                'tracks': [
-                    {
-                        'id': track['id'],
-                        'title': track['title'],
-                        'duration': track['duration']
-                    }
-                    for track in info.get('tracks', {}).get('data', [])
-                ]
-            }
-        except Exception as e:
-            logger.error(f"Error getting album info: {str(e)}")
-            return None
-
-    async def get_playlist_info(self, playlist_id: int) -> Optional[Dict[str, Any]]:
-        """Get playlist information from Deezer"""
-        try:
-            info = self.get_deezer_info('playlist', playlist_id)
-            return {
-                'id': info['id'],
-                'title': info['title'],
-                'creator': info['creator']['name'],
-                'picture': info.get('picture_medium'),
-                'nb_tracks': info['nb_tracks'],
-                'tracks': [
-                    {
-                        'id': track['id'],
-                        'title': track['title'],
-                        'artist': track['artist']['name'],
-                        'duration': track['duration']
-                    }
-                    for track in info.get('tracks', {}).get('data', [])
-                ]
-            }
-        except Exception as e:
-            logger.error(f"Error getting playlist info: {str(e)}")
-            return None
-
-    async def get_track_list(self, content_type: str, deezer_id: int) -> List[int]:
-        """Get list of track IDs from album or playlist"""
-        try:
-            if content_type == 'track':
-                return [deezer_id]
-
-            elif content_type in ['album', 'playlist']:
-                info = self.get_deezer_info(content_type, deezer_id)
-                if "tracks" in info:
-                    track_ids = [track['id'] for track in info['tracks']['data']]
-                    logger.info(f"Retrieved {len(track_ids)} tracks from {content_type}")
-                    return track_ids
-                else:
-                    raise ValueError(f"Error in getting track list: {content_type} {deezer_id}")
-            else:
-                raise ValueError(f"Invalid content type: {content_type}")
-
-        except Exception as e:
-            logger.error(f"Error getting track list: {str(e)}")
-            raise
-
-    def convert_spotify_to_deezer(self, spotify_url: str) -> Optional[str]:
-        """Convert Spotify URL to Deezer URL"""
-        try:
-            deedownload = get_deedownload()
-            if not deedownload:
-                logger.error("DeeLogin not available")
-                return None
-
-            if 'track' in spotify_url:
-                return deedownload.convert_spoty_to_dee_link_track(spotify_url)
-            elif 'album' in spotify_url:
-                return deedownload.convert_spoty_to_dee_link_album(spotify_url)
-            else:
-                logger.error(f"Unsupported Spotify URL type: {spotify_url}")
-                return None
-
-        except Exception as e:
-            logger.error(f"Error converting Spotify URL: {str(e)}")
-            return None
-
-    async def download(
-        self,
-        url: str,
-        output_folder: str = "downloads",
-        quality: str = "MP3_320",
-        make_zip: bool = False
-    ):
-        """Download track/album/playlist from Deezer"""
-        try:
-            deedownload = get_deedownload()
-            if not deedownload:
-                return DownloadResult(success=False, error="DeeLogin not available")
-
-            content_type, deezer_id = self.extract_info_from_url(url)
-            if not content_type or not deezer_id:
-                return DownloadResult(success=False, error="Invalid Deezer URL")
-
-            logger.info(f"Downloading {content_type} with ID: {deezer_id}")
-            smart = deedownload.download_smart(
-                url,
-                output_folder,
-                quality_download=quality,
-                make_zip=make_zip
-            )
-            logger.info(f"Successfully downloaded {content_type}")
-            return smart
-
-        except Exception as e:
-            logger.error(f"Download error: {str(e)}")
-            return DownloadResult(success=False, error=str(e))
-
-    def search_deezer(self, query: str, search_type: str = "track") -> List[Dict[str, Any]]:
-        """Search on Deezer"""
-        try:
-            response = requests.get(
-                f"https://api.deezer.com/search/{search_type}",
-                params={'q': query}
-            )
+            response = requests.get(url, params=params)
+            
             if response.status_code == 200:
                 data = response.json()
                 return data.get('data', [])
-            return []
+            else:
+                logger.error(f"Failed to search Deezer: HTTP {response.status_code}")
+                return []
+        
+        try:
+            return await asyncio.to_thread(_search)
         except Exception as e:
-            logger.error(f"Error searching Deezer: {str(e)}")
+            logger.error(f"Error searching Deezer for '{query}': {str(e)}", exc_info=True)
             return []
+    
+    async def create_zip(self, file_path: str, title: str) -> Optional[str]:
+        """Create ZIP archive for album/playlist"""
+        try:
+            logger.info(f"Creating ZIP archive for: {title}")
+            success, zip_path = self.file_handler.create_zip_archive([file_path], f"{title}.zip")
+            
+            if success:
+                logger.info(f"Successfully created ZIP archive: {zip_path}")
+                return zip_path
+            else:
+                logger.error(f"Failed to create ZIP archive for: {title}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error creating ZIP archive for {title}: {str(e)}", exc_info=True)
+            return None
+    
+    async def get_track_list(self, content_type: str, deezer_id: int) -> List[int]:
+        """Get list of track IDs from album or playlist"""
+        try:
+            logger.info(f"Getting track list for {content_type} {deezer_id}")
+            
+            if content_type == 'track':
+                logger.info(f"Single track requested: {deezer_id}")
+                return [deezer_id]
+            
+            elif content_type in ['album', 'playlist']:
+                info = await self.get_deezer_info(content_type, deezer_id)
+                if "tracks" in info:
+                    track_ids = [track['id'] for track in info['tracks']['data']]
+                    logger.info(f"Retrieved {len(track_ids)} tracks from {content_type} {deezer_id}")
+                    return track_ids
+                else:
+                    error_msg = f"Error in getting track list: {content_type} {deezer_id}"
+                    logger.error(error_msg)
+                    raise ValueError(error_msg)
+            else:
+                error_msg = f"Invalid content type: {content_type}"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
+                
+        except Exception as e:
+            logger.error(f"Error getting track list for {content_type} {deezer_id}: {str(e)}", exc_info=True)
+            raise
+    
+    async def convert_to_deezer(self, url: str) -> Optional[str]:
+        """Convert Spotify URL to Deezer URL"""
+        import asyncio
+        
+        # print(f"[DEBUG] convert_to_deezer: ENTER - url={url}")
+        
+        if not self.client:
+            logger.error("Deezer client is not initialized. Cannot convert.")
+            return None
 
+        try:
+            # Use deezloader's built-in conversion
+            # print(f"[DEBUG] convert_to_deezer: using self.client.convert_spoty_to_dee_link_track")
+            
+            loop = asyncio.get_event_loop()
+            
+            # Helper function to call the appropriate blocking conversion method
+            def _convert():
+                if 'track' in url:
+                    return self.client.convert_spoty_to_dee_link_track(url)
+                elif 'album' in url:
+                    return self.client.convert_spoty_to_dee_link_album(url)
+                elif 'playlist' in url:
+                    return self.client.convert_spoty_to_dee_link_playlist(url)
+                else:
+                    return None
+
+            result = await loop.run_in_executor(None, _convert)
+            
+            # print(f"[DEBUG] convert_to_deezer: result={result}")
+            
+            if result:
+                logger.info(f"Converted {url} to {result}")
+            else:
+                logger.warning(f"Could not convert {url} to Deezer URL")
+            
+            return result
+            
+        except Exception as e:
+            # print(f"[DEBUG] convert_to_deezer: EXCEPTION - {e}")
+            logger.error(f"Error converting {url}: {str(e)}", exc_info=True)
+            return None
 
 # Singleton instance
 _deezer_service: Optional[DeezerService] = None
-
 
 def get_deezer_service() -> DeezerService:
     global _deezer_service

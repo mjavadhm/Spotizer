@@ -27,5 +27,8 @@ httpx>=0.26.0
 # Environment
 python-dotenv>=1.0.0
 
+# Telegram Client
+telethon
+
 # Deezer downloader (optional - install separately)
 # deezloader

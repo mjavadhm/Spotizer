@@ -162,3 +162,14 @@ async function updateSettings(settings) {
         body: JSON.stringify(settings)
     });
 }
+
+// Streaming API
+function getStreamUrl(trackId, quality = 'MP3_320') {
+    // Returns the direct streaming URL for the audio player
+    return apiUrl(`/stream/${trackId}?quality=${encodeURIComponent(quality)}`);
+}
+
+function getStreamDownloadUrl(trackId, quality = 'MP3_320') {
+    return apiUrl(`/stream/download/${trackId}?quality=${encodeURIComponent(quality)}`);
+}
+
